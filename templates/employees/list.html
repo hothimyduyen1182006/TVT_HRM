@@ -6,6 +6,7 @@
 <section class="employee-page">
   <div class="employee-heading"><div><p class="eyebrow">NHÂN SỰ</p><h1>QUẢN LÝ NHÂN VIÊN</h1></div>{% if can_manage %}<a class="employee-button" href="{% url 'employee_create' %}">＋ Thêm mới</a>{% endif %}</div>
   <form class="employee-filters" method="get">
+    {% if dashboard_filter.active_as_of.value or dashboard_filter.gender.value or dashboard_filter.errors %}<div>{{ dashboard_filter.as_p }}<a href="{% url 'employees' %}">Bỏ lọc từ Dashboard</a></div>{% endif %}
     <label>Họ tên / Mã NV<input type="search" name="q" value="{{ filters.q }}" placeholder="Nhập mã NV hoặc họ tên"></label>
     <label>Phòng ban<select name="department"><option value="">Tất cả phòng ban</option>{% for department in departments %}<option value="{{ department.pk }}" {% if filters.department == department.pk|stringformat:'s' %}selected{% endif %}>{{ department.name }}</option>{% endfor %}</select></label>
     <label>Chức vụ<select name="position"><option value="">Tất cả chức vụ</option>{% for position in positions %}<option value="{{ position.pk }}" {% if filters.position == position.pk|stringformat:'s' %}selected{% endif %}>{{ position.name }}</option>{% endfor %}</select></label>

@@ -34,6 +34,17 @@ def record_list(request):
         if data['q']:
             employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
         period = AttendancePeriod.objects.filter(year=data['year'], month=data['month']).first()
+        if data.get('day'):
+            employees = employees.filter(is_active=True, hire_date__lte=data['day'])
+            checked = AttendanceRecord.objects.filter(date=data['day'], check_in__isnull=False)
+            if data['day_state'] == 'unchecked':
+                employees = employees.exclude(pk__in=checked.values('employee_id'))
+            elif data['day_state'] in ['ontime', 'late']:
+                if period:
+                    checked = checked.filter(check_in__lte=period.start_time) if data['day_state'] == 'ontime' else checked.filter(check_in__gt=period.start_time)
+                    employees = employees.filter(pk__in=checked.values('employee_id'))
+                else:
+                    employees = employees.none()
         rows = month_summary(employees, data['year'], data['month'], period)
         if data['review']:
             rows = [row for row in rows if row['state'] == data['review']]

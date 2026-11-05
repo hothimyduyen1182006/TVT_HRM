@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from .views import dashboard
+from .views import dashboard, departments
 from django.contrib.auth.forms import AuthenticationForm
 from django.conf import settings
 from django.conf.urls.static import static
@@ -41,6 +41,7 @@ class TVTLoginView(auth_views.LoginView):
 
 urlpatterns = [
     path('', dashboard, name='dashboard'),
+    path('departments/', departments, name='departments'),
     path('employees/', employee_views.employee_list, name='employees'),
     path('employees/me/', employee_views.personal_profile, name='personal_profile'),
     path('employees/new/', employee_views.employee_create, name='employee_create'),

@@ -6,6 +6,9 @@ from django.contrib.auth import get_user_model
 
 
 class AttendanceFilter(PeriodFilter):
+    day = forms.DateField(label='Ngày chấm công', required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+    day_state = forms.ChoiceField(label='Chấm công trong ngày', required=False,
+        choices=[('', 'Tất cả'), ('ontime', 'Đúng giờ'), ('late', 'Đi trễ'), ('unchecked', 'Chưa check-in')])
     q = forms.CharField(label='Từ khóa (Họ tên)', required=False, max_length=150,
                         widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ hoặc tên...'}))
     review = forms.ChoiceField(label='Trạng thái', required=False, choices=[('', 'Tất cả'),
@@ -16,6 +19,14 @@ class AttendanceFilter(PeriodFilter):
         self.fields['month'].widget = forms.Select(choices=[(n, f'Tháng {n:02}') for n in range(1, 13)])
         self.fields['year'].widget = forms.Select(choices=[(n, f'Năm {n}') for n in range(2000, 2101)])
         self.fields['department'].empty_label = 'Tất cả'
+
+    def clean(self):
+        data = super().clean()
+        if data.get('day_state') and not data.get('day'):
+            raise forms.ValidationError('Cần chọn ngày chấm công.')
+        if data.get('day') and (data['day'].month != data.get('month') or data['day'].year != data.get('year')):
+            raise forms.ValidationError('Ngày chấm công phải thuộc tháng/năm đã chọn.')
+        return data
 
 
 class DailyFilter(AttendanceFilter):

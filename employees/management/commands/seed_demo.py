@@ -37,11 +37,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--year', type=int, default=2026)
+        parser.add_argument('--month', type=int, choices=range(1, 13), help='Chỉ tạo một tháng cụ thể.')
+        parser.add_argument('--reuse-users', action='store_true', help='Giữ tài khoản demo và mật khẩu khi chưa có dữ liệu nhân viên.')
         parser.add_argument('--password', help='Mật khẩu chỉ dành cho tài khoản demo mới; bỏ trống để sinh ngẫu nhiên.')
 
     @transaction.atomic
     def handle(self, *args, **options):
         year = options['year']
+        months = [options['month']] if options.get('month') else [9, 10, 11]
+        reuse_users = options.get('reuse_users', False)
         if not 2001 <= year <= 2099:
             raise CommandError('Year must be between 2001 and 2099.')
         codes = [f'DEMO-NV{index:02}' for index in range(1, len(PEOPLE) + 1)]
@@ -49,15 +53,15 @@ class Command(BaseCommand):
         User = get_user_model()
         if (Employee.objects.filter(code__in=codes).count() == len(codes)
                 and User.objects.filter(username__in=usernames).count() == len(usernames)
-                and AttendancePeriod.objects.filter(year=year, month__in=[9, 10, 11]).count() == 3):
+                and AttendancePeriod.objects.filter(year=year, month__in=months).count() == len(months)):
             self.stdout.write('Demo already exists. No data or passwords were changed.')
             return
         if Employee.objects.exists():
             raise CommandError('Employees already exist. Demo seeding requires an empty employee database; nothing changed.')
-        if User.objects.filter(username__in=usernames).exists() or Department.objects.filter(code__startswith='DEMO-').exists():
+        if (not reuse_users and User.objects.filter(username__in=usernames).exists()) or Department.objects.filter(code__startswith='DEMO-').exists():
             raise CommandError('Demo account/department names already exist; nothing changed.')
-        if (AttendancePeriod.objects.filter(year=year, month__in=[9, 10, 11]).exists()
-                or WorkCalendarDay.objects.filter(date__year=year, date__month__in=[9, 10, 11]).exists()):
+        if (AttendancePeriod.objects.filter(year=year, month__in=months).exists()
+                or WorkCalendarDay.objects.filter(date__year=year, date__month__in=months).exists()):
             raise CommandError('Target periods/calendar already exist; nothing changed.')
         password = options.get('password') or secrets.token_urlsafe(12)
         if len(password) < 12:
@@ -66,8 +70,10 @@ class Command(BaseCommand):
         for index, (username, name, code, department, salary, role) in enumerate(PEOPLE, 1):
             if code not in departments:
                 departments[code] = Department.objects.create(code='DEMO-' + code, name=f'Phòng {department} (DEMO)')
-            user = User.objects.create_user(username=username, password=password,
-                                            first_name='DEMO', last_name=name.replace(' (DEMO)', ''))
+            user = User.objects.filter(username=username).first() if reuse_users else None
+            if user is None:
+                user = User.objects.create_user(username=username, password=password,
+                                                first_name='DEMO', last_name=name.replace(' (DEMO)', ''))
             user.groups.add(Group.objects.get_or_create(name=role)[0])
             users[username] = user
             employee = Employee(code=f'DEMO-NV{index:02}', full_name=name, user=user, department=departments[code],
@@ -78,7 +84,7 @@ class Command(BaseCommand):
         departments['SX'].manager = employees[1]
         departments['SX'].save(update_fields=['manager'])
         hr, director = users['demo_hr'], users['demo_director']
-        for month in [9, 10, 11]:
+        for month in months:
             period = AttendancePeriod(year=year, month=month, start_time=time(8), lunch_start=time(12),
                 lunch_end=time(13), end_time=time(17), standard_hours=Decimal(8), policy_confirmed=True)
             period.full_clean()
@@ -158,11 +164,13 @@ class Command(BaseCommand):
             if month == 11:
                 change_period(director, period.pk, 'reopen',
                               'DEMO: chuẩn bị kỳ công chờ duyệt để người dùng thử duyệt và tính lại lương')
-        self.stdout.write(self.style.SUCCESS('Created 8 DEMO employees and payroll periods: 09 approved, 10 paid (simulated), 11 pending.'))
+        self.stdout.write(self.style.SUCCESS('Created 8 DEMO employees. Periods: ' + ', '.join(f'{month:02}/{year}' for month in months)))
         self.stdout.write(f'Year: {year}. Empty-period example: 12/{year}.')
-        self.stdout.write('Attendance 11 is reopened for approval practice; approve attendance then recalculate payroll 11.')
+        if 11 in months:
+            self.stdout.write('Attendance 11 is reopened for approval practice; approve attendance then recalculate payroll 11.')
         self.stdout.write('New demo accounts (same generated password): ' + ', '.join(usernames))
-        self.stdout.write('DEMO PASSWORD: ' + password)
+        if not reuse_users:
+            self.stdout.write('DEMO PASSWORD: ' + password)
         self.stdout.write('Existing users and passwords were not changed. Demo users are NOT staff/superusers.')
 
     def leave(self, employee, day, units, paid):

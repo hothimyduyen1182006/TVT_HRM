@@ -1,0 +1,14 @@
+{% extends 'base.html' %}{% load static %}
+{% block title %}Phòng ban · TVT{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/departments.css' %}?v=1">{% endblock %}
+{% block content %}<section class="dp-page">
+<a class="dp-back" href="{% url 'dashboard' %}?date={{ selected_day|date:'Y-m-d' }}">‹ &nbsp; Quay lại Dashboard</a>
+<header class="dp-heading"><div><p class="dp-eyebrow">CƠ CẤU TỔ CHỨC</p><h1>Phòng ban</h1><p class="dp-description">Theo dõi nhân sự tại các phòng ban trong phạm vi quản lý.</p></div>
+<form method="get" class="dp-filter"><div>{{ form.date.label_tag }}{{ form.date }}</div><button type="submit">Xem dữ liệu</button></form></header>
+{% if form.errors %}<div class="dp-errors" role="alert">{{ form.errors }}</div>{% else %}
+<article class="dp-card"><div class="dp-card-heading"><div><h2>Danh sách phòng ban <span class="dp-count">{{ department_count }}</span></h2><p>Dữ liệu ngày {{ selected_day|date:'d/m/Y' }}</p></div><div class="dp-total"><strong>{{ total_employees }}</strong><span>nhân viên đang hoạt động</span></div></div>
+<div class="dp-table-scroll"><table><thead><tr><th scope="col">Phòng ban</th><th scope="col" class="dp-center">Nhân viên đang hoạt động</th><th scope="col" class="dp-right">Thao tác</th></tr></thead><tbody>
+{% for department in departments %}<tr><td><div class="dp-department"><span class="dp-department-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V3h14v18M3 21h18M9 7h1m4 0h1M9 11h1m4 0h1M9 15h1m4 0h1M10 21v-3h4v3"/></svg></span><strong>{{ department.department__name }}</strong></div></td><td class="dp-center"><span class="dp-people">{{ department.total }} <small>nhân viên</small></span></td><td class="dp-right"><a class="dp-action" href="{% url 'employees' %}?active_as_of={{ selected_day|date:'Y-m-d' }}&amp;department={{ department.department_id }}" aria-label="Xem nhân viên {{ department.department__name }}">Xem nhân viên <span aria-hidden="true">→</span></a></td></tr>
+{% empty %}<tr><td colspan="3" class="dp-empty">Chưa có phòng ban có nhân viên trong phạm vi quyền của bạn.</td></tr>{% endfor %}
+</tbody></table></div><footer class="dp-footer">Hiển thị {{ department_count }} phòng ban · Chọn “Xem nhân viên” để mở danh sách tương ứng.</footer></article>
+{% endif %}</section>{% endblock %}

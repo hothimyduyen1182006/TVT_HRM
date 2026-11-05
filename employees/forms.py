@@ -7,6 +7,13 @@ from django.db import transaction
 from .models import Education, Employee, LaborContract
 
 
+class DashboardEmployeeFilter(forms.Form):
+    active_as_of = forms.DateField(label='Nhân viên đang hoạt động đến ngày', required=False,
+                                   widget=forms.DateInput(attrs={'type': 'date'}))
+    gender = forms.ChoiceField(label='Giới tính', required=False,
+        choices=[('', 'Tất cả'), ('Nam', 'Nam'), ('Nữ', 'Nữ'), ('unknown', 'Chưa cập nhật')])
+
+
 User = get_user_model()
 
 

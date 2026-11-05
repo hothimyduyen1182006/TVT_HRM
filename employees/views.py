@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 
 from .access import DIRECTOR, HR, MANAGER, has_role, visible_employees
-from .forms import EducationForm, EmployeeForm, LaborContractForm
+from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter
 from .models import Education, Employee, LaborContract
 
 
@@ -22,6 +22,18 @@ def employee_list(request):
     if not has_role(request.user, *DIRECTORY_ROLES):
         return _forbidden(request)
     rows = visible_employees(request.user)
+    dashboard_filter = DashboardEmployeeFilter(request.GET)
+    if dashboard_filter.is_valid():
+        selected_day = dashboard_filter.cleaned_data['active_as_of']
+        if selected_day:
+            rows = rows.filter(is_active=True, hire_date__lte=selected_day)
+        gender = dashboard_filter.cleaned_data['gender']
+        if gender == 'unknown':
+            rows = rows.exclude(gender__in=['Nam', 'Nữ'])
+        elif gender:
+            rows = rows.filter(gender=gender)
+    else:
+        rows = rows.none()
     filters = {
         'q': request.GET.get('q', '').strip()[:100],
         'department': request.GET.get('department', '').strip(),
@@ -48,10 +60,11 @@ def employee_list(request):
 
     departments = rows.model.department.field.remote_field.model.objects.all()
     if has_role(request.user, MANAGER) and not has_role(request.user, HR, DIRECTOR):
-        departments = departments.filter(managed_departments__user=request.user)
+        departments = departments.filter(manager__user=request.user)
     positions = rows.model.position.field.remote_field.model.objects.select_related('department')
     positions = positions.filter(department__in=departments)
     return render(request, 'employees/list.html', {
+        'dashboard_filter': dashboard_filter,
         'rows': rows.select_related('department', 'position', 'user'),
         'filters': filters,
         'departments': departments.distinct(),
