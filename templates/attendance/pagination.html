@@ -1,0 +1,4 @@
+{% if page_obj.has_other_pages %}<nav class="at-pagination" aria-label="Phân trang">
+{% if page_obj.has_previous %}<a href="?{{ page_query }}&page=1" aria-label="Trang đầu">«</a><a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
+{% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{{ page_query }}&page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}
+{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}" aria-label="Trang sau">›</a><a href="?{{ page_query }}&page={{ page_obj.paginator.num_pages }}" aria-label="Trang cuối">»</a>{% endif %}</nav>{% endif %}

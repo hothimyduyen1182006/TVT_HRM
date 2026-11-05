@@ -1,0 +1,22 @@
+<nav class="at-nav" aria-label="Điều hướng chính">
+  <a class="at-brand" href="{% url 'dashboard' %}" aria-label="TVT trang chủ">
+    <svg viewBox="0 0 76 68" aria-hidden="true"><path fill="currentColor" d="M3 26 38 3 73 26v39H3z"/><path fill="#12324a" d="M14 32h48v6H44v22h-8V38H14zm0 10h8l8 18h-8z"/></svg>
+    <span><small>SINCE 2012</small><b>WOOD &amp;<br>INTERIOR</b></span>
+  </a>
+  <div class="at-navlinks">
+    <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active" aria-current="page"{% endif %}>DASHBOARD</a>
+    <a href="{% url 'employees' %}" {% if request.resolver_match.url_name == 'employees' or '/admin/employees/' in request.path %}class="active" aria-current="page"{% endif %}>NHÂN VIÊN</a>
+    <a href="{% url 'attendance:list' %}" {% if request.resolver_match.namespace == 'attendance' or '/admin/attendance/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG CÔNG</a>
+    {% if user.is_superuser %}<a href="{% url 'admin:bonuses_bonus_changelist' %}" {% if '/admin/bonuses/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
+    <a href="{% url 'payroll:list' %}" {% if request.resolver_match.namespace == 'payroll' or '/admin/payroll/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG LƯƠNG</a>
+    {% if user.is_superuser %}<a href="{% url 'admin:leaves_leaveday_changelist' %}" {% if '/admin/leaves/' in request.path %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>{% endif %}
+  </div>
+  {% if user.is_authenticated %}
+  <details class="at-account">
+    <summary aria-label="Tài khoản">◎ <span>{{ user.get_username }}</span></summary>
+    <div><span>{{ user.get_username }}</span><a class="at-admin-link" href="{% url 'personal_profile' %}">Hồ sơ cá nhân</a>{% if user.is_superuser %}<a class="at-admin-link" href="{% url 'admin:index' %}">Quản trị hệ thống</a>{% endif %}
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Đăng xuất</button></form>
+    </div>
+  </details>
+  {% else %}<a class="at-login-link" href="{% url 'login' %}">Đăng nhập</a>{% endif %}
+</nav>

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Quản lý nhân viên{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}">{% endblock %}
+{% block content %}
+<section class="employee-page">
+  <div class="employee-heading"><div><p class="eyebrow">NHÂN SỰ</p><h1>QUẢN LÝ NHÂN VIÊN</h1></div>{% if can_manage %}<a class="employee-button" href="{% url 'employee_create' %}">＋ Thêm mới</a>{% endif %}</div>
+  <form class="employee-filters" method="get">
+    <label>Họ tên / Mã NV<input type="search" name="q" value="{{ filters.q }}" placeholder="Nhập mã NV hoặc họ tên"></label>
+    <label>Phòng ban<select name="department"><option value="">Tất cả phòng ban</option>{% for department in departments %}<option value="{{ department.pk }}" {% if filters.department == department.pk|stringformat:'s' %}selected{% endif %}>{{ department.name }}</option>{% endfor %}</select></label>
+    <label>Chức vụ<select name="position"><option value="">Tất cả chức vụ</option>{% for position in positions %}<option value="{{ position.pk }}" {% if filters.position == position.pk|stringformat:'s' %}selected{% endif %}>{{ position.name }}</option>{% endfor %}</select></label>
+    <label>Tình trạng làm việc<select name="status"><option value="">Tất cả trạng thái</option>{% for value,label in status_choices %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Ngày bắt đầu<input type="date" name="hire_from" value="{{ filters.hire_from }}"></label>
+    <label>Ngày kết thúc<input type="date" name="hire_to" value="{{ filters.hire_to }}"></label>
+    <div class="filter-actions"><button class="employee-button" type="submit">⌕ Lọc</button><a class="employee-button secondary" href="{% url 'employees' %}">Đặt lại</a></div>
+  </form>
+  <div class="employee-list-meta"><span>Tổng cộng: <strong>{{ rows|length }}</strong> nhân viên</span>{% if filters.q or filters.department or filters.position or filters.status or filters.hire_from or filters.hire_to %}<span class="filter-note">Kết quả theo điều kiện lọc</span>{% endif %}</div>
+  {% if rows %}
+  <div class="employee-table-wrap"><table class="employee-table"><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Phòng ban</th><th>Chức vụ</th><th>Ngày bắt đầu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+    {% for row in rows %}<tr><td><strong>{{ row.code }}</strong></td><td>{{ row.full_name }}</td><td>{{ row.department.name }}</td><td>{{ row.position|default:'—' }}</td><td>{{ row.hire_date|date:'d/m/Y' }}</td><td><span class="status-pill {% if row.employment_status == 'Đang làm việc' %}active{% elif row.employment_status == 'Tạm nghỉ' %}paused{% else %}inactive{% endif %}">{{ row.employment_status }}</span></td><td><a class="row-action" href="{% url 'employee_detail' row.pk %}" aria-label="Xem hồ sơ">◉</a>{% if can_manage %}<a class="row-action" href="{% url 'employee_edit' row.pk %}" aria-label="Sửa hồ sơ">✎</a>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="employee-empty"><span class="empty-icon">!</span><strong>Không tìm thấy người dùng</strong><p>Hãy kiểm tra lại điều kiện tìm kiếm hoặc bộ lọc.</p></div>{% endif %}
+</section>
+{% endblock %}

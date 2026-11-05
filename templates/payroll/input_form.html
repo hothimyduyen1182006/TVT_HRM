@@ -1,0 +1,39 @@
+{% extends 'payroll/base.html' %}{% load payroll_display %}
+{% block title %}{{ title }} · TVT{% endblock %}
+{% block payroll_content %}
+<p><a class="pr-back" href="{% url 'payroll:inputs' %}?{{ back_query }}">‹ Quay lại dữ liệu theo kỳ lương</a></p>
+<div class="pr-input-editor"><h1>{{ title }}</h1>
+{% if locked %}<div class="pr-input-notice">Phiếu lương đã duyệt hoặc đã chi trả. Dữ liệu được khóa; cần mở lại theo quy trình để điều chỉnh.</div>
+<div class="pr-edit-section"><p><strong>Kỳ:</strong> {{ input_object.period }} · <strong>Nhân viên:</strong> {{ input_object.employee }}</p>
+{% if kind == 'tax' %}<p><strong>Lương đóng bảo hiểm:</strong> {{ input_object.insurance_base|money }} VNĐ</p>
+<p><strong>Tỷ lệ:</strong> {% for item in form.rate_formset.initial %}{{ item.name }} {{ item.percent|units }}%{% if not forloop.last %} · {% endif %}{% empty %}Không áp dụng theo căn cứ{% endfor %}</p>
+<p><strong>Căn cứ bảo hiểm:</strong> {{ input_object.insurance_basis }}</p><p><strong>Thuế TNCN:</strong> {{ input_object.tax_amount|money }} VNĐ</p><p><strong>Căn cứ thuế:</strong> {{ input_object.tax_basis }}</p><p><strong>Đã kiểm tra:</strong> {{ input_object.verified|yesno:'Có,Chưa' }}</p>
+{% else %}<p><strong>Tên khoản:</strong> {{ input_object.name }}</p><p><strong>Loại:</strong> {{ input_object.get_kind_display }}</p><p><strong>Số tiền:</strong> {{ input_object.amount|money }} VNĐ</p><p><strong>Căn cứ:</strong> {{ input_object.basis }}</p><p><strong>Đã duyệt:</strong> {{ input_object.approved|yesno:'Có,Chưa' }}</p>{% endif %}</div>
+{% else %}<p class="pr-muted">Nhập đúng nhân viên và kỳ áp dụng. Số tiền dùng đơn vị VNĐ.</p>
+<form method="post" id="pr-input-form">{% csrf_token %}{{ form.non_field_errors }}
+ <div class="pr-edit-grid">{% include 'payroll/input_field.html' with field=form.period %}{% include 'payroll/input_field.html' with field=form.employee %}</div>
+ {% if kind == 'tax' %}
+ <section class="pr-edit-section"><h2>1. Bảo hiểm người lao động đóng</h2>
+ {% include 'payroll/input_field.html' with field=form.insurance_base %}
+ <p class="pr-muted">Nhập tỷ lệ theo phần trăm, ví dụ 8 nghĩa là 8%. Chỉ nhập các loại và tỷ lệ thực sự áp dụng trong kỳ.</p>
+ {{ form.rate_formset.management_form }}{{ form.rate_formset.non_form_errors }}
+ <div class="pr-table-scroll"><table class="pr-rates-table"><thead><tr><th>Loại bảo hiểm</th><th>Tỷ lệ (%)</th><th>Loại bỏ</th></tr></thead><tbody id="pr-insurance-rows">
+ {% for rate in form.rate_formset %}<tr>{{ rate.non_field_errors }}<td>{{ rate.name }}{{ rate.name.errors }}</td><td>{{ rate.percent }}{{ rate.percent.errors }}</td><td>{{ rate.DELETE }}</td></tr>{% endfor %}
+ </tbody></table></div>
+ <button class="pr-button pr-secondary" type="button" data-add-insurance>＋ Thêm loại bảo hiểm</button>
+ <template id="pr-insurance-empty"><tr><td>{{ form.rate_formset.empty_form.name }}</td><td>{{ form.rate_formset.empty_form.percent }}</td><td>{{ form.rate_formset.empty_form.DELETE }}</td></tr></template>
+ <p class="pr-input-hint">Nếu không tham gia bảo hiểm: đánh dấu loại bỏ các dòng đang có, để trống dòng mới, nhập lương đóng BH bằng 0 và ghi rõ căn cứ không áp dụng.</p>
+ {% include 'payroll/input_field.html' with field=form.insurance_basis %}
+ </section>
+ <section class="pr-edit-section"><h2>2. Thuế thu nhập cá nhân</h2>
+ {% include 'payroll/input_field.html' with field=form.tax_amount %}{% include 'payroll/input_field.html' with field=form.tax_basis %}
+ </section>
+ <div class="pr-confirm-input">{{ form.verified }}{{ form.verified.label_tag }}{{ form.verified.errors }}<p>Chỉ dữ liệu đã kiểm tra mới được sử dụng khi tính lương.</p></div>
+ {% else %}
+ <section class="pr-edit-section"><h2>Thông tin khoản áp dụng</h2><div class="pr-edit-grid">{% include 'payroll/input_field.html' with field=form.name %}{% include 'payroll/input_field.html' with field=form.kind %}</div>
+ {% include 'payroll/input_field.html' with field=form.amount %}{% include 'payroll/input_field.html' with field=form.basis %}
+ <div class="pr-confirm-input">{{ form.approved }}{{ form.approved.label_tag }}{{ form.approved.errors }}<p>Khoản chưa duyệt được lưu để theo dõi, chưa cộng hoặc trừ vào lương.</p></div></section>
+ {% endif %}
+ <div class="pr-actions"><button class="pr-button" type="submit">Lưu dữ liệu</button><a class="pr-button pr-secondary" href="{% url 'payroll:inputs' %}?{{ back_query }}">Hủy</a></div>
+</form>{% endif %}</div>
+{% endblock %}

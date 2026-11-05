@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% load static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'attendance/attendance.css' %}">{% endblock %}
+{% block content %}<div class="attendance-shell">{% block attendance_content %}{% endblock %}</div>{% endblock %}

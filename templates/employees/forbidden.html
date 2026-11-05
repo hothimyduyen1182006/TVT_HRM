@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Không có quyền truy cập{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}">{% endblock %}
+{% block content %}<section class="employee-page"><div class="employee-empty"><span class="empty-icon">!</span><strong>Không có quyền truy cập</strong><p>Tài khoản của bạn không được phép xem hoặc thực hiện thao tác này.</p><a class="employee-button secondary" href="{% url 'dashboard' %}">Quay về trang chủ</a></div></section>{% endblock %}

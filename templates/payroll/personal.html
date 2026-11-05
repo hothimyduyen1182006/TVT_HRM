@@ -1,0 +1,56 @@
+{% extends 'payroll/base.html' %}{% load payroll_display %}
+{% block title %}Phiếu lương cá nhân · TVT{% endblock %}
+{% block payroll_content %}
+<div class="pr-personal-heading pr-no-print">
+ <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
+ <form class="pr-period-form" method="get" action="{% if personal %}{% url 'payroll:personal' %}{% else %}{% url 'payroll:list' %}{% endif %}">
+  <label class="pr-sr-only" for="id_month">Tháng</label>{{ form.month }}<label class="pr-sr-only" for="id_year">Năm</label>{{ form.year }}<button class="pr-button">Xem</button>
+ </form>
+</div>
+{% if form.errors %}<div class="pr-errors pr-no-print">{{ form.errors }}</div>{% endif %}
+{% if not personal %}<p class="pr-no-print"><a class="pr-back" href="{% url 'payroll:list' %}?month={{ form.month.value }}&year={{ form.year.value }}">‹ Quay lại bảng lương chính</a></p>{% endif %}
+{% if row %}
+<article class="pr-slip" id="payroll-slip" aria-label="Phiếu thanh toán lương">
+ <header class="pr-slip-header">
+  <div class="pr-slip-period"><p>PHIẾU THANH TOÁN LƯƠNG</p><h2>THÁNG {{ month_label }}/{{ year_label }}</h2></div>
+  <div class="pr-slip-employee"><h3>{{ row.employee_name }}</h3><p>Mã NV: {{ row.employee_code }} <span>|</span> {{ row.department_name }}</p>
+   <p class="pr-attendance-meta">Công chuẩn: {{ row.standard_units|units }} <span>|</span> Thực tế: {{ metrics.actual|units }} <span>|</span> Phép: {{ row.leave_units|units }} <span>|</span> Không phép: {{ metrics.absent|default_if_none:'—' }}</p>
+  </div>
+ </header>
+ {% if row.status == 'pending' %}<p class="pr-draft">Bản chờ duyệt — số liệu chưa được phê duyệt, chưa chi trả.</p>{% endif %}
+ <div class="pr-slip-columns">
+  <section class="pr-income"><h3>↗ &nbsp;KHOẢN THU NHẬP</h3>
+   <dl class="pr-line"><dt>Lương cơ bản (Hợp đồng)</dt><dd>{{ row.base_salary|money }}</dd></dl>
+   <dl class="pr-line"><dt>Lương theo ngày công <span>({{ row.paid_units|units }}/{{ row.standard_units|units }} công)</span></dt><dd>{{ row.attendance_pay|money }}</dd></dl>
+   <dl class="pr-line"><dt>Lương tăng ca <span>({{ row.ot_hours|units }} giờ)</span></dt><dd>{{ row.ot_pay|money }}</dd></dl>
+   <dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.bonus_pay|money }}</dd></dl>
+   {% if row.allowance %}<dl class="pr-line"><dt>Phụ cấp được hưởng</dt><dd>{{ row.allowance|money }}</dd></dl>{% endif %}
+   <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ income_total|money }} đ</dd></dl>
+  </section>
+  <section class="pr-deductions"><h3>↘ &nbsp;KHOẢN KHẤU TRỪ</h3>
+   <dl class="pr-line"><dt>Phạt đi trễ <span>({% if metrics.late_count != None %}{{ metrics.late_count }} lần / {% endif %}{{ row.late_minutes }} phút)</span><small>Chưa có khoản phạt tách riêng; không tự tính thêm.</small></dt><dd>—</dd></dl>
+   {% for item in insurance_lines %}<dl class="pr-line"><dt>{{ item.name }}{% if item.percent != None %} <span>({{ item.percent|units }}%)</span>{% endif %}</dt><dd>− {{ item.amount|money }}</dd></dl>{% empty %}<dl class="pr-line"><dt>Bảo hiểm <span>(tổng đã lưu)</span></dt><dd>{% if row.insurance %}− {% endif %}{{ row.insurance|money }}</dd></dl>{% endfor %}
+   <dl class="pr-line"><dt>Thuế TNCN</dt><dd>{% if row.tax %}− {% endif %}{{ row.tax|money }}</dd></dl>
+   <dl class="pr-line"><dt>Khấu trừ khác đã duyệt</dt><dd>{% if row.deductions %}− {% endif %}{{ row.deductions|money }}</dd></dl>
+   <dl class="pr-total"><dt>TỔNG KHẤU TRỪ</dt><dd>{% if deductions_total %}− {% endif %}{{ deductions_total|money }} đ</dd></dl>
+  </section>
+ </div>
+ <div class="pr-net"><div><h3>THỰC LĨNH (NET SALARY)</h3><p>{{ payment_label }}</p></div><strong>{{ row.net_pay|money }} VNĐ</strong></div>
+ <div class="pr-print-control pr-no-print"><button class="pr-print-button" type="button" data-print-payslip>▧ &nbsp; In phiếu lương</button></div>
+</article>
+<details class="pr-source-details pr-no-print"><summary>Chi tiết nguồn và căn cứ tính lương</summary>
+ <p>Căn cứ thuế: {{ row.breakdown.tax_basis }}</p><p>Căn cứ bảo hiểm: {{ row.breakdown.insurance_basis }}</p>
+ {% for item in adjustments %}<p>{{ item.name }} · {{ item.amount|money }} · {{ item.basis }}</p>{% endfor %}
+ {% for item in row.breakdown.bonuses %}<p>Thưởng: {{ item.name }} · {{ item.amount|money }}</p>{% endfor %}
+ <p>Giờ OT được duyệt: {{ row.ot_hours|units }}. Số tiền thực lĩnh lấy từ kết quả đã lưu. Lương cơ bản là thông tin tham chiếu, không cộng thêm lần nữa vào tổng thu nhập.</p>
+ {% if metrics.actual == None %}<p>Chưa có số công thực tế/nghỉ không phép khớp phiên bản công đã dùng tính lương; các chỉ số này hiển thị “—”.</p>{% endif %}
+</details>
+{% else %}
+<article class="pr-slip pr-empty-slip">
+ <div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU PHIẾU LƯƠNG</h2>
+ {% if form.is_valid %}<p>Chưa có phiếu lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Vui lòng chọn kỳ lương khác hoặc quay lại kiểm tra sau.</p>{% else %}<p>Vui lòng kiểm tra tháng và năm đã chọn.</p>{% endif %}
+ <div class="pr-empty-info">{% if requires_approval %}Phiếu lương chỉ hiển thị sau khi bảng lương của kỳ đã được duyệt.{% else %}Phiếu lương sẽ hiển thị khi kỳ được chọn có dữ liệu lương của bạn.{% endif %}</div>
+ </div>
+</article>
+{% endif %}
+{% endblock %}

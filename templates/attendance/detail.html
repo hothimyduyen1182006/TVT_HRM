@@ -1,0 +1,12 @@
+{% extends 'attendance/base.html' %}{% block attendance_content %}
+<div class="at-breadcrumb"><a href="{% url 'attendance:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">‹ Chi tiết chấm công tháng {{ row.date.month }}/{{ row.date.year }}</a></div>
+<div class="card p-4"><h1 class="h3">{{ row.employee }} · {{ row.date|date:'d/m/Y' }}</h1>
+<dl class="row"><dt class="col-sm-4">Giờ vào / ra</dt><dd class="col-sm-8">{{ row.check_in|default:'—' }} / {{ row.check_out|default:'—' }}</dd>
+<dt class="col-sm-4">Trạng thái</dt><dd class="col-sm-8">{{ row.get_status_display }}</dd>
+<dt class="col-sm-4">Giờ làm / phút muộn</dt><dd class="col-sm-8">{{ row.work_hours }} / {{ row.late_minutes }}</dd>
+<dt class="col-sm-4">Công thực tế / nghỉ hưởng lương</dt><dd class="col-sm-8">{{ row.actual_units }} / {{ row.paid_leave_units }}</dd>
+<dt class="col-sm-4">Công hưởng lương</dt><dd class="col-sm-8">{{ row.paid_units }}</dd>
+<dt class="col-sm-4">OT đã duyệt</dt><dd class="col-sm-8">{% for item in overtime %}{{ item.hours }} giờ · hệ số {{ item.multiplier }}{% empty %}Không có{% endfor %}</dd>
+<dt class="col-sm-4">Ghi chú</dt><dd class="col-sm-8">{{ row.note|default:'—' }}</dd><dt class="col-sm-4">Cập nhật</dt><dd class="col-sm-8">{{ row.updated_by }} · {{ row.updated_at }}</dd></dl>
+{% if can_edit %}<a href="{% url 'attendance:edit' row.pk %}">Chỉnh sửa (kỳ đã duyệt sẽ bị khóa)</a>{% endif %}</div>
+{% endblock %}

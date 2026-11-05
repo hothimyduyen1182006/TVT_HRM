@@ -1,0 +1,47 @@
+{% load static %}
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Đăng nhập · Hệ thống quản lý nhân sự</title>
+  <link rel="stylesheet" href="{% static 'css/login.css' %}">
+</head>
+<body class="login-page">
+  <header class="login-header">
+    <a class="brand" href="/" aria-label="Wood & Interior">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <span class="brand-copy"><small>SINCE 2000</small><strong>WOOD &amp;<br>INTERIOR</strong></span>
+    </a>
+    <h1>HỆ THỐNG QUẢN LÝ NHÂN SỰ</h1>
+    <span class="header-spacer" aria-hidden="true"></span>
+  </header>
+
+  <main class="login-scene">
+    <section class="login-card" aria-labelledby="login-title">
+      <h2 id="login-title">ĐĂNG NHẬP</h2>
+      <p class="login-subtitle">Vui lòng đăng nhập để tiếp tục</p>
+
+      <form method="post" class="login-form">
+        {% csrf_token %}
+        <label class="login-field">
+          <span class="field-icon" aria-hidden="true">♟</span>
+          <span class="visually-hidden">Tên đăng nhập</span>
+          <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" placeholder="Tên đăng nhập" autocomplete="username" required autofocus>
+        </label>
+        <label class="login-field">
+          <span class="field-icon lock-icon" aria-hidden="true">▣</span>
+          <span class="visually-hidden">Mật khẩu</span>
+          <input type="password" name="password" id="id_password" placeholder="Mật khẩu" autocomplete="current-password" required>
+        </label>
+        <input type="hidden" name="next" value="{{ next }}">
+        <label class="remember-row"><input type="checkbox" name="remember" value="1"> <span>Nhớ tài khoản</span></label>
+        <button class="login-submit" type="submit">ĐĂNG NHẬP <span aria-hidden="true">⟶</span></button>
+        {% if form.non_field_errors %}
+          <div class="login-error" role="alert"><span class="error-icon" aria-hidden="true">!</span><span>{{ form.non_field_errors|striptags }}</span></div>
+        {% endif %}
+      </form>
+    </section>
+  </main>
+</body>
+</html>

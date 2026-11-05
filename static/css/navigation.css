@@ -1,0 +1,110 @@
+:root{
+    --at-navy:#142f55;
+    --at-gold:#ce9920;
+    --at-muted:#7f8ba0;
+    --at-line:#e0e6ee
+}
+body{
+    background:#f5f6f9;
+    color:#22324b;
+    font-family:Arial,"Segoe UI",sans-serif
+}
+.at-nav{
+    min-height:94px;
+    background:#12324a;
+    display:flex;
+    align-items:center;
+    gap:26px;
+    padding:14px 25px;
+    margin:0 0 20px
+}
+.at-brand{
+    display:flex;
+    align-items:center;
+    color:white;
+    text-decoration:none;
+    flex-shrink:0
+}
+.at-brand svg{
+    width:73px;
+    height:64px
+}
+.at-brand span{
+    line-height:1.02
+}
+.at-brand small{
+    font-size:8px;
+    font-weight:400
+}
+.at-brand b{
+    display:block;
+    font-size:22px;
+    letter-spacing:-.5px
+}
+.at-navlinks{
+    display:flex;
+    align-items:center;
+    justify-content:space-around;
+    gap:20px;
+    flex:1
+}
+.at-navlinks a{
+    font-size:15px;
+    font-weight:700;
+    text-decoration:none;
+    white-space:nowrap;
+    padding:12px 14px;
+    border-radius:10px;
+    color:white
+}
+.at-navlinks a:hover,.at-navlinks .active{
+    background:#5a7486
+}
+.at-account{
+    position:relative;
+    color:white
+}
+.at-account summary{
+    cursor:pointer;
+    list-style:none;
+    font-size:25px;
+    white-space:nowrap
+}
+.at-account summary span{
+    font-size:12px
+}
+.at-account>div{
+    position:absolute;
+    right:0;
+    top:40px;
+    background:white;
+    color:#22324b;
+    box-shadow:0 8px 30px #12324a26;
+    padding:18px;
+    z-index:10;
+    min-width:160px;
+    border-radius:8px
+}
+.at-account button{
+    background:var(--at-navy);
+    color:white;
+    border:0;
+    margin-top:10px
+}
+.at-nav, .at-nav * { box-sizing: border-box; }
+.at-nav { width: 100%; flex-shrink: 0; font-family: Arial, "Segoe UI", sans-serif; }
+.at-nav a:link, .at-nav a:visited { color: white; text-decoration: none; }
+.at-account .at-admin-link:link, .at-account .at-admin-link:visited { display: block; color: #142f55; font-size: 13px; margin-top: 12px; }
+.at-account button { padding: 8px 14px; border-radius: 5px; cursor: pointer; }
+.at-login-link { white-space: nowrap; font-size: 14px; }
+@media(max-width:1100px) {
+  .at-nav { gap: 15px; padding: 14px; }
+  .at-navlinks { gap: 5px; flex-wrap: wrap; }
+  .at-navlinks a { font-size: 12px; padding: 10px; }
+  .at-brand b { font-size: 17px; }
+}
+@media(max-width:700px) {
+  .at-nav { flex-wrap: wrap; }
+  .at-navlinks { order: 3; flex-basis: 100%; justify-content: flex-start; }
+  .at-account { margin-left: auto; }
+}
