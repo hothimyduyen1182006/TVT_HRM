@@ -11,7 +11,7 @@
     <a href="{% url 'attendance:list' %}" {% if request.resolver_match.namespace == 'attendance' and request.resolver_match.url_name != 'clock' or '/admin/attendance/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG CÔNG</a>
     {% if management_menu %}<a href="{% if user.is_superuser %}{% url 'admin:bonuses_bonus_changelist' %}{% else %}{% url 'bonuses:list' %}{% endif %}" {% if '/admin/bonuses/' in request.path or request.resolver_match.namespace == 'bonuses' %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
     <a href="{% url 'payroll:list' %}" {% if request.resolver_match.namespace == 'payroll' or '/admin/payroll/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG LƯƠNG</a>
-    {% if management_menu %}<a href="{% if user.is_superuser %}{% url 'admin:leaves_leaveday_changelist' %}{% else %}{% url 'leaves:list' %}{% endif %}" {% if '/admin/leaves/' in request.path or request.resolver_match.namespace == 'leaves' %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>{% endif %}
+    <a href="{% url 'leaves:list' %}" {% if request.resolver_match.namespace == 'leaves' or '/admin/leaves/' in request.path %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>
   </div>
   {% if user.is_authenticated %}
   <details class="at-account">
