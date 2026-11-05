@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}{% if page_state == 'checkout' %}Check-out{% else %}Check-in{% endif %} · TVT{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'attendance/checkin.css' %}">{% endblock %}
+{% block content %}
+<section class="tvt-checkin-page">
+  {% if not employee %}
+    <div class="tvt-attendance-card tvt-empty-state"><div class="tvt-card-mark">TVT</div><h2>Chưa liên kết hồ sơ nhân viên</h2><p>Vui lòng liên hệ bộ phận nhân sự để liên kết tài khoản với hồ sơ TVT.</p></div>
+  {% else %}
+    <div class="tvt-checkin-layout">
+      <section class="tvt-checkin-main">
+        <div class="tvt-card-mark">TVT <span>WOOD &amp; INTERIOR</span></div>
+        {% if page_state == 'done' %}
+          <h1 class="tvt-main-title">CHECK-OUT THÀNH CÔNG</h1>
+          <p class="tvt-greeting">Cảm ơn {{ employee.full_name }} đã làm việc hết mình hôm nay! 💚</p>
+          <p class="tvt-encouragement">Hẹn gặp lại bạn vào ngày mai.</p>
+          <div class="tvt-day-date">{{ today|date:'d/m/Y' }}</div>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          <div class="tvt-status-strip tvt-status-complete"><span></span>Đã hoàn thành ca làm việc</div>
+          <button class="tvt-punch-button tvt-complete-button" type="button" disabled>Đã Check-out</button>
+        {% elif page_state == 'checkout' %}
+          <h1 class="tvt-main-title">KẾT THÚC NGÀY LÀM VIỆC</h1>
+          <p class="tvt-greeting">Cảm ơn {{ employee.full_name }} đã làm việc hết mình hôm nay! 💪</p>
+          <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          <div class="tvt-status-strip tvt-status-working"><span></span>Đang trong ca{% if is_late %} · Đi trễ {{ today_record.late_minutes }} phút{% else %} · Đúng giờ{% endif %}</div>
+          {% if can_check_out %}<form method="post" action="{% url 'attendance:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
+          <div class="tvt-shift-caption">Check-in lúc {{ today_record.check_in|time:'H:i:s' }}{% if period %} · Ca làm việc: {{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% endif %}</div>
+        {% else %}
+          <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
+          <p class="tvt-greeting">Chào {{ employee.full_name }} 👋</p>
+          <p class="tvt-encouragement">Chúc bạn một ngày làm việc hiệu quả! Hãy Check-in để bắt đầu nhé!</p>
+          <div class="tvt-day-date">{{ today|date:'d/m/Y' }}</div>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          <div class="tvt-status-strip tvt-status-idle"><span></span>Chưa check-in</div>
+          {% if can_check_in %}<form method="post" action="{% url 'attendance:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
+          <div class="tvt-shift-caption">Ca làm việc: {% if period %}{{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+        {% endif %}
+        {% if not period %}<div class="tvt-period-note">Kỳ công tháng này chưa được thiết lập. Vui lòng liên hệ nhân sự để mở chấm công.</div>{% elif locked and page_state != 'done' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
+      </section>
+      <aside class="tvt-checkin-stats">
+        <h2>{% if page_state == 'done' %}TỔNG KẾT HÔM NAY{% else %}THỐNG KÊ CA LÀM VIỆC{% endif %}</h2>
+        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ BẮT ĐẦU</small><strong>{% if today_record.check_in %}{{ today_record.check_in|time:'H:i:s' }}{% else %}Chưa ghi nhận{% endif %}</strong></div></article>
+        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ KẾT THÚC</small><strong>{% if today_record.check_out %}{{ today_record.check_out|time:'H:i:s' }}{% else %}—{% endif %}</strong></div></article>
+        <article class="tvt-stat-card tvt-stat-total"><span class="tvt-stat-icon" aria-hidden="true">⌛</span><div><small>TỔNG THỜI GIAN</small><strong>{% if today_record.check_out %}{{ today_record.work_hours|floatformat:2 }} giờ{% elif today_record.check_in %}<span data-elapsed data-checkin="{{ today_record.check_in|time:'H:i:s' }}">00:00:00</span>{% else %}00:00:00{% endif %}</strong></div></article>
+        {% if overtime and overtime.hours %}<div class="tvt-overtime-note">OT: {{ overtime.hours|floatformat:2 }} giờ{% if not overtime.approved %} · Chờ HR duyệt{% endif %}</div>{% endif %}
+      </aside>
+    </div>
+  {% endif %}
+  <div class="tvt-checkin-footnote"><span>THỜI GIAN HỆ THỐNG</span><span>ASIA/HO_CHI_MINH · TVT HRM</span></div>
+</section>
+<script>
+(() => {
+  const clock = document.querySelector('[data-clock]');
+  const elapsed = document.querySelector('[data-elapsed]');
+  const timeZone = 'Asia/Ho_Chi_Minh';
+  const pad = value => String(value).padStart(2, '0');
+  const zonedTime = () => Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date()).filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
+  const updateClock = () => {
+    const now = zonedTime();
+    if (clock) clock.textContent = `${pad(now.hour)}:${pad(now.minute)}:${pad(now.second)}`;
+    if (elapsed) {
+      const [hour, minute, second] = elapsed.dataset.checkin.split(':').map(Number);
+      const total = Math.max(0, now.hour * 3600 + now.minute * 60 + now.second - hour * 3600 - minute * 60 - second);
+      elapsed.textContent = `${pad(Math.floor(total / 3600))}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
+    }
+  };
+  updateClock();
+  window.setInterval(updateClock, 1000);
+})();
+</script>
+{% endblock %}

@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from employees.models import Employee
-from .models import AttendanceRecord, AttendancePeriod
+from .models import AttendanceRecord, AttendancePeriod, OvertimeApproval, WorkCalendarDay
 from .services.clocking import punch
 
 
@@ -27,6 +27,13 @@ def today(request):
         return redirect('attendance:clock')
     record = AttendanceRecord.objects.filter(employee=employee, date=now.date()).first()
     period = AttendancePeriod.objects.filter(year=now.year, month=now.month).first()
+    locked = bool(period and (period.status == 'approved' or
+                   period.employee_approvals.filter(employee=employee).exists()))
+    workday = WorkCalendarDay.objects.filter(date=now.date(), kind='work').exists()
+    can_punch = bool(period and period.policy_confirmed and not locked and workday and
+                     employee.hire_date <= now.date())
+    page_state = 'done' if record and record.check_out else (
+        'checkout' if record and record.check_in else 'checkin')
     success = request.session.pop('clock_success', {})
     if not record or success.get('record') != record.pk:
         success = {}
@@ -37,6 +44,13 @@ def today(request):
         lunch = max(0, (min(end, datetime.combine(now.date(), period.lunch_end)) - max(start, datetime.combine(now.date(), period.lunch_start))).total_seconds())
         hours = Decimal(str(max(0, (end - start).total_seconds() - lunch))) / Decimal(3600)
     minutes = int(hours * 60)
-    return render(request, 'attendance/clock.html', {'employee': employee, 'record': record,
-        'period': period, 'now': now, 'success': success.get('action'),
-        'duration': f'{minutes // 60:02}:{minutes % 60:02}'})
+    overtime = OvertimeApproval.objects.filter(employee=employee, date=now.date()).first()
+    return render(request, 'attendance/checkin.html', {
+        'employee': employee, 'record': record, 'today_record': record,
+        'period': period, 'now': now, 'today': now.date(),
+        'success': success.get('action'), 'page_state': page_state,
+        'can_check_in': can_punch and record is None,
+        'can_check_out': can_punch and bool(record and record.check_in and not record.check_out),
+        'locked': locked, 'is_late': bool(record and record.late_minutes),
+        'overtime': overtime, 'duration': f'{minutes // 60:02}:{minutes % 60:02}',
+    })
