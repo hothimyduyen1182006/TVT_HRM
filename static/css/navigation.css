@@ -14,7 +14,7 @@ body{
     background:#12324a;
     display:flex;
     align-items:center;
-    gap:26px;
+    gap:18px;
     padding:14px 25px;
     margin:0 0 20px
 }
@@ -45,15 +45,17 @@ body{
     display:flex;
     align-items:center;
     justify-content:space-around;
-    gap:20px;
-    flex:1
+    gap:6px;
+    flex:1;
+    min-width:0;
+    flex-wrap:wrap
 }
 .at-navlinks a{
     font-size:15px;
     font-weight:700;
     text-decoration:none;
     white-space:nowrap;
-    padding:12px 14px;
+    padding:12px 10px;
     border-radius:10px;
     color:white
 }
@@ -62,28 +64,52 @@ body{
 }
 .at-account{
     position:relative;
-    color:white
+    color:white;
+    flex-shrink:0
 }
 .at-account summary{
     cursor:pointer;
     list-style:none;
-    font-size:25px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:42px;
+    height:42px;
+    padding:6px;
+    border:0;
+    border-radius:50%;
+    background:transparent;
+    transition:background .15s,border-color .15s;
     white-space:nowrap
 }
-.at-account summary span{
-    font-size:12px
+.at-account summary::-webkit-details-marker{display:none}
+.at-nav .at-account summary>svg{display:block;width:30px;height:30px;min-width:30px;max-width:30px;flex:none}
+.at-account summary:hover,.at-account[open] summary{background:#ffffff17;border-color:#ffffff65}
+.at-account summary:focus-visible{outline:3px solid #e4bc58;outline-offset:4px}
+.at-account .at-avatar{display:grid;place-items:center;width:35px;height:35px;border-radius:50%;background:#e8f1f8;color:#183d58;flex-shrink:0}
+.at-avatar svg{width:25px;height:25px}
+.at-account .at-account-name{
+    font-size:13px;
+    font-weight:600;
+    max-width:125px;
+    overflow:hidden;
+    text-overflow:ellipsis
 }
+.at-account-chevron{width:15px;height:15px;opacity:.8;transition:transform .15s}
+.at-account[open] .at-account-chevron{transform:rotate(180deg)}
 .at-account>div{
     position:absolute;
     right:0;
-    top:40px;
+    top:calc(100% + 12px);
     background:white;
     color:#22324b;
-    box-shadow:0 8px 30px #12324a26;
-    padding:18px;
-    z-index:10;
-    min-width:160px;
-    border-radius:8px
+    box-shadow:0 12px 40px #10283f26;
+    padding:8px;
+    border:1px solid #e0e7ef;
+    z-index:1000;
+    width:230px;
+    max-width:calc(100vw - 28px);
+    border-radius:14px
 }
 .at-account button{
     background:var(--at-navy);
@@ -94,8 +120,16 @@ body{
 .at-nav, .at-nav * { box-sizing: border-box; }
 .at-nav { width: 100%; flex-shrink: 0; font-family: Arial, "Segoe UI", sans-serif; }
 .at-nav a:link, .at-nav a:visited { color: white; text-decoration: none; }
-.at-account .at-admin-link:link, .at-account .at-admin-link:visited { display: block; color: #142f55; font-size: 13px; margin-top: 12px; }
-.at-account button { padding: 8px 14px; border-radius: 5px; cursor: pointer; }
+.at-account-heading{padding:12px 12px 15px;margin-bottom:6px;border-bottom:1px solid #e9edf3;overflow-wrap:anywhere}
+.at-account-heading small{display:block;font-size:10px;font-weight:700;letter-spacing:1px;color:#77879a;margin-bottom:6px}
+.at-account-heading strong{display:block;font-size:15px;line-height:1.5;color:#173654}
+.at-account-heading>span{display:block;font-size:12px;color:#748497;margin-top:3px}
+.at-account .at-admin-link:link, .at-account .at-admin-link:visited { display:flex;justify-content:space-between;align-items:center;color:#25445e;font-size:13px;margin:2px 0;padding:11px 12px;border-radius:8px;font-weight:600; }
+.at-account .at-admin-link:hover{background:#eef4fa}
+.at-account .at-admin-link:focus-visible,.at-account button:focus-visible{outline:2px solid #ba8b20;outline-offset:1px}
+.at-account form{margin:6px 0 0;padding-top:6px;border-top:1px solid #e9edf3}
+.at-account button { width:100%;padding:11px 12px;border-radius:8px;cursor:pointer;text-align:left;margin:0;background:#fff3f3;color:#b33f47;font-size:13px;font-weight:600;font-family:inherit; }
+.at-account button:hover{background:#ffe5e5}
 .at-login-link { white-space: nowrap; font-size: 14px; }
 @media(max-width:1100px) {
   .at-nav { gap: 15px; padding: 14px; }

@@ -15,8 +15,10 @@
   </div>
   {% if user.is_authenticated %}
   <details class="at-account">
-    <summary aria-label="Tài khoản">◎ <span>{{ user.get_username }}</span></summary>
-    <div><span>{{ user.get_username }}</span><a class="at-admin-link" href="{% url 'personal_profile' %}">Hồ sơ cá nhân</a>{% if user.is_superuser %}<a class="at-admin-link" href="{% url 'admin:index' %}">Quản trị hệ thống</a>{% endif %}
+    <summary aria-label="Tài khoản" title="Tài khoản: {{ user.get_username }}">
+      <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="16" cy="16" r="13"/><circle cx="16" cy="12" r="4.5"/><path d="M6.5 25a9.8 9.8 0 0 1 19 0"/></svg>
+    </summary>
+    <div><div class="at-account-heading"><small>ĐANG ĐĂNG NHẬP</small><strong>{{ user.get_full_name|default:user.get_username }}</strong><span>@{{ user.get_username }}</span></div><a class="at-admin-link" href="{% url 'personal_profile' %}">Hồ sơ cá nhân <span aria-hidden="true">↗</span></a>{% if user.is_superuser %}<a class="at-admin-link" href="{% url 'admin:index' %}">Quản trị hệ thống <span aria-hidden="true">↗</span></a>{% endif %}
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Đăng xuất</button></form>
     </div>
   </details>
