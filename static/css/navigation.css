@@ -131,6 +131,16 @@ body{
 .at-account button { width:100%;padding:11px 12px;border-radius:8px;cursor:pointer;text-align:left;margin:0;background:#fff3f3;color:#b33f47;font-size:13px;font-weight:600;font-family:inherit; }
 .at-account button:hover{background:#ffe5e5}
 .at-login-link { white-space: nowrap; font-size: 14px; }
+.record-scope{display:flex;flex-wrap:wrap;gap:5px;width:fit-content;max-width:100%;padding:4px;margin:0 0 22px;background:#e8edf4;border:1px solid #dce4ee;border-radius:9px}
+.record-scope-container{max-width:1500px;margin:0 auto;padding:12px 26px 0}
+.record-scope-container:has(.record-scope) .record-scope{margin-bottom:0}
+.record-scope-container:not(:has(.record-scope)){display:none}
+@media(max-width:700px){.record-scope-container{padding:12px 0 0}}
+.record-scope a:link,.record-scope a:visited{padding:10px 18px;border-radius:6px;color:#53657b;text-decoration:none;font-size:14px;font-weight:600}
+.record-scope a:hover{color:#142f55;background:#f6f8fc}
+.record-scope a.is-active{color:#142f55;background:white;box-shadow:0 1px 4px #142f5515}
+.record-scope a:focus-visible{outline:2px solid #ce9920;outline-offset:1px}
+@media print{.record-scope,.record-scope-container{display:none}}
 @media(max-width:1100px) {
   .at-nav { gap: 15px; padding: 14px; }
   .at-navlinks { gap: 5px; flex-wrap: wrap; }

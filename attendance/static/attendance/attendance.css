@@ -327,6 +327,12 @@
 .at-stat strong{
     font-size:16px
 }
+.attendance-module .at-stat-filter,.at-stats .at-stat-filter{color:inherit;text-decoration:none;cursor:pointer;transition:background .15s,box-shadow .15s}
+.at-stats .at-stat-filter:hover{box-shadow:inset 0 0 0 2px #ce9920}
+.at-stats .at-stat:hover,.at-stats .at-stat.is-selected{background:#f4f7fc}
+.at-stats .at-stat-filter.is-selected{box-shadow:inset 0 -3px 0 #ce9920}
+.at-stats .at-main-stat{color:white}
+.at-stats .at-stat-filter:focus-visible{outline:3px solid #ce9920;outline-offset:-3px}
 .at-subheading{
     display:flex;
     justify-content:space-between;
@@ -600,3 +606,4 @@
 
 .attendance-shell .at-approve-inline { margin: 0; }
 .attendance-shell .at-person-actions button:disabled { opacity: .7; cursor: default; }
+.attendance-shell .at-approval-footer{display:flex;justify-content:center;align-items:center;width:100%;padding:24px 0 12px;clear:both}.attendance-shell .at-approval-footer form{margin:0;flex:0 0 auto}.attendance-shell .at-approval-footer .at-button{min-width:200px}

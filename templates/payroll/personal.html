@@ -1,6 +1,8 @@
 {% extends 'payroll/base.html' %}{% load payroll_display %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' %}{% endblock %}
 {% block title %}Phiếu lương cá nhân · TVT{% endblock %}
 {% block payroll_content %}
+
 <div class="pr-personal-heading pr-no-print">
  <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
  <form class="pr-period-form" method="get" action="{% if personal %}{% url 'payroll:personal' %}{% else %}{% url 'payroll:list' %}{% endif %}">

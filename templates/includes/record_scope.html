@@ -1,0 +1,9 @@
+{% load access_tags %}{% role_allowed user 'Nhân sự' 'Giám đốc' 'Trưởng phòng' as can_view_management %}
+{% if can_view_management and user.employee %}
+<div class="record-scope-container">
+<nav class="record-scope pr-no-print" aria-label="Phạm vi {% if module == 'attendance' %}bảng công{% else %}bảng lương{% endif %}">
+  <a class="{% if not personal %}is-active{% endif %}" {% if not personal %}aria-current="page"{% endif %} href="{% if module == 'attendance' %}{% url 'attendance:list' %}{% else %}{% url 'payroll:list' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">{% if module == 'attendance' %}Bảng công quản lý{% else %}Bảng lương quản lý{% endif %}</a>
+  <a class="{% if personal %}is-active{% endif %}" {% if personal %}aria-current="page"{% endif %} href="{% if module == 'attendance' %}{% url 'attendance:personal' %}{% else %}{% url 'payroll:personal' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">{% if module == 'attendance' %}Bảng công của tôi{% else %}Phiếu lương của tôi{% endif %}</a>
+</nav>
+</div>
+{% endif %}

@@ -141,7 +141,7 @@
 .payroll-module .pr-workflow { background: white; border: 1px solid var(--pr-border); border-radius: 8px; padding: 16px; margin-top: 20px; }
 .payroll-module .pr-workflow summary { cursor: pointer; font-weight: 700; }
 .payroll-module .pr-workflow form { margin-top: 18px; }
-.payroll-module:has(.pr-personal-heading) { max-width: 1230px; padding-top: 6px; }
+.payroll-module:has(.pr-personal-heading) { max-width: 1230px; padding-top: 28px; }
 .payroll-module .pr-personal-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 27px; }
 .payroll-module .pr-personal-heading h1 { color: var(--pr-navy); font-size: 32px; font-weight: 750; border-left: 7px solid var(--pr-gold); padding: 3px 0 3px 14px; margin: 0; }
 .payroll-module .pr-period-form { display: flex; gap: 14px; align-items: center; }

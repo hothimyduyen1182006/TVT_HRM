@@ -20,6 +20,7 @@ class AttendanceFilter(PeriodFilter):
 
 class DailyFilter(AttendanceFilter):
     state = forms.ChoiceField(label='Tình trạng', required=False, choices=[('', 'Tất cả'),
+        ('paid', 'Có công hưởng lương'), ('actual', 'Có công thực tế'), ('paid_leave', 'Nghỉ hưởng lương'),
         ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép'),
         ('ot', 'Tăng ca'), ('incomplete', 'Thiếu dữ liệu')])
     start = forms.DateField(label='Ngày bắt đầu', required=False, widget=forms.DateInput(attrs={'type': 'date'}))

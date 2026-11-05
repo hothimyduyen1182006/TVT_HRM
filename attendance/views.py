@@ -5,6 +5,7 @@ from django.db import IntegrityError
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from employees.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
+from employees.models import Employee
 from .forms import AttendanceForm, AttendanceFilter, DailyFilter, HistoryFilter
 from .models import AttendanceRecord, AttendancePeriod, OvertimeApproval, AttendanceAuditLog
 from .services.workflow import save_record, change_period, approve_employee
@@ -56,7 +57,7 @@ def month_data(request, employee):
         data = form.cleaned_data
         month_query = urlencode({'month': data['month'], 'year': data['year']})
         period = AttendancePeriod.objects.filter(year=data['year'], month=data['month']).first()
-        summary = month_summary(visible_employees(request.user).filter(pk=employee.pk), data['year'], data['month'], period)[0]
+        summary = month_summary(Employee.objects.filter(pk=employee.pk), data['year'], data['month'], period)[0]
         rows = daily_rows(employee, data['year'], data['month'])
         work_count = sum(1 for row in rows if row['record'] and row['record'].check_in)
         if work_count:
@@ -69,21 +70,41 @@ def month_data(request, employee):
         if data['end']:
             rows = [r for r in rows if r['date'] <= data['end']]
         if data['state']:
-            rows = [r for r in rows if r['ot'] > 0] if data['state'] == 'ot' else [r for r in rows if r['state'] == data['state']]
+            state = data['state']
+            unit_fields = {'paid': 'paid_units', 'actual': 'actual_units', 'paid_leave': 'paid_leave_units'}
+            if state in unit_fields:
+                rows = [r for r in rows if r['record'] and getattr(r['record'], unit_fields[state]) > 0]
+            elif state == 'ot':
+                rows = [r for r in rows if r['ot'] > 0]
+            else:
+                rows = [r for r in rows if r['state'] == state]
+    stat_params = request.GET.copy()
+    stat_params.pop('page', None)
+    stat_params.pop('state', None)
+    if form.is_valid():
+        stat_params['month'] = form.cleaned_data['month']
+        stat_params['year'] = form.cleaned_data['year']
     return {'form': form, 'rows': rows, 'summary': summary, 'period': period, 'progress': progress,
-            'average': average, 'month_query': month_query}
+            'average': average, 'month_query': month_query, 'stat_query': stat_params.urlencode()}
 
 
 @login_required
-def employee_month(request, employee_id):
-    employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
+def personal(request):
+    employee = get_object_or_404(Employee, user=request.user)
+    return employee_month(request, employee.pk, own_only=True)
+
+
+@login_required
+def employee_month(request, employee_id, own_only=False):
+    scope = Employee.objects.filter(user=request.user) if own_only else visible_employees(request.user)
+    employee = get_object_or_404(scope, pk=employee_id)
     context = month_data(request, employee)
-    personal = not has_role(request.user, HR, DIRECTOR, MANAGER)
+    personal = own_only or not has_role(request.user, HR, DIRECTOR, MANAGER)
     context.update({'employee': employee, 'personal': personal,
-        'can_edit': has_role(request.user, HR, DIRECTOR) and (not context['period'] or context['period'].status != 'approved')
+        'can_edit': not personal and has_role(request.user, HR, DIRECTOR) and (not context['period'] or context['period'].status != 'approved')
                     and (not context['summary'] or context['summary']['state'] != 'approved'),
-        'can_approve': has_role(request.user, HR, DIRECTOR),
-        'can_export': has_role(request.user, HR, DIRECTOR),
+        'can_approve': not personal and has_role(request.user, HR, DIRECTOR),
+        'can_export': not personal and has_role(request.user, HR, DIRECTOR),
         'page_obj': Paginator(context['rows'], 6 if personal else 12).get_page(request.GET.get('page')),
         'page_query': page_query(request), 'director': has_role(request.user, DIRECTOR),
         'initials': ''.join(word[0] for word in employee.full_name.split()[-2:]).upper(),
@@ -131,7 +152,8 @@ def audit_data(request, employee):
 
 @login_required
 def history(request, employee_id):
-    employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
+    scope = Employee.objects.filter(Q(pk__in=visible_employees(request.user).values('pk')) | Q(user=request.user))
+    employee = get_object_or_404(scope, pk=employee_id)
     context = audit_data(request, employee)
     context.update({'employee': employee, 'can_export': has_role(request.user, HR, DIRECTOR),
         'page_obj': Paginator(context['rows'], 20).get_page(request.GET.get('page')), 'page_query': page_query(request)})

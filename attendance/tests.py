@@ -140,7 +140,7 @@ class AttendanceTests(TestCase):
 
     def test_dashboard_and_employees(self):
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get('/').status_code, 200)
+        self.assertRedirects(self.client.get('/'), '/attendance/', fetch_redirect_response=False)
         response = self.client.get('/employees/')
         self.assertEqual(response.status_code, 403)
         response = self.client.get('/employees/me/')
@@ -285,7 +285,8 @@ class AttendanceTests(TestCase):
         url = f'/attendance/employee/{self.emp.pk}/approve/{self.period.pk}/'
         self.assertContains(response, f'action="{url}"', count=1)
         html = response.content.decode()
-        self.assertLess(html.index('Lịch sử điều chỉnh công'), html.index('✓ Duyệt bảng công'))
+        self.assertLess(html.index('Lịch sử điều chỉnh công'), html.index('>Duyệt bảng công</button>'))
+        self.assertLess(html.index('</table>'), html.index('class="at-approval-footer"'))
         self.client.force_login(self.user)
         self.assertEqual(self.client.post(url).status_code, 403)
         self.client.force_login(self.hr)
@@ -304,7 +305,7 @@ class AttendanceTests(TestCase):
         response = self.client.post(url, follow=True)
         self.assertContains(response, 'Đã duyệt bảng công của')
         self.assertNotContains(response, f'action="{url}"')
-        self.assertContains(response, '✓ Đã duyệt')
+        self.assertContains(response, 'disabled>Đã duyệt</button>')
         self.period.refresh_from_db()
         self.assertEqual(self.period.status, 'pending')
         self.assertEqual(EmployeeAttendanceApproval.objects.get(employee=self.emp).approved_by, self.hr)

@@ -4,6 +4,7 @@ from . import clock_views
 
 app_name = 'attendance'
 urlpatterns = [
+    path('personal/', views.personal, name='personal'),
     path('clock/', clock_views.today, name='clock'),
     path('', views.record_list, name='list'),
     path('new/', views.edit, name='create'),

@@ -1,6 +1,8 @@
 {% extends 'attendance/base.html' %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='attendance' %}{% endblock %}
 {% block title %}Bảng công tổng hợp · TVT{% endblock %}
 {% block attendance_content %}
+
 <h1 class="at-title"><span class="at-icon" aria-hidden="true">▦</span><span>BẢNG CÔNG TỔNG HỢP</span></h1>
 <form class="at-filter" method="get">
  <div class="at-field keyword">{{ form.q.label_tag }}{{ form.q }}</div>
@@ -25,6 +27,6 @@
  <td><a class="pill-link" href="{% url 'attendance:employee-month' row.employee.pk %}?month={{ form.month.value }}&year={{ form.year.value }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
 </tr>{% empty %}<tr><td colspan="8" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
 </tbody></table></div>
-<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên · Duyệt công tại trang chi tiết của từng nhân viên.</span>{% if can_edit %}<a class="at-button secondary" href="{% url 'attendance:create' %}">＋ Thêm chấm công</a>{% endif %}</div>
+<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên · Duyệt công tại trang chi tiết của từng nhân viên.</span></div>
 {% include 'attendance/pagination.html' %}
 {% endblock %}

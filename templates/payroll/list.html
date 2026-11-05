@@ -1,6 +1,8 @@
 {% extends 'payroll/base.html' %}{% load payroll_display %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' %}{% endblock %}
 {% block title %}Bảng lương chính · TVT{% endblock %}
 {% block payroll_content %}
+
 <h1 class="pr-title">BẢNG LƯƠNG CHÍNH</h1>
 <form class="pr-filter" method="get">
  <div class="pr-field pr-keyword">{{ form.q.label_tag }}{{ form.q }}</div>

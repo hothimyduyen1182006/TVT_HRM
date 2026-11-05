@@ -49,11 +49,18 @@ class ClockTests(TestCase):
             row = AttendanceRecord.objects.get()
             self.assertEqual(row.employee, self.emp)
             self.assertEqual(row.check_in, time(8, 15))
-            self.assertContains(self.client.get(url), 'CHECK-IN THÀNH CÔNG')
-            self.assertContains(self.client.get(url), 'Ghi chú cuối ca')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.context['success'], 'in')
+            self.assertEqual(response.context['page_state'], 'checkout')
+            self.assertTrue(response.context['can_check_out'])
         with self.at(17):
             self.client.post(url, {'action': 'out'})
-            self.assertContains(self.client.get(url), 'CHECK-OUT THÀNH CÔNG')
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.context['success'], 'out')
+            self.assertEqual(response.context['page_state'], 'done')
+            self.assertFalse(response.context['can_check_out'])
 
     def test_unlinked_user_denied(self):
         self.client.force_login(self.hr)
