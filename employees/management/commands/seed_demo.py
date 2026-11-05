@@ -127,6 +127,8 @@ class Command(BaseCommand):
                     bonus = Bonus(employee=employee, month=month, year=year,
                         name='DEMO: thưởng đã duyệt' if approved else 'DEMO: thưởng chưa duyệt - không tính lương',
                         amount=Decimal(300000 + index * 50000) if approved else Decimal(2000000),
+                        bonus_type='other', reason='DEMO: Lý do minh họa cho đề xuất thưởng khác.',
+                        proposed_at=timezone.now(),
                         status='approved' if approved else 'pending', approved_by=director if approved else None,
                         approved_at=timezone.now() if approved else None)
                     bonus.full_clean()
