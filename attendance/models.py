@@ -87,14 +87,17 @@ class AttendanceRecord(models.Model):
     def clean(self):
         if self.employee_id and self.date and self.date < self.employee.hire_date:
             raise ValidationError('Ngày công không được trước ngày vào làm.')
-        if bool(self.check_in) != bool(self.check_out):
+        open_shift = self.status == 'incomplete' and self.check_in and not self.check_out
+        if bool(self.check_in) != bool(self.check_out) and not open_shift:
             raise ValidationError('Cần nhập đủ check-in/check-out hoặc để trống cả hai.')
-        if self.check_in and self.check_out <= self.check_in:
+        if self.check_in and self.check_out and self.check_out <= self.check_in:
             raise ValidationError('Check-out phải sau check-in trong cùng ngày.')
         if self.status == 'present' and not self.check_in:
             raise ValidationError('Có mặt cần đủ giờ vào và ra.')
-        if self.status in ('leave', 'absent', 'incomplete') and self.check_in:
+        if self.status in ('leave', 'absent') and self.check_in:
             raise ValidationError('Có giờ làm hãy chọn Có mặt; nghỉ một phần ngày lấy từ module nghỉ phép.')
+        if self.status == 'incomplete' and self.check_out:
+            raise ValidationError('Có đủ giờ vào và ra hãy chọn Có mặt.')
 
 
 class OvertimeApproval(models.Model):

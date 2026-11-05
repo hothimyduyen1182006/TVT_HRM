@@ -13,7 +13,7 @@ def calculate_record(record, period):
     record.work_hours = Decimal(0)
     record.actual_units = Decimal(0)
     record.late_minutes = 0
-    if record.check_in:
+    if record.check_in and record.check_out:
         at = lambda value: datetime.combine(record.date, value)
         start = max(at(record.check_in), at(period.start_time))
         end = min(at(record.check_out), at(period.end_time))

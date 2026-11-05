@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% load static %}
+{% block title %}Chấm công hôm nay · TVT{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'attendance/clock.css' %}">{% endblock %}
+{% block content %}
+<section class="clock-page">
+  <article class="clock-panel">
+    <h1>{% if success == 'in' %}CHECK-IN THÀNH CÔNG{% elif success == 'out' %}CHECK-OUT THÀNH CÔNG{% elif record.check_out %}ĐÃ HOÀN THÀNH CA LÀM VIỆC{% elif record.check_in %}KẾT THÚC NGÀY LÀM VIỆC{% else %}CHẤM CÔNG HÔM NAY{% endif %}</h1>
+    <h2>Chào {{ employee.full_name }} 👋</h2>
+    {% if success %}
+      <div class="clock-success"><span class="clock-check">✓</span><div><h3>Bạn đã check-{% if success == 'in' %}in{% else %}out{% endif %} thành công!</h3><p>Thời gian: {% if success == 'in' %}{{ record.check_in|time:'H:i:s' }}{% else %}{{ record.check_out|time:'H:i:s' }}{% endif %}</p><p>Ca làm việc: {{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}</p></div></div>
+    {% else %}
+      <p>Chúc bạn một ngày làm việc hiệu quả!</p>
+      <div class="clock-display"><strong>{{ now|date:'l, d/m/Y' }}</strong><time id="live-clock" data-now="{{ now|date:'c' }}">{{ now|time:'H:i:s' }}</time><span>{% if record.check_out %}Đã hoàn thành ca làm việc{% elif record.check_in %}● Đang trong ca{% else %}Chưa check-in{% endif %}</span></div>
+    {% endif %}
+    {% if success %}
+      <div class="clock-status">{% if record.check_out %}Đã hoàn thành ca làm việc{% else %}● Đang trong ca{% endif %}</div>
+      <div class="clock-actions"><a class="clock-primary" href="{% if record.check_out %}{% url 'dashboard' %}{% else %}{% url 'attendance:clock' %}{% endif %}">{% if record.check_out %}VỀ TRANG CHỦ{% else %}TIẾP TỤC{% endif %}</a><a href="{% url 'dashboard' %}">ĐÓNG</a></div>
+    {% elif not record.check_out %}
+      <form method="post">{% csrf_token %}
+        {% if record.check_in %}<label for="shift-note">Ghi chú cuối ca</label><textarea id="shift-note" name="note" maxlength="2000" placeholder="Ghi chú nếu có"></textarea>{% endif %}
+        <button class="clock-primary" name="action" value="{% if record.check_in %}out{% else %}in{% endif %}">CHECK-{% if record.check_in %}OUT{% else %}IN{% endif %}</button>
+      </form>
+    {% else %}<a class="clock-primary" href="{% url 'attendance:list' %}">XEM BẢNG CÔNG</a>{% endif %}
+    <div class="clock-status">{% if period %}Ca làm việc: {{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% else %}Chưa cấu hình kỳ công hiện tại. Vui lòng liên hệ nhân sự.{% endif %}</div>
+  </article>
+  <aside class="clock-panel clock-stats"><h2>THỐNG KÊ CA LÀM VIỆC</h2>
+    <div><span class="clock-icon">◷</span><b>Giờ bắt đầu</b><strong>{{ record.check_in|time:'H:i:s'|default:'Chưa ghi nhận' }}</strong></div>
+    <div><span class="clock-icon">◷</span><b>Giờ kết thúc</b><strong>{{ record.check_out|time:'H:i:s'|default:'Chưa ghi nhận' }}</strong></div>
+    <div><span class="clock-icon">⌛</span><b>Giờ làm hợp lệ{% if record.check_in and not record.check_out %} tạm tính{% endif %}</b><strong>{{ duration }}</strong></div>
+    <p>Đã trừ nghỉ trưa, chỉ tính trong ca cấu hình. Tăng ca cần được duyệt riêng.</p>
+  </aside>
+</section>
+<script>(()=>{const el=document.getElementById('live-clock');if(!el)return;const server=Date.parse(el.dataset.now),start=Date.now();setInterval(()=>{el.textContent=new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(server+Date.now()-start));},1000);})();</script>
+{% endblock %}

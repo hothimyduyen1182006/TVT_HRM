@@ -142,6 +142,8 @@ class AttendanceTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get('/').status_code, 200)
         response = self.client.get('/employees/')
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get('/employees/me/')
         self.assertContains(response, 'NV01')
         self.assertNotContains(response, 'NV02')
 
@@ -272,7 +274,7 @@ class AttendanceTests(TestCase):
                     self.assertContains(response, f'aria-current="page">{active}</a>')
         self.client.logout()
         response = self.client.get('/accounts/login/')
-        self.assertContains(response, 'aria-label="Điều hướng chính"', count=1)
+        self.assertNotContains(response, 'aria-label="Điều hướng chính"')
         self.assertNotContains(response, 'aria-label="Tài khoản"')
 
     def test_employee_approval_button_next_to_history(self):
