@@ -1,0 +1,101 @@
+{% extends 'base.html' %}{% load payroll_display %}
+{% block title %}Quản lý thưởng · TVT{% endblock %}
+{% block extra_head %}<style>
+.bm-page{max-width:1320px;margin:1.6rem auto 3rem;padding:0 1rem}.bm-title{text-align:center;color:#17385e;font-weight:800;margin:0 0 1.1rem}.bm-filter{max-width:1100px;margin:0 auto 1rem;padding:.8rem 1.25rem;background:#fff;border:1px solid #e1e7ee;border-radius:6px;display:flex;align-items:end;gap:.65rem;flex-wrap:wrap}.bm-field{display:flex;flex-direction:column;gap:.2rem;min-width:120px;flex:1}.bm-field label{font-size:.74rem;font-weight:700;color:#334963}.bm-field input,.bm-field select{height:36px;min-width:0;padding:.35rem .55rem;background:#f5f6f8;border:1px solid #e0e5ec;border-radius:4px;font-size:.82rem}.bm-field-search{flex:1.6}.bm-actions{display:flex;gap:.7rem;align-items:center;margin:0 0 .8rem 1rem}.bm-actions form{margin:0}.bm-actions .btn{font-size:.8rem;font-weight:700}.bm-create{background:#17385e;color:#fff}.bm-create:hover{background:#102c4b;color:#fff}.bm-table-wrap{background:#fff;overflow:auto}.bm-table{width:100%;min-width:920px;margin:0;font-size:.78rem;white-space:nowrap}.bm-table thead th{padding:.55rem .4rem;background:#17385e;color:#fff;text-align:center;vertical-align:middle;border-bottom:2px solid #e5ad38}.bm-table td{text-align:center;vertical-align:middle;padding:.48rem .4rem}.bm-table tbody tr:nth-child(even){background:#f4f6f9}.bm-code{font-weight:700;color:#293d58}.bm-employee{font-weight:700;color:#263b56}.bm-dept{display:inline-block;padding:.25rem .5rem;border-radius:3px;background:#f6ead1;color:#b85a0a;font-weight:700;white-space:normal;max-width:145px}.bm-money{font-variant-numeric:tabular-nums;color:#718198}.bm-total{font-weight:800;color:#dc514d}.bm-status{display:inline-block;padding:.38rem .7rem;border-radius:2px;font-weight:700}.bm-status.approved{background:#dff2e7;color:#258051}.bm-status.pending{background:#fff0d5;color:#ad690b}.bm-status.rejected{background:#fce5e7;color:#bd3545}.bm-status.draft{background:#e8eef7;color:#526d90}.bm-link{display:inline-block;padding:.23rem .8rem;border:1px solid #17385e;border-radius:99px;color:#17385e;background:#fff;text-decoration:none;font-size:.72rem}.bm-link:hover{background:#17385e;color:#fff}.bm-empty{text-align:center!important;padding:2.5rem!important;color:#718198}.bm-pagination{display:flex;justify-content:center;gap:.42rem;margin:1.25rem auto}.bm-pagination a,.bm-pagination span{display:grid;place-items:center;min-width:36px;height:36px;padding:0 .5rem;border:1px solid #e5e9ef;border-radius:5px;background:#fff;color:#172c47;text-decoration:none;font-weight:700}.bm-pagination .current{background:#17385e;color:#fff;border-color:#17385e}.bm-total-line{text-align:right;color:#718198;font-size:.82rem}.bm-total-line strong{margin-left:.4rem;color:#dc514d;font-size:1rem}
+.bm-actions{flex-wrap:wrap}
+.bm-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:.5rem 1rem;border:1px solid #17385e;border-radius:8px;background:#17385e;color:#fff;font-size:.8rem;font-weight:700;line-height:1.25;text-decoration:none;box-shadow:0 3px 8px #17385e18;transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}
+.bm-actions .btn:hover{background:#102c4b;border-color:#102c4b;color:#fff;box-shadow:0 5px 12px #17385e26;transform:translateY(-1px)}
+.bm-actions .btn:focus-visible{outline:3px solid #e5ad3880;outline-offset:2px}
+.bm-no-date{display:inline-block;width:.7rem;height:1px;background:#aeb8c4;vertical-align:middle;border-radius:1px}
+.bm-pagination{display:flex;width:max-content;max-width:100%;justify-content:center;gap:.35rem;margin:1rem auto;padding:.25rem;background:transparent;border:0}
+.bm-pagination a,.bm-pagination span{display:grid;place-items:center;min-width:34px;height:34px;padding:0 .45rem;border:1px solid #dce3eb;border-radius:6px;background:#fff;color:#17385e;text-decoration:none;font-size:.84rem;font-weight:700;transition:background .15s,border-color .15s,color .15s}
+.bm-pagination a:hover{background:#edf3f8;border-color:#b9c9d9}
+.bm-pagination .current{background:#17385e;color:#fff;border-color:#17385e}
+/* Filter controls match the attendance page dimensions and spacing. */
+.bm-filter{
+  max-width:none;
+  margin:0 0 30px;
+  padding:20px 22px;
+  gap:16px;
+  border-radius:8px;
+}
+.bm-field{
+  min-width:130px;
+}
+.bm-field-search{
+  flex:1.35;
+}
+.bm-field label{
+  margin:0 0 6px;
+  font-size:14px;
+}
+.bm-field input,.bm-field select{
+  width:100%;
+  height:40px;
+  padding:8px 12px;
+  background:#f5f7f9;
+  color:#344054;
+  border:1px solid #e2e7ed;
+  border-radius:6px;
+  font-size:14px;
+}
+.bm-filter > .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:40px;
+  padding:10px 22px;
+  border:1px solid #17385e;
+  border-radius:5px;
+  background:#17385e;
+  color:#fff;
+  font-size:14px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.bm-filter > .btn:hover{
+  background:#254b77;
+  border-color:#254b77;
+  color:#fff;
+}
+/* Typography follows the attendance screen: 32px heading and 14px content. */
+.bm-page{font-family:inherit;font-size:14px;color:#344054}
+.bm-title{font-size:32px;line-height:1.25;font-weight:750}
+.bm-filter,.bm-actions,.bm-table,.bm-total-line{font-size:14px}
+.bm-field label{font-size:14px}
+.bm-field input,.bm-field select{font-size:14px}
+.bm-actions .btn{font-size:14px}
+.bm-table{font-size:14px}
+.bm-table thead th{font-size:14px}
+.bm-table td{font-size:14px}
+.bm-link{font-size:13px}
+.bm-total-line strong{font-size:16px}
+@media(max-width:700px){
+  .bm-title{font-size:25px}
+  .bm-actions .btn{font-size:13px}
+}
+@media(max-width:700px){.bm-page{margin-top:1rem;padding:0 .55rem}.bm-filter{padding:.8rem}.bm-field{min-width:calc(50% - .5rem)}.bm-field-search{flex:1 0 100%}.bm-actions{margin-left:0;flex-wrap:wrap}}
+</style>{% endblock %}
+{% block content %}<main class="bm-page"><h1 class="h3 bm-title">QUẢN LÝ THƯỞNG</h1>
+<form method="get" class="bm-filter">
+  <div class="bm-field bm-field-search">{{ form.q.label_tag }}{{ form.q }}</div>
+  <div class="bm-field">{{ form.department.label_tag }}{{ form.department }}</div>
+  <div class="bm-field">{{ form.month.label_tag }}{{ form.month }}</div>
+  <div class="bm-field">{{ form.year.label_tag }}{{ form.year }}</div>
+  <button class="btn btn-primary px-4" type="submit">Lọc</button>
+</form>
+<div class="bm-actions">
+  <a class="btn" href="{% url 'bonuses:personal' %}">Thưởng cá nhân</a>
+  {% if can_propose %}<a class="btn bm-create" href="{% url 'bonuses:propose' %}">Lập/Đề xuất bảng thưởng</a>{% endif %}
+  {% if can_submit %}<form method="post" action="{% url 'bonuses:calculate' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endfor %}<button class="btn" type="submit">Tính thưởng chuyên cần &amp; thâm niên</button></form>{% endif %}
+  {% if can_export %}<form method="post" action="{% url 'bonuses:export' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endfor %}<button class="btn" type="submit">Xuất bảng thưởng</button></form>{% endif %}
+</div>
+<div class="bm-table-wrap"><table class="table table-sm bm-table"><thead><tr><th>Mã thưởng</th><th>Họ và tên</th><th>Phòng ban</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Tác vụ</th></tr></thead><tbody>
+{% for row in rows %}<tr><td class="bm-code">MT_{{ row.records.0.pk|stringformat:'03d' }}</td><td class="bm-employee">{{ row.employee.full_name }}</td><td><span class="bm-dept">{{ row.employee.department.name }}</span></td><td class="bm-money">{{ row.attendance|money }}</td><td class="bm-money">{{ row.seniority|money }}</td><td class="bm-money">{{ row.other|money }}</td><td class="bm-total">{{ row.total|money }}</td><td><span class="bm-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td><td>{% if row.status == 'approved' and row.approved_at %}{{ row.approved_at|date:'d/m/Y' }}{% else %}<span class="bm-no-date" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td><td><a class="bm-link" href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Xem chi tiết</a></td></tr>{% empty %}<tr><td colspan="10" class="bm-empty">Không tìm thấy dữ liệu thưởng phù hợp.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if page_obj.has_other_pages %}<nav class="bm-pagination" aria-label="Phân trang thưởng">
+  {% if page_obj.has_previous %}<a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page=1" aria-label="Trang đầu">«</a><a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
+  {% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}
+  {% if page_obj.has_next %}<a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.next_page_number }}" aria-label="Trang sau">›</a><a href="?{% if page_query %}{{ page_query }}&amp;{% endif %}page={{ page_obj.paginator.num_pages }}" aria-label="Trang cuối">»</a>{% endif %}
+</nav>{% endif %}
+<div class="bm-total-line">Tổng thưởng đang hiển thị:<strong>{{ total_amount|money }} ₫</strong></div></main>{% endblock %}

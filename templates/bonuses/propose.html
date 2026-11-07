@@ -1,6 +1,161 @@
-{% extends 'base.html' %}{% block title %}Đề xuất thưởng khác · TVT{% endblock %}
-{% block extra_head %}<style>
-.proposal-wrap{max-width:940px;margin:1.5rem auto}.proposal-card{background:#fff;border:1px solid #e5ebf1;border-radius:16px;box-shadow:0 10px 32px #1736540d;overflow:hidden}.proposal-top{padding:1.5rem 1.75rem;background:linear-gradient(115deg,#173654,#24587a);color:#fff}.proposal-top p{color:#d5e3ed;margin:0}.proposal-body{padding:1.75rem}.proposal-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.proposal-fields p{margin:0}.proposal-fields label{display:block;font-size:.85rem;font-weight:700;color:#465c73;margin-bottom:.35rem}.proposal-fields input,.proposal-fields select,.proposal-fields textarea{width:100%}.proposal-fields p:nth-child(5){grid-column:1/-1}.proposal-actions{display:flex;justify-content:flex-end;gap:.8rem;margin-top:1.25rem}@media(max-width:650px){.proposal-fields{grid-template-columns:1fr}.proposal-body{padding:1.1rem}}
-</style>{% endblock %}
-{% block content %}<div class="proposal-wrap"><a href="{% url 'bonuses:list' %}" class="text-decoration-none">← Quay lại quản lý thưởng</a><div class="proposal-card mt-3"><div class="proposal-top"><div class="small text-uppercase fw-bold opacity-75">THƯỞNG NHÂN VIÊN</div><h1 class="h3 fw-bold mt-1 mb-2">Lập đề xuất thưởng khác</h1><p>Nhập khoản thưởng phát sinh, lý do và số tiền đề xuất.</p></div><div class="proposal-body"><form method="post">{% csrf_token %}{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}<div class="proposal-fields">{% for field in form %}<p>{{ field.label_tag }}{{ field }}{% for error in field.errors %}<small class="d-block text-danger">{{ error }}</small>{% endfor %}</p>{% endfor %}</div><p class="text-secondary small mt-3 mb-0">Thưởng chuyên cần và thâm niên được QLNS tính riêng từ bảng công đã duyệt.</p><div class="proposal-actions"><a class="btn btn-light border" href="{% url 'bonuses:list' %}">Hủy</a><button class="btn btn-primary">Đề xuất</button></div></form></div></div>
-<h2 class="h6 fw-bold text-uppercase mt-4" style="color:#123a70">LỊCH SỬ ĐỀ XUẤT THƯỞNG</h2><div class="table-responsive bg-white rounded"><table class="table table-sm mb-0"><thead class="table-light"><tr><th>Nhân viên</th><th>Kỳ</th><th>Tổng tiền</th><th>Trạng thái</th><th></th></tr></thead><tbody>{% for row in history %}<tr><td>{{ row.employee.full_name }}</td><td>{{ row.month|stringformat:'02d' }}/{{ row.year }}</td><td>{{ row.total|floatformat:0 }} ₫</td><td>{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</td><td><a href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Chi tiết</a></td></tr>{% empty %}<tr><td colspan="5" class="text-center p-3 text-secondary">Chưa có đề xuất.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}
+{% extends 'base.html' %}{% load payroll_display %}
+{% block title %}Đề xuất thưởng khác · TVT{% endblock %}
+{% block extra_head %}
+<style>
+.proposal-wrap{max-width:1000px;margin:1.5rem auto 3rem}
+.proposal-back{display:inline-flex;align-items:center;gap:.45rem;color:#1769d2;font-weight:600;text-decoration:none;padding:.4rem .65rem;border-radius:8px;transition:background .18s,color .18s}
+.proposal-back:hover{background:#e8f1ff;color:#0d4da8}
+.proposal-card,.history-card{background:#fff;border:1px solid #e2eaf2;border-radius:18px;box-shadow:0 12px 36px #1736540b;overflow:hidden}
+.proposal-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.7rem 2rem;background:linear-gradient(115deg,#173654,#245b7d);color:#fff}
+.proposal-eyebrow{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .65rem;border:1px solid #ffffff35;border-radius:999px;background:#ffffff12;color:#e0edf7;font-size:12px;font-weight:700;letter-spacing:.05em}
+.proposal-eyebrow:before{content:"";width:6px;height:6px;border-radius:50%;background:#f2bd54}
+.proposal-top h1{font-size:clamp(1.45rem,3vw,1.9rem);letter-spacing:-.025em}
+.proposal-top p{color:#d5e3ed;margin:0;font-size:.98rem}
+.proposal-mark{display:grid;place-items:center;flex:0 0 58px;width:58px;height:58px;border-radius:17px;background:#ffffff16;border:1px solid #ffffff2a;color:#fff;font-size:2rem;font-weight:300}
+.proposal-body{padding:1.8rem 2rem 1.6rem}
+.proposal-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.1rem 1.25rem}
+.proposal-field{min-width:0;margin:0}
+.proposal-field label{display:block;margin:0 0 .45rem;color:#314b68;font-size:.88rem;font-weight:700}
+.proposal-field input,.proposal-field select,.proposal-field textarea{display:block;width:100%;min-height:46px;padding:.65rem .8rem;border:1px solid #c9d5e2;border-radius:10px;background:#fff;color:#1d2b3c;box-shadow:0 1px 2px #17365408;transition:border-color .18s,box-shadow .18s,background .18s}
+.proposal-field input::placeholder,.proposal-field textarea::placeholder{color:#9aa8b8}
+.proposal-field input:focus,.proposal-field select:focus,.proposal-field textarea:focus{outline:0;border-color:#4286df;box-shadow:0 0 0 3px #4286df20;background:#fff}
+.proposal-field textarea{min-height:112px;resize:vertical;line-height:1.5}
+.proposal-field-reason{grid-column:1/-1}
+.proposal-money{position:relative}
+.proposal-money input{padding-right:3.5rem;text-align:left;font-variant-numeric:tabular-nums}
+.proposal-money span{position:absolute;right:.85rem;top:50%;transform:translateY(-50%);color:#718196;font-size:.88rem;font-weight:700;pointer-events:none}
+.proposal-amount-controls{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:.6rem;align-items:center}
+.proposal-amount-preset{width:100%;min-height:46px;padding:.55rem .65rem;border:1px solid #c9d5e2;border-radius:10px;background:#fff;color:#31445b;font:inherit;font-size:13px}
+.proposal-field-help{grid-column:1/-1;color:#718196;font-size:12px;line-height:1.4}
+.proposal-field-error{display:block;margin-top:.35rem;font-size:.8rem}
+.proposal-note{display:flex;align-items:flex-start;gap:.7rem;padding:.85rem 1rem;border:1px solid #dce9f7;border-radius:12px;background:#f5f9fe;color:#536b85;font-size:.84rem;line-height:1.5}
+.proposal-note-icon{display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:#e0edfc;color:#2464a5;font-weight:800}
+.proposal-actions{display:flex;justify-content:flex-end;align-items:center;gap:.7rem;margin-top:1.5rem;padding-top:1.15rem;border-top:1px solid #edf1f5}
+.proposal-actions .btn{min-height:44px;padding:.58rem 1.1rem;border-radius:10px;font-weight:700}
+.proposal-actions .btn-primary{box-shadow:0 5px 13px #0d6efd2b}
+.history-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1.75rem 0 .75rem;color:#17385e}
+.history-heading h2{margin:0;font-size:1rem;font-weight:800;letter-spacing:.035em}
+.history-count{padding:.28rem .6rem;border-radius:999px;background:#eaf2fb;color:#536b85;font-size:.78rem;font-weight:700}
+.history-card{border-radius:14px;box-shadow:0 6px 20px #17365408}
+.history-card table{margin:0}
+.history-card table{width:100%;min-width:0;table-layout:fixed}
+.history-card th{padding:.85rem 1rem;background:#f4f7fb;color:#536b85;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e3eaf1}
+.history-card td{padding:.8rem 1rem;vertical-align:middle;color:#31445b}
+.history-reason{width:22%;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.history-amount{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.history-card th:nth-child(1),.history-card td:nth-child(1){width:15%}
+.history-card th:nth-child(2),.history-card td:nth-child(2){width:8%}
+.history-card th:nth-child(3),.history-card td:nth-child(3){width:15%}
+.history-card th:nth-child(5),.history-card td:nth-child(5){width:10%}
+.history-card th:nth-child(6),.history-card td:nth-child(6){width:11%}
+.history-card th:nth-child(7),.history-card td:nth-child(7){width:11%}
+.history-card th:nth-child(8),.history-card td:nth-child(8){width:8%}
+.history-card tbody tr:last-child td{border-bottom:0}
+.history-status{display:inline-block;padding:.3rem .6rem;border-radius:999px;background:#fff1d7;color:#93600b;font-size:.78rem;font-weight:700;white-space:nowrap}
+.history-status.approved{background:#e5f5eb;color:#24794b}.history-status.rejected{background:#fae7e8;color:#b43b48}.history-status.draft{background:#edf1f6;color:#596a7c}
+.history-link{color:#1769d2;text-decoration:none;font-weight:700}.history-link:hover{text-decoration:underline}
+/* Shared type scale: clear 32px headings and 14px body text. */
+.proposal-wrap{font-family:inherit;font-size:14px;line-height:1.5;color:#344054}
+.proposal-top h1{font-size:32px;font-weight:750;line-height:1.25;letter-spacing:0}
+.proposal-top p{font-size:14px;line-height:1.5}
+.proposal-eyebrow{font-size:12px;letter-spacing:.06em}
+.proposal-field label{font-size:14px;line-height:1.4}
+.proposal-field input,.proposal-field select,.proposal-field textarea{font-family:inherit;font-size:14px;line-height:1.4}
+.proposal-money span{font-size:14px}
+.proposal-note{font-size:14px;line-height:1.5}
+.proposal-field-error{font-size:13px}
+.proposal-actions .btn{font-family:inherit;font-size:14px}
+.history-heading h2{font-size:16px;line-height:1.4;letter-spacing:0}
+.history-count,.history-status{font-size:13px}
+.history-card table,.history-card td,.history-card th{font-size:14px}
+.history-card th{text-transform:none;letter-spacing:0}
+.history-link{font-size:14px}
+/* Keep proposal typography consistent with the attendance screens. */
+.proposal-wrap{font-family:inherit;font-size:14px;color:#344054}
+.proposal-top h1{font-size:32px;line-height:1.25;letter-spacing:0}
+.proposal-top p{font-size:14px;line-height:1.5}
+.proposal-eyebrow{font-size:12px}
+.proposal-field label{font-size:14px}
+.proposal-field input,.proposal-field select,.proposal-field textarea{font-family:inherit;font-size:14px}
+.proposal-money span{font-size:14px}
+.proposal-note{font-size:14px}
+.proposal-field-error{font-size:13px}
+.proposal-actions .btn{font-family:inherit;font-size:14px}
+.history-heading h2{font-size:16px}
+.history-count,.history-status{font-size:13px}
+.history-card table{font-size:14px}
+.history-card th{font-size:14px;text-transform:none;letter-spacing:0}
+.history-card td{font-size:14px}
+.history-link{font-size:14px}
+@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-top{padding:1.35rem 1.2rem}.proposal-mark{flex-basis:46px;width:46px;height:46px;border-radius:14px;font-size:1.6rem}.proposal-body{padding:1.25rem}.proposal-fields{grid-template-columns:1fr;gap:.95rem}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:1fr}.proposal-actions{padding-top:1rem}.history-card{overflow-x:auto}.history-card table{min-width:900px}.proposal-top h1{font-size:25px}}
+@media(max-width:700px){.proposal-top h1{font-size:25px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="proposal-wrap">
+  <a href="{% url 'bonuses:list' %}" class="proposal-back"><span aria-hidden="true">←</span> Quay lại quản lý thưởng</a>
+  <section class="proposal-card mt-2">
+    <header class="proposal-top">
+      <div>
+        <div class="proposal-eyebrow">ĐỀ XUẤT THƯỞNG</div>
+        <h1 class="h3 fw-bold mt-2 mb-2">Lập đề xuất thưởng khác</h1>
+        <p>Ghi nhận khoản thưởng phát sinh và căn cứ đề xuất.</p>
+      </div>
+      <div class="proposal-mark" aria-hidden="true">+</div>
+    </header>
+    <div class="proposal-body">
+      <form method="post">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger rounded-3">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="proposal-fields">
+          {% for field in form %}
+          <div class="proposal-field proposal-field-{{ field.name }}">
+            {{ field.label_tag }}
+            {% if field.name == 'amount' %}<div class="proposal-amount-controls"><div class="proposal-money">{{ field }}<span>VNĐ</span></div><select class="proposal-amount-preset" id="proposal-amount-preset" aria-label="Chọn nhanh số tiền"><option value="">Chọn mức nhanh</option><option value="100000">100.000 ₫</option><option value="200000">200.000 ₫</option><option value="500000">500.000 ₫</option><option value="1000000">1.000.000 ₫</option><option value="2000000">2.000.000 ₫</option><option value="5000000">5.000.000 ₫</option></select>{% if field.help_text %}<small class="proposal-field-help">{{ field.help_text }}</small>{% endif %}</div>{% else %}{{ field }}{% endif %}
+            {% for error in field.errors %}<small class="proposal-field-error text-danger">{{ error }}</small>{% endfor %}
+          </div>
+          {% endfor %}
+          <div class="proposal-note"><span class="proposal-note-icon" aria-hidden="true">i</span><span>Thưởng chuyên cần và thâm niên được QLNS tính riêng từ bảng công đã duyệt. Khoản đề xuất này sẽ được cộng vào tổng thưởng sau khi duyệt.</span></div>
+        </div>
+        <div class="proposal-actions">
+          <a class="btn btn-light border" href="{% url 'bonuses:list' %}">Hủy</a>
+          <button class="btn btn-primary" type="submit">Gửi đề xuất <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="history-heading"><h2>LỊCH SỬ ĐỀ XUẤT THƯỞNG</h2><span class="history-count">{{ history|length }} khoản</span></div>
+  <section class="history-card table-responsive">
+    <table class="table table-hover align-middle">
+      <thead><tr><th>Nhân viên</th><th>Kỳ</th><th>Khoản thưởng</th><th>Lý do đề xuất</th><th>Số tiền</th><th>Ngày đề xuất</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        {% for row in history %}
+        <tr>
+          <td class="fw-semibold">{{ row.employee.full_name }}</td>
+          <td>{{ row.month|stringformat:'02d' }}/{{ row.year }}</td>
+          <td class="fw-semibold">{{ row.name }}</td>
+          <td class="history-reason">{{ row.reason }}</td>
+          <td class="history-amount">{{ row.amount|money }} ₫</td>
+          <td>{{ row.proposed_at|date:'d/m/Y' }}</td>
+          <td><span class="history-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td>
+          <td class="text-end"><a class="history-link" href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Chi tiết →</a></td>
+        </tr>
+        {% empty %}<tr><td colspan="8" class="text-center text-secondary py-4">Chưa có đề xuất nào.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+<script>
+  const amountInput = document.querySelector('.proposal-field-amount input');
+  const amountPreset = document.getElementById('proposal-amount-preset');
+  if (amountInput && amountPreset) {
+    amountPreset.addEventListener('change', () => {
+      if (amountPreset.value) amountInput.value = amountPreset.value;
+    });
+    amountInput.addEventListener('input', () => {
+      amountPreset.value = '';
+    });
+  }
+</script>
+{% endblock %}

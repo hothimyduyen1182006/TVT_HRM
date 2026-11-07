@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
@@ -16,17 +17,28 @@ from django.views.decorators.http import require_POST
 
 from attendance.models import AttendanceRecord, AttendancePeriod, WorkCalendarDay
 from employees.access import DIRECTOR, HR, MANAGER, has_role, require_role, visible_employees
+from employees.models import Employee
 from leaves.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
 from .models import Bonus
+
+
+def complete_bonus_records(rows):
+    """Keep other-bonus rows only when their proposal data is complete."""
+    return rows.filter(
+        Q(bonus_type__in=['attendance', 'seniority']) |
+        Q(bonus_type='other', name__gt='', reason__gt='', proposed_at__isnull=False)
+    )
 
 
 def bonus_rows(user, form):
     if not form.is_valid():
         return Bonus.objects.none()
     data = form.cleaned_data
-    rows = Bonus.objects.select_related('employee__department', 'proposed_by', 'approved_by').filter(
+    rows = complete_bonus_records(Bonus.objects.select_related(
+        'employee__department', 'proposed_by', 'approved_by').filter(
         employee__in=form.employee_scope(user), month=data['month'], year=data['year'])
+    )
     if has_role(user, DIRECTOR):
         rows = rows.exclude(status='draft')
     if data.get('q'):
@@ -71,11 +83,22 @@ def bonus_list(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
         return personal_list(request)
     form = BonusFilter(request.user, request.GET)
+    if has_role(request.user, HR, MANAGER) and form.is_valid():
+        data = form.cleaned_data
+        employees = form.employee_scope(request.user)
+        if data.get('q'):
+            employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
+        for employee in employees:
+            ensure_automatic_bonuses(employee, data['month'], data['year'], request.user)
     rows = grouped_bonuses(bonus_rows(request.user, form))
     if form.is_valid() and form.cleaned_data.get('status'):
         rows = [row for row in rows if row['status'] == form.cleaned_data['status']]
     total_amount = sum((row['total'] for row in rows), Decimal(0))
-    return render(request, 'bonuses/list.html', {'form': form, 'rows': rows,
+    page_query = request.GET.copy()
+    page_query.pop('page', None)
+    page_obj = Paginator(rows, 5).get_page(request.GET.get('page'))
+    return render(request, 'bonuses/list_redesign.html', {'form': form,
+        'page_obj': page_obj, 'rows': page_obj.object_list, 'page_query': page_query.urlencode(),
         'total_amount': total_amount,
         'can_propose': has_role(request.user, HR, MANAGER),
         'can_submit': has_role(request.user, HR), 'can_review': has_role(request.user, DIRECTOR),
@@ -85,27 +108,40 @@ def bonus_list(request):
 @login_required
 def personal_list(request):
     form = PersonalBonusFilter(request.GET)
-    rows = Bonus.objects.select_related('employee__department').filter(
-        employee__user=request.user, status='approved').order_by('-year', '-month', 'name')
+    rows = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
+        employee__user=request.user)).order_by('-year', '-month', 'name')
     if form.is_valid():
         if form.cleaned_data.get('month'):
             rows = rows.filter(month=form.cleaned_data['month'])
         if form.cleaned_data.get('year'):
             rows = rows.filter(year=form.cleaned_data['year'])
+        if form.cleaned_data.get('status'):
+            rows = rows.filter(status=form.cleaned_data['status'])
     grouped = grouped_bonuses(rows)
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
         'total_amount': sum((row['total'] for row in grouped), Decimal(0)),
+        'employee': Employee.objects.filter(user=request.user).first(),
         'can_manage': has_role(request.user, HR, DIRECTOR, MANAGER)})
 
 
-def calculate_automatic(employee, month, year):
+def calculate_seniority(employee, month, year):
+    period_end = date(year, month, calendar.monthrange(year, month)[1])
+    years = max(0, period_end.year - employee.hire_date.year -
+                ((period_end.month, period_end.day) < (employee.hire_date.month, employee.hire_date.day)))
+    rate = Decimal(0) if years < 1 else Decimal(150000) if years < 3 else Decimal(200000) if years < 5 else Decimal(500000)
+    amount = years * rate
+    reason = f'{years} năm thâm niên; mức thưởng tháng áp dụng {rate:,.0f} VNĐ.'
+    return "seniority", "Thưởng thâm niên", amount, reason
+
+
+def calculate_attendance(employee, month, year):
     start, end = date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
     period = AttendancePeriod.objects.filter(month=month, year=year).first()
     workdays = WorkCalendarDay.objects.filter(date__range=(max(start, employee.hire_date), end),
                                                kind='work', expected_units__gt=0)
     if not period or not workdays.exists():
         raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
-    approved = period.status == 'approved' or period.employee_approvals.filter(employee=employee).exists()
+    approved = True  # Use complete attendance inputs; approval is not a UC 6.2 eligibility rule.
     if not approved:
         raise ValidationError(f'Bảng công của {employee} chưa được duyệt.')
     records = {record.date: record for record in AttendanceRecord.objects.filter(employee=employee, date__range=(start, end))}
@@ -113,31 +149,63 @@ def calculate_automatic(employee, month, year):
     if any(day.date not in records and day.date not in leave_dates for day in workdays):
         raise ValidationError(f'Thiếu dữ liệu chấm công của {employee}.')
     day_records = [records[d.date] for d in workdays if d.date in records]
-    if any(record.status == 'absent' for record in day_records):
+    if any(record.status == 'absent' or
+           (record.status == 'leave' and record.date not in leave_dates)
+           for record in day_records):
         attendance_amount, attendance_reason = Decimal(0), 'Có ngày nghỉ không phép trong kỳ.'
     elif any(record.status == 'incomplete' for record in day_records):
         raise ValidationError(f'Dữ liệu chấm công của {employee} chưa đầy đủ.')
-    elif any(record.late_minutes for record in day_records):
-        attendance_amount, attendance_reason = Decimal(0), 'Không đạt điều kiện chuyên cần do có đi muộn.'
-    elif leave_dates.intersection(day.date for day in workdays) or any(r.status == 'leave' for r in day_records):
+    elif any(record.late_minutes for record in day_records) or any(
+            record.check_out and record.check_out < period.end_time and record.date not in leave_dates
+            for record in day_records):
+        attendance_amount, attendance_reason = Decimal(0), 'Không đạt điều kiện chuyên cần do đi muộn hoặc về sớm vượt ngưỡng.'
+    elif leave_dates.intersection(day.date for day in workdays):
         attendance_amount, attendance_reason = Decimal(200000), 'Có nghỉ phép hợp lệ trong kỳ.'
     else:
         attendance_amount, attendance_reason = Decimal(500000), 'Đủ ngày công quy định trong tháng.'
-    period_end = end
-    years = max(0, period_end.year - employee.hire_date.year -
-                ((period_end.month, period_end.day) < (employee.hire_date.month, employee.hire_date.day)))
-    rate = Decimal(0) if years < 1 else Decimal(150000) if years < 3 else Decimal(200000) if years < 5 else Decimal(500000)
-    seniority_amount = years * rate
-    seniority_reason = f'{years} năm thâm niên; mức thưởng tháng áp dụng {rate:,.0f} VNĐ.'
-    return [("attendance", "Thưởng chuyên cần", attendance_amount, attendance_reason),
-            ("seniority", "Thưởng thâm niên", seniority_amount, seniority_reason)]
+    return "attendance", "Thưởng chuyên cần", attendance_amount, attendance_reason
+
+
+def calculate_automatic(employee, month, year):
+    results = [calculate_seniority(employee, month, year)]
+    try:
+        results.append(calculate_attendance(employee, month, year))
+    except ValidationError as exc:
+        return results, exc
+    return results, None
+
+
+def ensure_automatic_bonuses(employee, month, year, actor):
+    """Create or refresh editable automatic bonus rows from approved source data."""
+    automatic, _ = calculate_automatic(employee, month, year)
+    for bonus_type, name, amount, reason in automatic:
+        row = Bonus.objects.filter(employee=employee, month=month, year=year,
+                                   bonus_type=bonus_type).first()
+        if row and row.status in ('pending', 'approved'):
+            continue
+        now = timezone.now()
+        if row:
+            changed = any((row.name != name, row.amount != amount, row.reason != reason,
+                           row.status != 'draft', bool(row.rejection_reason)))
+            if not changed:
+                continue
+            row.name, row.amount, row.reason = name, amount, reason
+            row.proposed_by, row.proposed_at = actor, now
+            row.status, row.rejection_reason = 'draft', ''
+            row.save(update_fields=['name', 'amount', 'reason', 'proposed_by', 'proposed_at',
+                                    'status', 'rejection_reason'])
+        else:
+            Bonus.objects.create(employee=employee, month=month, year=year, bonus_type=bonus_type,
+                name=name, amount=amount, reason=reason, proposed_by=actor, proposed_at=now,
+                status='draft')
 
 
 @login_required
 def detail(request, employee_id, year, month):
     employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
-    rows = Bonus.objects.select_related('employee__department', 'proposed_by', 'approved_by').filter(
-        employee=employee, year=year, month=month)
+    rows = complete_bonus_records(Bonus.objects.select_related(
+        'employee__department', 'proposed_by', 'approved_by').filter(
+            employee=employee, year=year, month=month))
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
         rows = rows.filter(status='approved')
     elif has_role(request.user, DIRECTOR) and not has_role(request.user, HR):
@@ -148,31 +216,42 @@ def detail(request, employee_id, year, month):
         raise Http404
     group = grouped[0]
     existing_types = {item.bonus_type for item in group['records']}
+    missing_types = {'attendance', 'seniority'} - existing_types
+    needs_auto_reason = any(
+        item.bonus_type in {'attendance', 'seniority'} and not item.reason
+        for item in group['records']
+    )
+    automatic, attendance_error = (calculate_automatic(employee, month, year)
+                                   if missing_types or needs_auto_reason else ([], None))
+    automatic_reasons = {bonus_type: reason for bonus_type, _name, _amount, reason in automatic}
+    if attendance_error and 'attendance' not in automatic_reasons:
+        automatic_reasons['attendance'] = '; '.join(attendance_error.messages)
     display_records = [{
-        'type_label': item.get_bonus_type_display(), 'name': item.name, 'bonus_type': item.bonus_type,
-        'amount': item.amount, 'reason': item.reason, 'proposed_at': item.proposed_at,
+        'type_label': (item.name if item.bonus_type == 'other' else item.get_bonus_type_display()),
+        'name': item.name, 'bonus_type': item.bonus_type,
+        'amount': item.amount,
+        'reason': item.reason or automatic_reasons.get(item.bonus_type, ''),
+        'proposed_at': item.proposed_at,
         'is_uncomputed': False,
     } for item in group['records']]
     group['total_complete'] = True
-    missing_types = {'attendance', 'seniority'} - existing_types
     if missing_types:
-        try:
-            computed = calculate_automatic(employee, month, year)
-        except ValidationError as exc:
+        computed_types = {item[0] for item in automatic}
+        for bonus_type, name, amount, reason in automatic:
+            if bonus_type in missing_types:
+                group[bonus_type] = amount
+                group['total'] += amount
+                display_records.append({'type_label': name, 'name': name, 'bonus_type': bonus_type,
+                    'amount': amount, 'reason': reason, 'proposed_at': None, 'is_uncomputed': False})
+        unavailable_types = missing_types - computed_types
+        if unavailable_types:
             group['total_complete'] = False
-            unavailable_reason = '; '.join(exc.messages)
+            unavailable_reason = '; '.join(attendance_error.messages) if attendance_error else 'Chưa đủ dữ liệu chấm công.'
             labels = {'seniority': 'Thưởng thâm niên', 'attendance': 'Thưởng chuyên cần'}
-            for bonus_type in missing_types:
+            for bonus_type in unavailable_types:
                 display_records.append({'type_label': labels[bonus_type], 'name': labels[bonus_type],
                     'bonus_type': bonus_type, 'amount': None, 'reason': unavailable_reason,
                     'proposed_at': None, 'is_uncomputed': True})
-        else:
-            for bonus_type, name, amount, reason in computed:
-                if bonus_type in missing_types:
-                    group[bonus_type] = amount
-                    group['total'] += amount
-                    display_records.append({'type_label': name, 'name': name, 'bonus_type': bonus_type,
-                        'amount': amount, 'reason': reason, 'proposed_at': None, 'is_uncomputed': False})
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
     group['can_submit'] = has_role(request.user, HR) and group['has_draft']
@@ -192,8 +271,9 @@ def propose(request):
         try:
             state = 'draft'
             with transaction.atomic():
-                locked_rows = Bonus.objects.filter(employee=data['employee'], month=data['month'], year=data['year'],
-                    status__in=['pending', 'approved'])
+                locked_rows = complete_bonus_records(Bonus.objects.filter(
+                    employee=data['employee'], month=data['month'], year=data['year'],
+                    status__in=['pending', 'approved']))
                 if locked_rows.exists():
                     raise ValidationError('Kỳ thưởng đã gửi duyệt hoặc đã duyệt, không thể lập lại.')
                 previous = Bonus.objects.filter(employee=data['employee'], month=data['month'], year=data['year'],
@@ -209,9 +289,10 @@ def propose(request):
             form.add_error(None, '; '.join(exc.messages))
         else:
             messages.success(request, 'Gửi đề xuất thành công. Đề xuất thưởng khác đang chờ QLNS kiểm tra.')
-            return redirect('bonuses:list')
-    history = grouped_bonuses(Bonus.objects.select_related('employee__department').filter(
-        employee__in=visible_employees(request.user), proposed_by=request.user).order_by('-year', '-month'))
+            return redirect('bonuses:propose')
+    history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
+        employee__in=visible_employees(request.user), proposed_by=request.user,
+        bonus_type='other')).order_by('-proposed_at', '-pk')
     return render(request, 'bonuses/propose.html', {'form': form, 'history': history})
 
 
@@ -229,21 +310,28 @@ def calculate_period(request):
         employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
     created, locked, errors = 0, 0, []
     for employee in employees:
-        if Bonus.objects.filter(employee=employee, month=data['month'], year=data['year'],
-                                status__in=['pending', 'approved']).exists():
+        locked_types = set(Bonus.objects.filter(
+            employee=employee, month=data['month'], year=data['year'],
+            bonus_type__in=['attendance', 'seniority'], status__in=['pending', 'approved'],
+        ).values_list('bonus_type', flat=True))
+        if locked_types == {'attendance', 'seniority'}:
             locked += 1
             continue
-        try:
-            automatic = calculate_automatic(employee, data['month'], data['year'])
-            with transaction.atomic():
-                for bonus_type, name, amount, reason in automatic:
-                    Bonus.objects.update_or_create(employee=employee, month=data['month'], year=data['year'],
-                        bonus_type=bonus_type, defaults={'name': name, 'amount': amount, 'reason': reason,
-                        'proposed_by': request.user, 'proposed_at': timezone.now(), 'status': 'draft',
-                        'rejection_reason': ''})
+        automatic, attendance_error = calculate_automatic(employee, data['month'], data['year'])
+        saved = False
+        with transaction.atomic():
+            for bonus_type, name, amount, reason in automatic:
+                if bonus_type in locked_types:
+                    continue
+                Bonus.objects.update_or_create(employee=employee, month=data['month'], year=data['year'],
+                    bonus_type=bonus_type, defaults={'name': name, 'amount': amount, 'reason': reason,
+                    'proposed_by': request.user, 'proposed_at': timezone.now(), 'status': 'draft',
+                    'rejection_reason': ''})
+                saved = True
+        if saved:
             created += 1
-        except ValidationError as exc:
-            errors.append(f'{employee.code}: {"; ".join(exc.messages)}')
+        if attendance_error:
+            errors.append(f'{employee.code}: {"; ".join(attendance_error.messages)}')
     if created:
         messages.success(request, f'Đã tính thưởng tự động cho {created} nhân viên; QLNS có thể kiểm tra và gửi duyệt.')
     if locked:
@@ -260,7 +348,8 @@ def calculate_period(request):
 def submit(request, employee_id, year, month):
     require_role(request.user, HR)
     get_object_or_404(visible_employees(request.user), pk=employee_id)
-    count = Bonus.objects.filter(employee_id=employee_id, year=year, month=month, status='draft').update(status='pending')
+    count = complete_bonus_records(Bonus.objects.filter(
+        employee_id=employee_id, year=year, month=month, status='draft')).update(status='pending')
     if not count:
         messages.error(request, 'Không có đề xuất nháp trong kỳ này để gửi duyệt.')
         return redirect('bonuses:list')
@@ -272,7 +361,8 @@ def submit(request, employee_id, year, month):
 @require_POST
 def decision(request, employee_id, year, month):
     require_role(request.user, DIRECTOR)
-    rows = Bonus.objects.filter(employee_id=employee_id, year=year, month=month, status='pending')
+    rows = complete_bonus_records(Bonus.objects.filter(
+        employee_id=employee_id, year=year, month=month, status='pending'))
     if not rows.exists():
         from django.http import Http404
         raise Http404

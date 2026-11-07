@@ -1,4 +1,4 @@
-{% load access_tags %}{% role_allowed user 'Giám đốc' 'Nhân sự' as management_menu %}
+{% load access_tags %}{% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' 'Nhân viên' as bonus_menu %}
 {% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' as can_view_dashboard %}
 <nav class="at-nav" aria-label="Điều hướng chính">
   <a class="at-brand" href="{% if can_view_dashboard %}{% url 'dashboard' %}{% else %}{% url 'attendance:list' %}{% endif %}" aria-label="TVT trang chủ">
@@ -10,7 +10,7 @@
     <a href="{% url 'employees' %}" {% if request.resolver_match.url_name == 'employees' or '/admin/employees/' in request.path %}class="active" aria-current="page"{% endif %}>NHÂN VIÊN</a>
     <a href="{% url 'attendance:clock' %}" {% if request.resolver_match.url_name == 'clock' %}class="active" aria-current="page"{% endif %}>CHẤM CÔNG</a>
     <a href="{% url 'attendance:list' %}" {% if request.resolver_match.namespace == 'attendance' and request.resolver_match.url_name != 'clock' or '/admin/attendance/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG CÔNG</a>
-    {% if management_menu %}<a href="{% if user.is_superuser %}{% url 'admin:bonuses_bonus_changelist' %}{% else %}{% url 'bonuses:list' %}{% endif %}" {% if '/admin/bonuses/' in request.path or request.resolver_match.namespace == 'bonuses' %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
+    {% if bonus_menu %}<a href="{% if user.is_superuser %}{% url 'admin:bonuses_bonus_changelist' %}{% else %}{% url 'bonuses:list' %}{% endif %}" {% if '/admin/bonuses/' in request.path or request.resolver_match.namespace == 'bonuses' %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
     <a href="{% url 'payroll:list' %}" {% if request.resolver_match.namespace == 'payroll' or '/admin/payroll/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG LƯƠNG</a>
     <a href="{% url 'leaves:list' %}" {% if request.resolver_match.namespace == 'leaves' or '/admin/leaves/' in request.path %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>
   </div>
