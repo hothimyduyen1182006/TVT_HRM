@@ -1,0 +1,67 @@
+.db-page {
+  color: #344054;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.db-heading h1 {
+  color: #17385e;
+  font-size: 32px;
+  font-family: inherit;
+  font-weight: 750;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.db-heading p,
+.db-heading label,
+.db-page input,
+.db-page select,
+.db-page button {
+  font-size: 14px;
+}
+
+.db-cards h2 {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.db-cards strong {
+  font-size: 32px;
+}
+
+.db-panel h2,
+.db-list-heading h2 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.db-page table,
+.db-page th,
+.db-page td,
+.db-gender ul {
+  font-size: 14px;
+}
+
+.db-bar-column > span,
+.db-bar strong,
+.db-state,
+.db-note,
+.db-list-footer {
+  font-size: 13px;
+}
+
+@media (max-width: 700px) {
+  .db-heading h1 {
+    font-size: 25px;
+  }
+
+  .db-cards h2 {
+    font-size: 13px;
+  }
+
+  .db-cards strong {
+    font-size: 28px;
+  }
+}

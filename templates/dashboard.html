@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% load static %}
 {% block title %}Dashboard · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v=links">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v=links"><link rel="stylesheet" href="{% static 'css/dashboard-typography.css' %}?v=2">{% endblock %}
 {% block content %}
 <section class="db-page">
 <header class="db-heading"><div><h1>Dashboard</h1><p>Tổng quan tình hình nhân sự</p></div><form method="get"><label for="id_date">Ngày thống kê</label>{{ form.date }}{% if form.department.value %}<input type="hidden" name="department" value="{{ form.department.value }}">{% endif %}<button>Xem</button></form></header>
