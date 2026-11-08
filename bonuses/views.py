@@ -20,19 +20,11 @@ from employees.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from employees.models import Employee
 from leaves.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
-from .models import Bonus
+from .models import Bonus, approved_bonus_records, complete_bonus_records
 
 
 def access_denied(request):
     return render(request, 'bonuses/access_denied.html', status=403)
-
-
-def complete_bonus_records(rows):
-    """Keep other-bonus rows only when their proposal data is complete."""
-    return rows.filter(
-        Q(bonus_type__in=['attendance', 'seniority']) |
-        Q(bonus_type='other', name__gt='', reason__gt='', proposed_at__isnull=False)
-    )
 
 
 def bonus_rows(user, form):
@@ -136,7 +128,7 @@ def personal_list(request):
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
         'total_amount': sum((row['total'] for row in grouped), Decimal(0)),
         'employee': employee,
-        'can_manage': has_role(request.user, HR, DIRECTOR, MANAGER)})
+        'personal': True})
 
 
 def calculate_seniority(employee, month, year):
@@ -416,8 +408,7 @@ def export(request):
         messages.error(request, 'Vui lòng chọn tháng và năm trước khi xuất bảng thưởng.')
         return redirect('bonuses:list')
     form.cleaned_data['status'] = ''
-    rows = bonus_rows(request.user, form)
-    rows = rows.filter(status='approved')
+    rows = approved_bonus_records(bonus_rows(request.user, form))
     if not rows.exists():
         messages.error(request, 'Chưa có dữ liệu thưởng đã duyệt để xuất.')
         return redirect('bonuses:list')

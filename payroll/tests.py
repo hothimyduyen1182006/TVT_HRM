@@ -54,6 +54,7 @@ class PayrollTests(TestCase):
             multiplier=Decimal('1.5'), approved=False)
         for approved in [False, True]:
             Bonus.objects.create(employee=self.emp, month=1, year=2026, name='Thưởng', amount=200000,
+                reason='Đề xuất thưởng hợp lệ', proposed_by=self.hr, proposed_at=timezone.now(),
                 status='approved' if approved else 'pending', approved_by=self.director if approved else None,
                 approved_at=timezone.now() if approved else None)
         PayrollAdjustment.objects.create(employee=self.emp, period=self.period, name='Ăn trưa',
@@ -545,6 +546,7 @@ class PayrollTests(TestCase):
         inputs.tax_amount -= 1000
         inputs.save()
         bonus = Bonus.objects.create(employee=self.emp, month=1, year=2026, name='Mới duyệt', amount=100000,
+            reason='Đề xuất thưởng hợp lệ', proposed_by=self.hr, proposed_at=timezone.now(),
             status='approved', approved_by=self.director, approved_at=timezone.now())
         with self.assertRaises(ValidationError):
             approve_record(self.director, row.pk)
@@ -553,6 +555,15 @@ class PayrollTests(TestCase):
             multiplier=Decimal('1.5'), approved=True, approved_by=self.director, approved_at=timezone.now())
         with self.assertRaises(ValidationError):
             approve_record(self.director, row.pk)
+
+    def test_incomplete_legacy_bonus_is_not_added_to_payroll(self):
+        Bonus.objects.create(employee=self.emp, month=1, year=2026, name='', amount=300000,
+            status='approved', approved_by=self.director, approved_at=timezone.now())
+
+        row = self.calculate()
+
+        self.assertEqual(row.bonus_pay, 0)
+        self.assertEqual(row.breakdown['bonuses'], [])
 
     def test_note_or_other_employee_changes_do_not_block_approval(self):
         row = self.calculate()

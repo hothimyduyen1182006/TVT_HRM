@@ -5,7 +5,7 @@ from django.db.models import Sum
 from employees.access import require_role, HR, DIRECTOR
 from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
-from bonuses.models import Bonus
+from bonuses.models import Bonus, approved_bonus_records
 from leaves.models import LeaveDay
 from payroll.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
 from .source_data import source_data
@@ -74,8 +74,8 @@ def payroll_values(employee, attendance, period, standard=None):
     ot_lines = [{'id': row.pk, 'date': str(row.date), 'hours': str(row.hours), 'multiplier': str(row.multiplier),
                  'amount': str(hourly * row.hours * row.multiplier)} for row in overtime]
     ot_pay = sum((Decimal(line['amount']) for line in ot_lines), ZERO)
-    bonuses = Bonus.objects.filter(employee=employee, year=attendance.year, month=attendance.month,
-                                   status='approved', approved_by__isnull=False, approved_at__isnull=False)
+    bonuses = approved_bonus_records(Bonus.objects.filter(
+        employee=employee, year=attendance.year, month=attendance.month))
     bonus_lines = [{'id': row.pk, 'name': row.name, 'amount': str(row.amount)} for row in bonuses]
     bonus = sum((Decimal(line['amount']) for line in bonus_lines), ZERO)
     adjustments = PayrollAdjustment.objects.filter(employee=employee, period=period, approved=True)

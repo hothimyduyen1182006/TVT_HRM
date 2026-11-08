@@ -1,6 +1,22 @@
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import Q
+
+
+def complete_bonus_records(rows):
+    """Use the same valid proposal rows in bonus views and payroll."""
+    return rows.filter(
+        Q(bonus_type__in=['attendance', 'seniority']) |
+        Q(bonus_type='other', name__gt='', reason__gt='', proposed_at__isnull=False)
+    )
+
+
+def approved_bonus_records(rows):
+    """Return complete, approved bonuses that are eligible for payroll."""
+    return complete_bonus_records(rows).filter(
+        status='approved', approved_by__isnull=False, approved_at__isnull=False
+    )
 
 
 class Bonus(models.Model):
