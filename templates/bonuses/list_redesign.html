@@ -39,25 +39,33 @@
   border-radius:6px;
   font-size:14px;
 }
-.bm-filter > .btn{
+.bm-filter-actions{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.bm-filter-actions .btn,.bm-reset{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-height:40px;
-  padding:10px 22px;
-  border:1px solid #17385e;
+  min-height:36px;
+  padding:8px 15px;
+  border:1px solid #20334f;
   border-radius:5px;
-  background:#17385e;
+  background:#20334f;
   color:#fff;
-  font-size:14px;
+  font-size:13px;
   font-weight:700;
+  text-decoration:none;
   white-space:nowrap;
 }
-.bm-filter > .btn:hover{
-  background:#254b77;
-  border-color:#254b77;
+.bm-filter-actions .btn:hover,.bm-reset:hover{
+  background:#2c4669;
+  border-color:#2c4669;
   color:#fff;
 }
+.bm-reset{background:#fff;color:#20334f;border-color:#d3dce9}
+.bm-reset:hover{background:#edf2f8;color:#20334f;border-color:#d3dce9}
 /* Typography follows the attendance screen: 32px heading and 14px content. */
 .bm-page{font-family:inherit;font-size:14px;color:#344054}
 .bm-title{font-size:32px;line-height:1.25;font-weight:750}
@@ -82,8 +90,13 @@
   <div class="bm-field">{{ form.department.label_tag }}{{ form.department }}</div>
   <div class="bm-field">{{ form.month.label_tag }}{{ form.month }}</div>
   <div class="bm-field">{{ form.year.label_tag }}{{ form.year }}</div>
-  <button class="btn btn-primary px-4" type="submit">Lọc</button>
+  <div class="bm-field">{{ form.status.label_tag }}{{ form.status }}</div>
+  <div class="bm-filter-actions">
+    <button class="btn" type="submit">Lọc</button>
+    <a class="bm-reset" href="{% url 'bonuses:list' %}">Đặt lại</a>
+  </div>
 </form>
+{% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
 <div class="bm-actions">
   <a class="btn" href="{% url 'bonuses:personal' %}">Thưởng cá nhân</a>
   {% if can_propose %}<a class="btn bm-create" href="{% url 'bonuses:propose' %}">Lập/Đề xuất bảng thưởng</a>{% endif %}

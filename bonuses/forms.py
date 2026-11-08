@@ -19,11 +19,9 @@ class VNDField(forms.DecimalField):
         is_plain_number = re.fullmatch(r'\d+', raw_value)
         is_grouped_number = re.fullmatch(r'\d{1,3}(?:[.,]\d{3})+', raw_value)
         if not (is_plain_number or is_grouped_number):
-            raise forms.ValidationError('Nhập số tiền VNĐ nguyên, ví dụ 500000 hoặc 500.000.')
+            raise forms.ValidationError('Nhập đầy đủ số tiền, ví dụ 500000 VNĐ.')
 
         normalized_value = raw_value.replace('.', '').replace(',', '')
-        if is_plain_number and 0 < int(normalized_value) < 10000:
-            normalized_value += '000'
         return super().to_python(normalized_value)
 
 
@@ -38,10 +36,20 @@ class BonusFilter(PeriodFilter):
 
     def __init__(self, user, data=None):
         super().__init__(user, data)
+        self.fields['month'].required = False
+        self.fields['year'].required = False
         self.fields['department'].empty_label = 'Tất cả'
         self.fields['employee'].empty_label = 'Tất cả'
-        self.fields['month'].widget = forms.Select(choices=[(m, f'Tháng {m:02}') for m in range(1, 13)])
-        self.fields['year'].widget = forms.Select(choices=[(y, f'Năm {y}') for y in range(2000, timezone.localdate().year + 2)])
+        self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+            (m, f'Tháng {m:02}') for m in range(1, 13)
+        ])
+        self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+            (y, f'Năm {y}') for y in range(2000, timezone.localdate().year + 2)
+        ])
+        if not data or 'month' not in data:
+            self.data['month'] = ''
+        if not data or 'year' not in data:
+            self.data['year'] = ''
 
 
 class PersonalBonusFilter(forms.Form):
@@ -52,10 +60,10 @@ class PersonalBonusFilter(forms.Form):
 
     def __init__(self, data=None):
         today = timezone.localdate()
-        initial = {'month': '', 'year': today.year}
+        initial = {'month': '', 'year': ''}
         super().__init__(data=data if data else None, initial=initial)
         self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [(m, f'Tháng {m:02}') for m in range(1, 13)])
-        self.fields['year'].widget = forms.Select(choices=[(y, f'Năm {y}') for y in range(2000, today.year + 2)])
+        self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [(y, f'Năm {y}') for y in range(2000, today.year + 2)])
 
 
 class BonusProposalForm(forms.Form):
@@ -66,7 +74,6 @@ class BonusProposalForm(forms.Form):
     reason = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea(attrs={'rows': 3}), required=False)
     amount = VNDField(
         label='Số tiền (VNĐ)',
-        help_text='Nhập 500 để tính là 500.000 VNĐ, hoặc nhập đầy đủ 500000.',
         min_value=0,
         max_digits=12,
         decimal_places=0,
@@ -81,15 +88,17 @@ class BonusProposalForm(forms.Form):
         self.fields['name'].widget.attrs['placeholder'] = 'Ví dụ: Thưởng dự án'
         self.fields['reason'].widget.attrs.update({'rows': 4, 'placeholder': 'Nêu ngắn gọn căn cứ và thành tích được đề xuất thưởng.'})
         self.fields['amount'].widget = forms.TextInput(attrs={
-            'placeholder': '500 hoặc 500.000',
+            'placeholder': 'Ví dụ: 500000',
             'inputmode': 'numeric',
             'autocomplete': 'off',
         })
         today = timezone.localdate()
-        self.fields['month'].initial = today.month
-        self.fields['year'].initial = today.year
-        self.fields['month'].widget = forms.Select(choices=[(m, f'Tháng {m:02}') for m in range(1, 13)])
-        self.fields['year'].widget = forms.Select(choices=[(y, f'Năm {y}') for y in range(2000, today.year + 2)])
+        self.fields['month'].widget = forms.Select(choices=[('', 'Chọn tháng')] + [
+            (m, f'Tháng {m:02}') for m in range(1, 13)
+        ])
+        self.fields['year'].widget = forms.Select(choices=[('', 'Chọn năm')] + [
+            (y, f'Năm {y}') for y in range(2000, today.year + 2)
+        ])
 
     def clean(self):
         data = super().clean()

@@ -7,19 +7,19 @@ hoặc mật khẩu mẫu trong database thật.
 
 ## Chạy trên PyCharm / Windows
 
-Mở thư mục có manage.py, chọn interpreter .venv của dự án. Môi trường hiện tại đã có
-Django 4.2.8, không cần cài thêm. Máy mới dùng môi trường Python tương thích Django
-4.2.8 (ưu tiên Python 3.11) rồi cài requirements.txt.
+Mở thư mục có manage.py. Repo dùng Django 4.2.8; máy mới nên dùng Python 3.12 và cài requirements.txt.
 
 ```powershell
-python -m pip install -r requirements.txt
-python manage.py migrate
-python manage.py setup_roles
-python manage.py createsuperuser
-python manage.py runserver
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py setup_roles
+.\.venv\Scripts\python.exe manage.py createsuperuser
+.\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Truy cập http://127.0.0.1:8000/ và đăng nhập tài khoản vừa tạo.
+Use Python 3.12 for this Django 4.2.8 project. Do not run it with Python 3.14.
+Truy cập http://127.0.0.1:8000/ và đăng nhập tài khoản vừa tạo. Mở trang thưởng tại /bonuses/.
 Quản trị tại /admin/; bảng công /attendance/; bảng lương /payroll/;
 dữ liệu thuế/BH/phụ cấp /payroll/inputs/; nhân viên /employees/.
 Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu dáng; form vẫn hoạt động khi CDN không có mạng.

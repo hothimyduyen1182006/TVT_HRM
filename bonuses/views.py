@@ -16,11 +16,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from attendance.models import AttendanceRecord, AttendancePeriod, WorkCalendarDay
-from employees.access import DIRECTOR, HR, MANAGER, has_role, require_role, visible_employees
+from employees.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from employees.models import Employee
 from leaves.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
 from .models import Bonus
+
+
+def access_denied(request):
+    return render(request, 'bonuses/access_denied.html', status=403)
 
 
 def complete_bonus_records(rows):
@@ -37,8 +41,12 @@ def bonus_rows(user, form):
     data = form.cleaned_data
     rows = complete_bonus_records(Bonus.objects.select_related(
         'employee__department', 'proposed_by', 'approved_by').filter(
-        employee__in=form.employee_scope(user), month=data['month'], year=data['year'])
+        employee__in=form.employee_scope(user))
     )
+    if data.get('month'):
+        rows = rows.filter(month=data['month'])
+    if data.get('year'):
+        rows = rows.filter(year=data['year'])
     if has_role(user, DIRECTOR):
         rows = rows.exclude(status='draft')
     if data.get('q'):
@@ -83,7 +91,10 @@ def bonus_list(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
         return personal_list(request)
     form = BonusFilter(request.user, request.GET)
-    if has_role(request.user, HR, MANAGER) and form.is_valid():
+    if not form.is_valid() and {'employee', 'department'} & set(form.errors):
+        return access_denied(request)
+    if (has_role(request.user, HR, MANAGER) and form.is_valid()
+            and form.cleaned_data.get('month') and form.cleaned_data.get('year')):
         data = form.cleaned_data
         employees = form.employee_scope(request.user)
         if data.get('q'):
@@ -107,6 +118,10 @@ def bonus_list(request):
 
 @login_required
 def personal_list(request):
+    employee = Employee.objects.filter(user=request.user).first()
+    if employee is None and not has_role(request.user, HR, DIRECTOR, MANAGER):
+        return access_denied(request)
+
     form = PersonalBonusFilter(request.GET)
     rows = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__user=request.user)).order_by('-year', '-month', 'name')
@@ -120,7 +135,7 @@ def personal_list(request):
     grouped = grouped_bonuses(rows)
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
         'total_amount': sum((row['total'] for row in grouped), Decimal(0)),
-        'employee': Employee.objects.filter(user=request.user).first(),
+        'employee': employee,
         'can_manage': has_role(request.user, HR, DIRECTOR, MANAGER)})
 
 
@@ -202,6 +217,9 @@ def ensure_automatic_bonuses(employee, month, year, actor):
 
 @login_required
 def detail(request, employee_id, year, month):
+    if (Employee.objects.filter(pk=employee_id).exists()
+            and not visible_employees(request.user).filter(pk=employee_id).exists()):
+        return access_denied(request)
     employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
     rows = complete_bonus_records(Bonus.objects.select_related(
         'employee__department', 'proposed_by', 'approved_by').filter(
@@ -262,9 +280,9 @@ def detail(request, employee_id, year, month):
 @login_required
 def propose(request):
     if has_role(request.user, DIRECTOR) and not has_role(request.user, HR, MANAGER):
-        messages.info(request, 'Giám đốc không lập đề xuất. Hãy mở bảng thưởng đang Chờ duyệt và chọn Xem chi tiết để duyệt hoặc từ chối.')
-        return redirect('bonuses:list')
-    require_role(request.user, HR, MANAGER)
+        return access_denied(request)
+    if not has_role(request.user, HR, MANAGER):
+        return access_denied(request)
     form = BonusProposalForm(request.user, request.POST or None)
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
@@ -299,12 +317,16 @@ def propose(request):
 @login_required
 @require_POST
 def calculate_period(request):
-    require_role(request.user, HR)
+    if not has_role(request.user, HR):
+        return access_denied(request)
     form = BonusFilter(request.user, request.POST)
     if not form.is_valid():
         messages.error(request, 'Vui lòng chọn kỳ thưởng hợp lệ trước khi tính tự động.')
         return redirect('bonuses:list')
     data = form.cleaned_data
+    if not data.get('month') or not data.get('year'):
+        messages.error(request, 'Vui lòng chọn tháng và năm trước khi tính thưởng tự động.')
+        return redirect('bonuses:list')
     employees = form.employee_scope(request.user)
     if data.get('q'):
         employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
@@ -346,7 +368,8 @@ def calculate_period(request):
 @login_required
 @require_POST
 def submit(request, employee_id, year, month):
-    require_role(request.user, HR)
+    if not has_role(request.user, HR):
+        return access_denied(request)
     get_object_or_404(visible_employees(request.user), pk=employee_id)
     count = complete_bonus_records(Bonus.objects.filter(
         employee_id=employee_id, year=year, month=month, status='draft')).update(status='pending')
@@ -360,7 +383,8 @@ def submit(request, employee_id, year, month):
 @login_required
 @require_POST
 def decision(request, employee_id, year, month):
-    require_role(request.user, DIRECTOR)
+    if not has_role(request.user, DIRECTOR):
+        return access_denied(request)
     rows = complete_bonus_records(Bonus.objects.filter(
         employee_id=employee_id, year=year, month=month, status='pending'))
     if not rows.exists():
@@ -382,10 +406,14 @@ def decision(request, employee_id, year, month):
 @login_required
 @require_POST
 def export(request):
-    require_role(request.user, HR, DIRECTOR)
+    if not has_role(request.user, HR, DIRECTOR):
+        return access_denied(request)
     form = BonusFilter(request.user, request.POST)
     if not form.is_valid():
         messages.error(request, 'Bộ lọc không hợp lệ.')
+        return redirect('bonuses:list')
+    if not form.cleaned_data.get('month') or not form.cleaned_data.get('year'):
+        messages.error(request, 'Vui lòng chọn tháng và năm trước khi xuất bảng thưởng.')
         return redirect('bonuses:list')
     form.cleaned_data['status'] = ''
     rows = bonus_rows(request.user, form)
