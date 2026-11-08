@@ -83,6 +83,9 @@
   .bm-actions .btn{font-size:13px}
 }
 @media(max-width:700px){.bm-page{margin-top:1rem;padding:0 .55rem}.bm-filter{padding:.8rem}.bm-field{min-width:calc(50% - .5rem)}.bm-field-search{flex:1 0 100%}.bm-actions{margin-left:0;flex-wrap:wrap}}
+.bm-status{display:inline-block;padding:.3rem .6rem;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap}
+.bm-status.approved{background:#e5f5eb;color:#24794b}.bm-status.pending{background:#fff1d7;color:#93600b}
+.bm-status.rejected{background:#fae7e8;color:#b43b48}.bm-status.draft{background:#edf1f6;color:#596a7c}
 </style>{% endblock %}
 {% block content %}<main class="bm-page"><h1 class="h3 bm-title">QUẢN LÝ THƯỞNG</h1>
 <form method="get" class="bm-filter">

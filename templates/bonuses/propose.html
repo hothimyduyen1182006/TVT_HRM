@@ -34,14 +34,14 @@
 .proposal-actions .btn{min-height:44px;padding:.58rem 1.1rem;border-radius:10px;font-weight:700}
 .proposal-actions .btn-primary{box-shadow:0 5px 13px #0d6efd2b}
 .history-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1.75rem 0 .75rem;color:#17385e}
-.history-heading h2{margin:0;font-size:1rem;font-weight:800;letter-spacing:.035em}
+.history-heading h2{margin:0;font-size:22px;font-weight:750;line-height:1.3;color:#17385e}
 .history-count{padding:.28rem .6rem;border-radius:999px;background:#eaf2fb;color:#536b85;font-size:.78rem;font-weight:700}
 .history-card{border-radius:14px;box-shadow:0 6px 20px #17365408}
 .history-card table{margin:0}
 .history-card table{width:100%;min-width:0;table-layout:fixed}
 .history-card th{padding:.85rem 1rem;background:#f4f7fb;color:#536b85;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e3eaf1}
 .history-card td{padding:.8rem 1rem;vertical-align:middle;color:#31445b}
-.history-reason{width:22%;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.history-reason{width:18%;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
 .history-amount{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 .history-card th:nth-child(1),.history-card td:nth-child(1){width:15%}
 .history-card th:nth-child(2),.history-card td:nth-child(2){width:8%}
@@ -49,11 +49,11 @@
 .history-card th:nth-child(5),.history-card td:nth-child(5){width:10%}
 .history-card th:nth-child(6),.history-card td:nth-child(6){width:11%}
 .history-card th:nth-child(7),.history-card td:nth-child(7){width:11%}
-.history-card th:nth-child(8),.history-card td:nth-child(8){width:8%}
+.history-card th:nth-child(8),.history-card td:nth-child(8){width:12%;white-space:nowrap}
 .history-card tbody tr:last-child td{border-bottom:0}
 .history-status{display:inline-block;padding:.3rem .6rem;border-radius:999px;background:#fff1d7;color:#93600b;font-size:.78rem;font-weight:700;white-space:nowrap}
 .history-status.approved{background:#e5f5eb;color:#24794b}.history-status.rejected{background:#fae7e8;color:#b43b48}.history-status.draft{background:#edf1f6;color:#596a7c}
-.history-link{color:#1769d2;text-decoration:none;font-weight:700}.history-link:hover{text-decoration:underline}
+.history-link{display:inline-block;white-space:nowrap;color:#1769d2;text-decoration:none;font-weight:700}.history-link:hover{text-decoration:underline}
 /* Shared type scale: clear 32px headings and 14px body text. */
 .proposal-wrap{font-family:inherit;font-size:14px;line-height:1.5;color:#344054}
 .proposal-top h1{font-size:32px;font-weight:750;line-height:1.25;letter-spacing:0}
@@ -65,7 +65,6 @@
 .proposal-note{font-size:14px;line-height:1.5}
 .proposal-field-error{font-size:13px}
 .proposal-actions .btn{font-family:inherit;font-size:14px}
-.history-heading h2{font-size:16px;line-height:1.4;letter-spacing:0}
 .history-count,.history-status{font-size:13px}
 .history-card table,.history-card td,.history-card th{font-size:14px}
 .history-card th{text-transform:none;letter-spacing:0}
@@ -81,14 +80,13 @@
 .proposal-note{font-size:14px}
 .proposal-field-error{font-size:13px}
 .proposal-actions .btn{font-family:inherit;font-size:14px}
-.history-heading h2{font-size:16px}
 .history-count,.history-status{font-size:13px}
 .history-card table{font-size:14px}
 .history-card th{font-size:14px;text-transform:none;letter-spacing:0}
 .history-card td{font-size:14px}
 .history-link{font-size:14px}
-@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-top{padding:1.35rem 1.2rem}.proposal-mark{flex-basis:46px;width:46px;height:46px;border-radius:14px;font-size:1.6rem}.proposal-body{padding:1.25rem}.proposal-fields{grid-template-columns:1fr;gap:.95rem}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:1fr}.proposal-actions{padding-top:1rem}.history-card{overflow-x:auto}.history-card table{min-width:900px}.proposal-top h1{font-size:25px}}
-@media(max-width:700px){.proposal-top h1{font-size:25px}}
+@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-top{padding:1.35rem 1.2rem}.proposal-mark{flex-basis:46px;width:46px;height:46px;border-radius:14px;font-size:1.6rem}.proposal-body{padding:1.25rem}.proposal-fields{grid-template-columns:1fr;gap:.95rem}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:1fr}.proposal-actions{padding-top:1rem}.history-card{overflow-x:auto}.history-card table{min-width:760px}.history-card th,.history-card td{padding:.65rem .5rem}.proposal-top h1{font-size:25px}}
+@media(max-width:700px){.proposal-top h1{font-size:25px}.history-heading h2{font-size:20px}}
 </style>
 {% endblock %}
 {% block content %}
@@ -136,7 +134,7 @@
           <td>{{ row.month|stringformat:'02d' }}/{{ row.year }}</td>
           <td class="fw-semibold">{{ row.name }}</td>
           <td class="history-reason">{{ row.reason }}</td>
-          <td class="history-amount">{{ row.amount|money }} ₫</td>
+          <td class="history-amount">{{ row.amount|money }}</td>
           <td>{{ row.proposed_at|date:'d/m/Y' }}</td>
           <td><span class="history-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td>
           <td class="text-end"><a class="history-link" href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Chi tiết →</a></td>
