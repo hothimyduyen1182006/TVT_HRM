@@ -72,8 +72,56 @@
 .leave-evidence-preview{display:inline-flex;flex-direction:column;gap:7px;color:#54738e;font-size:10px;text-decoration:none}.leave-evidence-preview img{display:block;max-width:min(100%,480px);max-height:350px;border:1px solid #e4e9ef;border-radius:9px;object-fit:contain;object-position:left center;background:#f6f8fa}.leave-review-note{padding:13px;border:1px solid #f1e4c7!important;border-radius:8px;background:#fdfaf3}.leave-review-note p{color:#755f36}
 .leave-review-panel{position:sticky;top:20px}.leave-review-panel>p{margin:6px 0 19px;color:#8290a1;font-size:12px;line-height:1.6}.approve-button,.reject-button{width:100%;margin-bottom:14px}.approve-button{background:#173654;color:white}.reject-button{background:#b74646;color:white}.reject-button:hover{background:#9f3939}.leave-reject-form{margin-top:11px;padding-top:17px;border-top:1px solid #edf0f4}.leave-reject-form textarea{min-height:105px;resize:vertical;margin-bottom:12px}
 .leave-muted{color:#9ba5b1;font-size:11px}
+
+/* Employee create form is compact; the personal history remains a separate full-width section. */
+.leave-employee-page{max-width:none;width:100%}
+.employee-page-heading{justify-content:center;margin:0 0 16px;text-align:center}
+.employee-page-heading h1{width:100%;color:#173654;font-size:28px;letter-spacing:.3px;text-align:center}
+.leave-compose{width:min(72vw,1320px);box-sizing:border-box;margin:0 auto 18px;padding:16px 20px;border:1px solid #9db0c4;border-radius:11px;background:#f2f6fa;box-shadow:none}
+.leave-compose .leave-panel-title{display:none}
+.leave-compose .leave-title-icon{width:34px;height:34px;font-size:22px}
+.leave-compose .leave-form-grid{grid-template-columns:minmax(0,1fr);gap:10px}
+.leave-compose .leave-field-wide{grid-column:auto}
+.leave-compose .leave-field label{margin-bottom:4px;color:#173654;font-size:11px;text-transform:uppercase}
+.leave-compose .leave-input{min-height:36px;padding:7px 10px;border-color:#bdcad7;border-radius:6px;font-size:12px}
+.leave-compose .leave-field textarea.leave-input{min-height:58px}
+.leave-compose .leave-upload{min-height:48px;padding:7px 10px;border-color:#bdcad7;border-radius:6px;background:#fff}
+.leave-compose .leave-upload-icon{width:30px;height:30px}
+.leave-compose .leave-help{margin-top:4px;font-size:10px}
+.leave-compose .leave-form-footer{justify-content:center;margin-top:10px;padding-top:0;border:0}
+.leave-compose .leave-form-footer>span{display:none}
+.leave-compose .leave-button{min-height:36px;background:#173654}
+.leave-employee-page .leave-history{margin-top:18px}
+.reviewer-page-heading{justify-content:center;margin:8px 0 18px;text-align:center}
+.reviewer-page-heading h1{color:#173654;font-size:24px;letter-spacing:.2px;text-transform:uppercase}
+.reviewer-filter-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.reviewer-page .leave-filters{padding:15px 18px;border:0;border-radius:0;box-shadow:none}
+.reviewer-page .leave-filter-heading{margin-bottom:10px}
+.reviewer-page .leave-filter-heading{justify-content:flex-end}
+.reviewer-page .leave-filters .leave-field label{font-size:11px}
+.reviewer-page .leave-table thead{background:#173654}
+.reviewer-page .leave-table th{color:#fff;text-align:center}
+.reviewer-page .leave-table td{text-align:center}
+.reviewer-page .leave-table tbody tr:nth-child(odd){background:#f2f6fa}
+.reviewer-page .leave-history{border-radius:0;box-shadow:none}
+.reviewer-page .leave-history .history-title{margin-bottom:10px}
+.leave-employee-page .leave-history{border-radius:0;box-shadow:none}
+.leave-employee-page .leave-table thead{background:#173654}
+.leave-employee-page .leave-table th{color:#fff;text-align:center}
+.leave-employee-page .leave-table td{text-align:center}
+.leave-employee-page .leave-table tbody tr:nth-child(odd){background:#f2f6fa}
+.leave-employee-page .leave-history .history-title{padding:0 20px}
+.leave-employee-page .leave-panel-title h2{color:#173654}
+.leave-detail-page .leave-review-sheet{max-width:500px;border:1px solid #9db0c4;border-radius:9px;background:#f2f6fa;box-shadow:none}
+.leave-detail-page .leave-review-sheet h1{color:#173654;font-size:22px}
+.leave-detail-page .leave-sheet-details{max-width:none}
+.leave-detail-page .leave-sheet-details p{font-size:12px}
+.leave-detail-page .leave-sheet-actions{max-width:none}
+.leave-detail-page .leave-sheet-actions textarea{min-height:58px}
+.leave-detail-page .leave-sheet-buttons .approve-button{background:#173654}
+.leave-detail-page .leave-sheet-buttons .reject-button{background:#b74646}
 @media(max-width:1080px){.leave-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.leave-detail-layout{grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr)}}
-@media(max-width:760px){.leave-page{margin:18px auto 40px}.leave-page-heading{align-items:flex-start}.leave-heading-mark{display:none}.leave-stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}.leave-panel{padding:19px 17px}.leave-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.leave-detail-layout{grid-template-columns:1fr}.leave-review-panel{position:static}.leave-form-footer{align-items:flex-start;flex-direction:column}.leave-form-footer .leave-button{width:100%}}
+@media(max-width:760px){.leave-page{margin:18px auto 40px}.leave-page-heading{align-items:flex-start}.leave-heading-mark{display:none}.leave-stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}.leave-panel{padding:19px 17px}.leave-compose{width:min(92vw,600px);padding:13px 15px}.leave-filter-grid,.reviewer-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.leave-detail-layout{grid-template-columns:1fr}.leave-review-panel{position:static}.leave-form-footer{align-items:flex-start;flex-direction:column}.leave-compose .leave-form-footer{align-items:center}.leave-form-footer .leave-button{width:100%}}
 @media(max-width:480px){.leave-form-grid{grid-template-columns:1fr}.leave-field-wide{grid-column:auto}.leave-filter-grid{grid-template-columns:1fr 1fr}.leave-stat-card{min-height:76px;padding:13px}.leave-stat-card strong{font-size:24px}.leave-table th,.leave-table td{padding:11px}.leave-detail-grid{grid-template-columns:1fr}.leave-detail-grid .detail-wide{grid-column:auto}.detail-heading{flex-direction:column}.leave-footer{gap:8px;flex-direction:column}}
 
 /* Leave review sheet: centered detail and decision controls based on the supplied screen. */
