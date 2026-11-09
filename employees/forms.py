@@ -43,11 +43,15 @@ class EmployeeForm(forms.ModelForm):
             self.fields[field].required = True
         self.fields['position'].queryset = self.fields['position'].queryset.select_related('department')
         if self.employee_instance:
+            # These are set during creation and are not part of the edit screen.
+            for name in ('password', 'password_confirm'):
+                self.fields.pop(name, None)
+            self.fields['avatar'].widget = forms.FileInput(
+                attrs={'accept': '.jpg,.jpeg,.png,.webp', 'class': 'avatar-input-hidden'})
             user = self.employee_instance.user
             self.fields['username'].initial = user.username
             self.fields['email'].initial = user.email
             self.fields['account_active'].initial = user.is_active
-            self.fields['password'].help_text = 'Để trống nếu không đổi mật khẩu.'
         else:
             self.fields['password'].required = True
             self.fields['password_confirm'].required = True
@@ -110,13 +114,29 @@ class EmployeeForm(forms.ModelForm):
 
 
 class EducationForm(forms.ModelForm):
+    remove_certificate = forms.BooleanField(required=False, label='Xóa tệp hiện tại')
+
     class Meta:
         model = Education
         fields = ('code', 'degree', 'major', 'school', 'graduation_year', 'certificate_file')
         widgets = {'graduation_year': forms.NumberInput(attrs={'min': '1900', 'max': '2100'})}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['certificate_file'].widget = forms.FileInput(
+            attrs={'accept': '.pdf,.doc,.docx,.jpg,.jpeg,.png', 'class': 'education-file-input',
+                   'data-file-replacement': 'true'})
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('remove_certificate') and not self.files.get('certificate_file'):
+            cleaned['certificate_file'] = False
+        return cleaned
+
 
 class LaborContractForm(forms.ModelForm):
+    remove_contract_file = forms.BooleanField(required=False, label='Xóa tệp hiện tại')
+
     class Meta:
         model = LaborContract
         fields = ('code', 'number', 'contract_type', 'signed_date', 'start_date', 'end_date',
@@ -128,8 +148,16 @@ class LaborContractForm(forms.ModelForm):
             'agreed_salary': forms.NumberInput(attrs={'min': '0', 'step': '1'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['contract_file'].widget = forms.FileInput(
+            attrs={'accept': '.pdf,.doc,.docx,.jpg,.jpeg,.png', 'class': 'education-file-input',
+                   'data-file-replacement': 'true'})
+
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get('remove_contract_file') and not self.files.get('contract_file'):
+            cleaned['contract_file'] = False
         start = cleaned.get('start_date')
         end = cleaned.get('end_date')
         if start and end and end < start:
