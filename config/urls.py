@@ -48,6 +48,7 @@ urlpatterns = [
     path('departments/', departments, name='departments'),
     path('employees/', employee_views.employee_list, name='employees'),
     path('employees/me/', employee_views.personal_profile, name='personal_profile'),
+    path('employees/me/edit/', employee_views.personal_profile_edit, name='personal_profile_edit'),
     path('employees/new/', employee_views.employee_create, name='employee_create'),
     path('employees/<int:employee_id>/edit/', employee_views.employee_edit, name='employee_edit'),
     path('employees/<int:employee_id>/education/new/', employee_views.education_edit, name='education_create'),

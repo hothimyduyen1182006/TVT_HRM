@@ -112,6 +112,41 @@ class EmployeeForm(forms.ModelForm):
         return employee
 
 
+class PersonalProfileForm(forms.ModelForm):
+    email = forms.EmailField(label='Email', required=False)
+
+    class Meta:
+        model = Employee
+        fields = ('avatar', 'full_name', 'date_of_birth', 'gender', 'national_id', 'phone', 'address')
+        widgets = {'date_of_birth': forms.DateInput(attrs={'type': 'date'})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].initial = self.instance.user.email
+        self.fields['avatar'].required = False
+        self.fields['avatar'].widget = forms.FileInput(
+            attrs={'accept': '.jpg,.jpeg,.png,.webp', 'class': 'avatar-input-hidden'})
+
+    def clean_email(self):
+        email = self.cleaned_data['email']
+        if email and User.objects.filter(email__iexact=email).exclude(pk=self.instance.user_id).exists():
+            raise ValidationError('Email đã được sử dụng.')
+        return email
+
+    def clean_national_id(self):
+        national_id = self.cleaned_data.get('national_id')
+        if national_id and (len(national_id) != 12 or not national_id.isdigit()):
+            raise ValidationError('CCCD phải gồm đúng 12 chữ số.')
+        return national_id
+
+    @transaction.atomic
+    def save(self, commit=True):
+        employee = super().save(commit=commit)
+        self.instance.user.email = self.cleaned_data['email']
+        self.instance.user.save(update_fields=['email'])
+        return employee
+
+
 class EducationForm(forms.ModelForm):
     remove_certificate = forms.BooleanField(required=False, label='Xóa tệp hiện tại')
 
