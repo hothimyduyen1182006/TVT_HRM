@@ -1,13 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Nghỉ phép · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261110-manager-filter-title">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261110-manager-list-attendance-table">{% endblock %}
 {% block content %}
-<section class="leave-page {% if own_employee and not is_reviewer %}leave-employee-page{% else %}leave-reviewer-page{% endif %}">
-  {% if is_reviewer %}<header class="leave-page-heading reviewer-page-heading"><h1>Các yêu cầu nghỉ phép</h1></header>{% else %}<header class="leave-page-heading employee-page-heading"><h1>ĐƠN NGHỈ PHÉP</h1></header>{% endif %}
+<section class="leave-page {% if manage_view %}leave-reviewer-page{% else %}leave-employee-page{% endif %}">
+  {% if is_reviewer %}<nav class="leave-tabs" aria-label="Chức năng nghỉ phép"><a class="leave-tab {% if active_view == 'manage' %}active{% endif %}" href="{% url 'leaves:list' %}?view=manage">Quản lý đơn nghỉ phép</a><a class="leave-tab {% if active_view == 'mine' %}active{% endif %}" href="{% url 'leaves:list' %}?view=mine">Đơn nghỉ phép của tôi</a></nav>{% endif %}
+  {% if manage_view %}<header class="leave-page-heading reviewer-page-heading"><h1>Các yêu cầu nghỉ phép</h1></header>{% else %}<header class="leave-page-heading employee-page-heading"><h1>ĐƠN NGHỈ PHÉP</h1></header>{% endif %}
 
-  {% if own_employee and not is_reviewer %}<section class="leave-panel leave-compose"><div class="leave-panel-title"><div><span class="leave-step">GỬI YÊU CẦU</span><h2>Đơn xin nghỉ phép cá nhân</h2><p>Vui lòng điền đầy đủ thời gian nghỉ, loại nghỉ và lý do.</p></div><span class="leave-title-icon" aria-hidden="true">＋</span></div>
-    <form method="post" enctype="multipart/form-data" class="leave-form">{% csrf_token %}
+  {% if own_employee and not manage_view %}<section class="leave-panel leave-compose"><div class="leave-panel-title"><div><span class="leave-step">GỬI YÊU CẦU</span><h2>Đơn xin nghỉ phép cá nhân</h2><p>Vui lòng điền đầy đủ thời gian nghỉ, loại nghỉ và lý do.</p></div><span class="leave-title-icon" aria-hidden="true">＋</span></div>
+    <form method="post" enctype="multipart/form-data" class="leave-form">{% csrf_token %}<input type="hidden" name="view" value="mine">
       {% for error in form.non_field_errors %}<div class="leave-error-banner">{{ error }}</div>{% endfor %}
       <div class="leave-form-grid">
         <div class="leave-field"><label for="{{ form.start_date.id_for_label }}">{{ form.start_date.label }} <i>*</i></label>{{ form.start_date }}{% for error in form.start_date.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}</div>
@@ -20,12 +21,22 @@
     </form>
   </section>{% endif %}
 
-  {% if is_reviewer %}<form method="get" class="leave-panel leave-filters"><div class="leave-filter-heading"><div><h2>Bộ lọc đơn nghỉ phép</h2></div><button class="leave-button filter-button" type="submit">Lọc</button></div><div class="leave-filter-grid reviewer-filter-grid"><div class="leave-field"><label for="{{ filters.q.id_for_label }}">Tên nhân viên</label>{{ filters.q }}</div><div class="leave-field"><label for="{{ filters.department.id_for_label }}">Phòng ban</label>{{ filters.department }}</div><div class="leave-field"><label for="{{ filters.leave_type.id_for_label }}">Loại nghỉ phép</label>{{ filters.leave_type }}</div><div class="leave-field"><label for="{{ filters.status.id_for_label }}">Trạng thái</label>{{ filters.status }}</div></div></form>{% endif %}
+  {% if manage_view %}
+    <form method="get" class="leave-management-filter">
+      <input type="hidden" name="view" value="manage">
+      <div class="leave-management-field keyword"><label for="{{ filters.q.id_for_label }}">Tên nhân viên</label>{{ filters.q }}</div>
+      <div class="leave-management-field"><label for="{{ filters.department.id_for_label }}">Phòng ban</label>{{ filters.department }}</div>
+      <div class="leave-management-field"><label for="{{ filters.leave_type.id_for_label }}">Loại nghỉ phép</label>{{ filters.leave_type }}</div>
+      <div class="leave-management-field"><label for="{{ filters.status.id_for_label }}">Trạng thái</label>{{ filters.status }}</div>
+      <button class="leave-management-filter-button" type="submit">⚑ Lọc</button>
+    </form>
+  {% endif %}
 
-  <section class="leave-panel leave-history"><div class="leave-panel-title history-title"><div><h2>{% if is_reviewer %}Lịch sử nghỉ phép của nhân sự{% else %}Lịch sử nghỉ phép{% endif %}</h2></div></div>
-    <div class="leave-table-wrap"><table class="leave-table"><thead><tr><th>STT</th>{% if is_reviewer %}<th>Họ tên</th><th>Phòng ban</th><th>Loại nghỉ phép</th><th>Trạng thái</th>{% else %}<th>Ngày bắt đầu</th><th>Ngày kết thúc</th><th>Loại nghỉ</th><th>Trạng thái</th>{% endif %}<th>Chi tiết</th></tr></thead><tbody>
-      {% for item in requests %}<tr><td>{{ forloop.counter }}</td>{% if is_reviewer %}<td>{{ item.employee.full_name }}</td><td>{{ item.employee.department.name }}</td><td>{{ item.get_leave_type_display }}</td>{% else %}<td>{{ item.start_date|date:'d/m/Y' }}</td><td>{{ item.end_date|date:'d/m/Y' }}</td><td>{{ item.get_leave_type_display }}</td>{% endif %}<td><span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></td><td><a class="leave-detail-link" href="{% url 'leaves:detail' item.pk %}">Xem chi tiết</a></td></tr>
-      {% empty %}<tr><td colspan="6" class="leave-empty"><span aria-hidden="true">▤</span><b>Chưa có đơn nghỉ phép</b><small>{% if is_reviewer %}Thử thay đổi bộ lọc để tìm đơn.{% else %}Đơn bạn gửi sẽ xuất hiện tại đây.{% endif %}</small></td></tr>{% endfor %}
+  <section class="leave-panel leave-history">
+    <div class="leave-panel-title history-title"><div><h2>{% if manage_view %}Lịch sử nghỉ phép của nhân sự{% else %}Lịch sử nghỉ phép{% endif %}</h2></div></div>
+    <div class="leave-table-wrap {% if manage_view %}leave-management-table-wrap{% endif %}"><table class="leave-table {% if manage_view %}leave-management-table{% endif %}"><thead><tr><th>STT</th>{% if manage_view %}<th>Họ tên</th><th>Phòng ban</th><th>Loại nghỉ phép</th><th>Trạng thái</th>{% else %}<th>Ngày bắt đầu</th><th>Ngày kết thúc</th><th>Loại nghỉ</th><th>Trạng thái</th>{% endif %}<th>{% if manage_view %}Tác vụ{% else %}Chi tiết{% endif %}</th></tr></thead><tbody>
+      {% for item in requests %}<tr><td>{{ forloop.counter }}</td>{% if manage_view %}<td class="leave-management-name">{{ item.employee.full_name }}<small class="leave-management-code">{{ item.employee.code }}</small></td><td><span class="leave-department-pill">{{ item.employee.department.name }}</span></td><td>{{ item.get_leave_type_display }}</td>{% else %}<td>{{ item.start_date|date:'d/m/Y' }}</td><td>{{ item.end_date|date:'d/m/Y' }}</td><td>{{ item.get_leave_type_display }}</td>{% endif %}<td><span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></td><td><a class="leave-detail-link {% if manage_view %}manager-detail-link{% endif %}" href="{% url 'leaves:detail' item.pk %}?view={% if manage_view %}manage{% else %}mine{% endif %}">Xem chi tiết <span aria-hidden="true">→</span></a></td></tr>
+      {% empty %}<tr><td colspan="6" class="leave-empty"><span aria-hidden="true">▤</span><b>Chưa có đơn nghỉ phép</b><small>{% if manage_view %}Thử thay đổi bộ lọc để tìm đơn.{% else %}Đơn bạn gửi sẽ xuất hiện tại đây.{% endif %}</small></td></tr>{% endfor %}
     </tbody></table></div>
   </section>
   <footer class="leave-footer"><span>TVT HRM</span><span>Đơn nghỉ phép được lưu trong lịch sử cá nhân và phòng nhân sự.</span></footer>

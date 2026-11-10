@@ -4,7 +4,7 @@
 {% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}">{% endblock %}
 {% block content %}
 <main class="leave-detail-page">
-  <a class="leave-back-link" href="{% url 'leaves:list' %}">← Quay lại danh sách đơn</a>
+  <a class="leave-back-link" href="{% url 'leaves:list' %}?view={{ back_view }}">← Quay lại danh sách đơn</a>
   <section class="leave-review-sheet">
     <span class="leave-sheet-mark">TVT · NHÂN SỰ</span>
     <h1>Chi tiết đơn nghỉ phép</h1>
