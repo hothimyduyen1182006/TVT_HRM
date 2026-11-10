@@ -1,4 +1,4 @@
-> Quy định hiện hành: chỉ Phòng Sản xuất được gửi OT theo cấu hình database; Trưởng phòng phụ trách duyệt. Hỗ trợ ban ngày cùng ngày, hạn mức 200 giờ/năm; xem README.md để biết phạm vi và giới hạn. Những mô tả lịch sử bên dưới cần đối chiếu với chính sách này.
+> Quy định hiện hành: OT tự động cho mọi phòng ban từ chấm công; không gửi/duyệt OT. Ngày thường tính sau 17:00; xem README.md để biết ngày nghỉ/lễ, giới hạn và dữ liệu lịch sử. Các mô tả duyệt OT bên dưới chỉ là lịch sử.
 
 # Thỏa thuận tích hợp bảng công và bảng lương
 

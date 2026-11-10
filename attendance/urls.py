@@ -14,10 +14,5 @@ urlpatterns = [
     path('employee/<int:employee_id>/export/', views.export_month, name='export'),
     path('<int:pk>/', views.detail, name='detail'),
     path('<int:pk>/edit/', views.edit, name='edit'),
-    path('<int:pk>/overtime/approve/', views.legacy_overtime_view, name='legacy-overtime-approve'),
-    path('<int:pk>/overtime/submit/', views.approve_overtime_view, {'action': 'submit'}, name='overtime-submit'),
-    path('<int:pk>/overtime/reject/', views.legacy_overtime_view, name='legacy-overtime-reject'),
-    path('overtime/<int:pk>/approve/', views.approve_overtime_view, name='overtime-approve'),
-    path('overtime/<int:pk>/reject/', views.approve_overtime_view, {'action':'reject'}, name='overtime-reject'),
     path('period/<int:pk>/', views.transition, name='transition'),
 ]

@@ -7,9 +7,15 @@ git pull origin main
 python manage.py migrate
 python manage.py import_tvt_profiles --dry-run
 python manage.py import_tvt_profiles --reset-passwords
+python manage.py prepare_october_training --dry-run
+python manage.py prepare_october_training
 ```
 
-Lệnh cuối hỏi mật khẩu hai lần, không hiển thị khi nhập. Dùng mật khẩu đã thống nhất trong nhóm. Không cần nhập hay chia sẻ mật khẩu quản trị.
+Lệnh `import_tvt_profiles --reset-passwords` hỏi mật khẩu hai lần, không hiển thị khi nhập. Dùng mật khẩu đã thống nhất trong nhóm. Không cần nhập hay chia sẻ mật khẩu quản trị.
+
+Hai lệnh `prepare_october_training` kiểm tra rồi chuẩn bị công, thưởng, phép và lương 10/2026: 177 bản ghi công, 19 khoản thưởng, 5 đơn phép, 8 đầu vào lương và 3 phiếu lương ở các trạng thái để thao tác thử. Không phiếu nào đã chi trả. Xem [hướng dẫn thực hành đầy đủ](october-testing.md).
+
+Nếu tháng 10 trên máy nhận đã có dữ liệu khác, lệnh chuẩn bị sẽ dừng để bảo vệ dữ liệu đó; không tự xóa hoặc đặt lại. Nếu đã chạy thành công bộ tình huống này, chạy lại sẽ giữ nguyên các thao tác đã thực hiện.
 
 Nếu muốn giữ mật khẩu các tài khoản đã có, bỏ `--reset-passwords`. Khi cần tạo tài khoản mới, lệnh vẫn hỏi mật khẩu cho tài khoản mới. Chạy lại không tạo thêm nhân viên, bằng cấp hoặc hợp đồng trùng.
 

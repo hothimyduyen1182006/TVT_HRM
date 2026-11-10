@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 from attendance.models import AttendancePeriod
 from employees.access import require_role, DIRECTOR
@@ -29,20 +29,32 @@ def bonus_source_error(record):
 
 
 def overtime_source_error(record):
-    from attendance.services.calculations import payroll_overtime
-    attendance=record.period.attendance_period
+    from attendance.services.calculations import payroll_overtime, OT_POLICY
+    attendance = record.period.attendance_period
     try:
-        rows=payroll_overtime(record.employee,attendance.year,attendance.month)
-        current={row.pk:(str(row.date),str(row.start_time),str(row.end_time),row.hours,row.multiplier,row.department_id) for row in rows}
-        saved={int(item['id']):(item['date'],item['start'],item['end'],Decimal(item['hours']),Decimal(item['multiplier']),item['department_id']) for item in record.breakdown.get('ot',[])}
-        amount=sum((Decimal(item['amount']) for item in record.breakdown.get('ot',[])),Decimal(0))
+        rows = payroll_overtime(record.employee, attendance.year, attendance.month)
+        if (rows or record.ot_hours or record.ot_pay) and record.breakdown.get('source_data', {}).get('overtime_policy') != OT_POLICY:
+            return 'Nguồn OT thuộc cơ chế cũ. Cần mở lại và tính lại lương; giữ nguyên phiếu đã chi trả.'
+        current = {row['id']: (row['date'], row['start'], row['end'], row['hours'], row['multiplier']) for row in rows}
+        saved = {int(item['id']): (item['date'], item['start'], item['end'], Decimal(item['hours']), Decimal(item['multiplier'])) for item in record.breakdown.get('ot', [])}
+        rate = Decimal(str(record.breakdown.get('overtime_hourly_rate', 0)))
+        if rows:
+            from payroll.models import PayrollInput
+            inputs = PayrollInput.objects.filter(employee=record.employee, period=record.period, verified=True).first()
+            if (not inputs or not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()
+                    or rate != inputs.overtime_hourly_rate
+                    or record.breakdown.get('overtime_basis') != inputs.overtime_basis):
+                return 'Căn cứ lương giờ OT đã thay đổi hoặc còn thiếu. Cần mở lại và tính lại lương.'
+        expected_amount = sum((row['hours'] * row['multiplier'] * rate for row in rows), Decimal(0))
+        saved_amount = sum((Decimal(item['amount']) for item in record.breakdown.get('ot', [])), Decimal(0))
+        if current != saved or sum((row['hours'] for row in rows), Decimal(0)) != record.ot_hours or expected_amount.quantize(Decimal('0.00000001')) != record.ot_pay or saved_amount != expected_amount:
+            return 'Nguồn OT đã thay đổi. Cần mở lại và tính lại lương trước khi duyệt hoặc chi trả.'
     except ValidationError as error:
         return '; '.join(error.messages)
-    except (KeyError,TypeError,ValueError,InvalidOperation):
+    except (KeyError, TypeError, ValueError, InvalidOperation):
         return 'Thiếu nguồn OT để đối chiếu. Cần mở lại và tính lại lương.'
-    if current!=saved or sum((row.hours for row in rows),Decimal(0))!=record.ot_hours or amount.quantize(Decimal('0.00000001'))!=record.ot_pay:
-        return 'Nguồn OT đã thay đổi hoặc không đủ căn cứ. Cần mở lại và tính lại lương trước khi duyệt hoặc chi trả.'
     return ''
+
 
 def record_approval_error(record, period=None, attendance=None):
     error = overtime_source_error(record)
@@ -64,6 +76,13 @@ def record_approval_error(record, period=None, attendance=None):
         definition = PayrollRecord._meta.get_field(field)
         if isinstance(expected, Decimal) and hasattr(definition, 'decimal_places'):
             expected = expected.quantize(Decimal(1).scaleb(-definition.decimal_places))
+            if connection.vendor == 'sqlite':
+                # Compare the same representation Django reads from SQLite's REAL storage.
+                # The calculation and saved amounts are unchanged; avoid false stale-source errors.
+                expression = definition.get_col(record._meta.db_table)
+                prepared = definition.get_db_prep_save(expected, connection)
+                converter = connection.ops.get_decimalfield_converter(expression)
+                expected = converter(float(prepared), expression, connection)
         if getattr(record, field) != expected:
             changed = True
             break

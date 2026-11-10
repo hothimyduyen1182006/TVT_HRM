@@ -4,10 +4,10 @@ Repository: https://github.com/hothimyduyen1182006/TVT_HRM
 
 ## Lấy bản hiện tại
 
-Bản hoàn thiện công/lương theo chính sách không tăng ca nằm trên nhánh `feature/tvt-hrm-no-overtime`.
+Bản hiện tại nằm trên nhánh `main`, bao gồm phông chữ Inter, logo, OT tự động và bộ dữ liệu nhập phục vụ thực hành.
 
 ```powershell
-git clone --branch feature/tvt-hrm-no-overtime https://github.com/hothimyduyen1182006/TVT_HRM.git
+git clone https://github.com/hothimyduyen1182006/TVT_HRM.git
 cd TVT_HRM
 ```
 
@@ -15,29 +15,29 @@ Nếu đã clone và không có thay đổi chưa lưu:
 
 ```powershell
 git fetch origin
-git switch --track origin/feature/tvt-hrm-no-overtime
+git switch main
+git pull --ff-only origin main
 ```
 
-Nếu nhánh đã tồn tại trên máy, dùng `git switch feature/tvt-hrm-no-overtime`, sau đó `git pull --ff-only`.
 Không chạy reset hoặc xóa thay đổi riêng để đổi nhánh. Nếu repository riêng tư, chủ repository cần cấp quyền cho thành viên.
 
 ## Khởi chạy
 
 Làm theo README.md để tạo môi trường Python 3.12, cài requirements.txt, chạy migrate,
 setup_roles, createsuperuser và runserver. Mỗi máy tự tạo database và tài khoản của mình.
-Không có database, tài liệu nhân sự hoặc mật khẩu tài khoản cá nhân trong repository.
+Không có database thật, file tài liệu riêng tư hoặc mật khẩu/hash tài khoản trong repository. Có bộ hồ sơ được người dùng cung cấp và cho phép chia sẻ, kèm lệnh nhập đặt mật khẩu ngay trên máy nhận; xem [hướng dẫn nhập](shared-profiles.md).
 
-Bản OT Phòng Sản xuất đang được phát triển trên nhánh feature/production-overtime. Nhánh feature/tvt-hrm-no-overtime bên trên là bản đã chia sẻ trước đó; không nhầm hai chính sách. Chỉ clone nhánh production-overtime sau khi nhánh đã được push. Xem README.md để biết cấu hình và giới hạn mới.
+OT hiện tại tính tự động từ chấm công, áp dụng mọi phòng ban; không gửi hoặc duyệt OT. Các nhánh về chính sách không tăng ca/OT Phòng Sản xuất chỉ là lịch sử. Không dùng chúng thay main để nhập bộ tình huống hiện tại.
 
 ## Kiểm thử và lưu ý
 
 Bộ kiểm thử liên quan đã chạy thành công:
 
 ```powershell
-python manage.py test attendance payroll config bonuses employees.test_personal_records employees.tests.DemoDataTests.test_demo_login_and_personal_page --noinput
+python manage.py test attendance payroll config bonuses employees.test_personal_records employees.test_shared_profiles employees.tests.DemoDataTests.test_demo_login_and_personal_page --noinput
 ```
 
-168 kiểm thử dùng database riêng. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
+200 kiểm thử liên quan dùng database riêng đã chạy thành công trước khi ghép cập nhật mới nhất từ nhóm. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
 kiểm thử danh sách nghỉ phép đòi hiển thị lý do hiện nằm ở trang chi tiết; hai kiểm thử cũ trong
 employees.tests.DemoDataTests chưa khớp cấu trúc context và điều hướng theo quyền hiện tại.
 

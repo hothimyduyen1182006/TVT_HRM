@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -40,7 +40,8 @@ def today(request):
     hours = record.work_hours if record else Decimal(0)
     if record and record.check_in and not record.check_out and period:
         start = max(datetime.combine(now.date(), record.check_in), datetime.combine(now.date(), period.start_time))
-        end = min(now.replace(tzinfo=None), datetime.combine(now.date(), period.end_time))
+        end = min(now.replace(tzinfo=None), datetime.combine(now.date(), period.end_time),
+                  datetime.combine(now.date(), time(17)))
         lunch = max(0, (min(end, datetime.combine(now.date(), period.lunch_end)) - max(start, datetime.combine(now.date(), period.lunch_start))).total_seconds())
         hours = Decimal(str(max(0, (end - start).total_seconds() - lunch))) / Decimal(3600)
     minutes = int(hours * 60)

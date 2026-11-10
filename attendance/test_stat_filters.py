@@ -24,7 +24,7 @@ class StatFilterTests(TestCase):
         url = f'/attendance/employee/{self.emp.pk}/'
         expected = {'actual': [regular.date, late.date], 'paid_leave': [leave.date],
                     'paid': [regular.date, late.date, leave.date], 'absent': [absent.date],
-                    'late': [late.date]}
+                    'late': [late.date], 'ot': [regular.date]}
         for state, dates in expected.items():
             with self.subTest(state=state):
                 response = self.client.get(url, {'month': 1, 'year': 2026, 'state': state,
@@ -37,4 +37,5 @@ class StatFilterTests(TestCase):
                 self.assertNotIn('page=', query)
                 self.assertNotIn('state=', query)
                 self.assertContains(response, '&amp;state=paid_leave')
+                self.assertContains(response, '&amp;state=ot')
                 self.assertEqual(response.context['summary']['paid'], Decimal('2.875'))

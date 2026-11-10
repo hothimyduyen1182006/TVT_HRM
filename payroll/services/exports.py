@@ -36,13 +36,23 @@ def export_records(actor, queryset, fmt, month, year, scope):
             error=overtime_source_error(row)
             if error:
                 raise ValidationError(error)
-    historical = any((row.ot_hours or row.ot_pay) and row.breakdown.get('source_data',{}).get('overtime_policy')!='production-daytime-200-v1' for row in rows)
-    current_ot = any(row.ot_hours or row.ot_pay for row in rows) and not historical
-    ot_fields=['historical_ot_hours','historical_ot_pay'] if historical else (['ot_hours','ot_pay'] if current_ot else [])
-    fields = FIELDS + ot_fields
-    data = [{**{name: str(getattr(row, name)) for name in FIELDS},
-             **({ot_fields[0]:str(row.ot_hours),ot_fields[1]:str(row.ot_pay)} if ot_fields else {}),
-             'status': row.get_status_display(), 'breakdown': row.breakdown} for row in rows]
+    from attendance.services.calculations import OT_POLICY
+    def is_historical(row):
+        return row.breakdown.get('source_data', {}).get('overtime_policy') != OT_POLICY
+    historical = any((row.ot_hours or row.ot_pay) and is_historical(row) for row in rows)
+    current_ot = any((row.ot_hours or row.ot_pay) and not is_historical(row) for row in rows)
+    fields = FIELDS + (['ot_hours', 'ot_pay'] if current_ot else []) + (
+        ['historical_ot_hours', 'historical_ot_pay'] if historical else [])
+    data = []
+    for row in rows:
+        item = {name: str(getattr(row, name)) for name in FIELDS}
+        if current_ot:
+            item.update(ot_hours=str(row.ot_hours) if not is_historical(row) else '0',
+                        ot_pay=str(row.ot_pay) if not is_historical(row) else '0')
+        if historical:
+            item.update(historical_ot_hours=str(row.ot_hours) if is_historical(row) else '0',
+                        historical_ot_pay=str(row.ot_pay) if is_historical(row) else '0')
+        data.append({**item, 'status': row.get_status_display(), 'breakdown': row.breakdown})
     if fmt == 'json':
         content = json.dumps(data, ensure_ascii=False, indent=2)
         content_type = 'application/json; charset=utf-8'

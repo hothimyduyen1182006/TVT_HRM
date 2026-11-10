@@ -15,27 +15,10 @@ ZERO = Decimal(0)
 
 
 def overtime_context(request, record):
-    from attendance.forms import OvertimeRequestForm, OvertimeApprovalForm, OvertimeRejectionForm
-    from .calculations import overtime_candidate, interval_hours
-    from .workflow import can_approve_overtime, period_is_locked
-    from payroll.models import PayrollPeriod
-    period=AttendancePeriod.objects.filter(year=record.date.year,month=record.date.month).first()
-    employee=Employee.objects.select_related('department').get(pk=record.employee_id)
-    rows=list(OvertimeApproval.objects.filter(employee=employee,date=record.date).select_related(
-        'requested_by','reviewed_by','department').order_by('start_time','pk'))
-    locked=not period or period_is_locked(period,employee.pk) or PayrollPeriod.objects.filter(attendance_period=period).filter(
-        Q(status__in=['approved','paid'])|Q(records__employee_id=employee.pk,records__status__in=['approved','paid'])).exists()
-    candidate=overtime_candidate(record,period) if not locked and period and period.policy_confirmed else None
-    own=employee.user_id==request.user.pk
-    can_submit=bool(own and employee.is_active and employee.department.allows_overtime and candidate)
-    initial={'start_time':candidate[0],'end_time':candidate[1]} if candidate else {}
-    for row in rows:
-        row.approval_form=OvertimeApprovalForm(initial={'hours':row.requested_hours})
-    return {'overtime_requests':rows,'can_submit_ot':can_submit,'can_manage_ot':can_approve_overtime(request.user,employee),
-        'ot_locked':locked,'ot_request_form':OvertimeRequestForm(initial=initial),'ot_rejection_form':OvertimeRejectionForm(),
-        'ot_candidate_hours':interval_hours(record.date,*candidate) if candidate else ZERO,
-        'is_production':employee.department.allows_overtime,'is_own_record':own,
-        'outside_policy_extra':bool(not employee.department.allows_overtime and period and record.check_out and record.check_out>period.end_time)}
+    from .calculations import automatic_overtime
+    item = automatic_overtime(record)
+    return {'automatic_ot': item, 'overtime_history': OvertimeApproval.objects.filter(
+        employee=record.employee, date=record.date).order_by('pk')}
 
 
 def month_summary(employees, year, month, period):
@@ -46,9 +29,11 @@ def month_summary(employees, year, month, period):
         late_count=Count('pk', filter=Q(late_minutes__gt=0)), count=Count('pk'),
         incomplete=Count('pk', filter=Q(status='incomplete')), absent=Count('pk', filter=Q(status='absent')))
     by_employee = {row['employee_id']: row for row in grouped}
-    ot_totals=dict(OvertimeApproval.objects.filter(employee_id__in=scope,date__year=year,date__month=month,
-        status='approved',approved=True,approved_by__isnull=False,approved_at__isnull=False,
-        requested_at__isnull=False).values('employee_id').annotate(value=Sum('hours')).values_list('employee_id','value'))
+    from .calculations import automatic_overtime
+    days = {d.date: d for d in WorkCalendarDay.objects.filter(date__year=year, date__month=month)}
+    ot_totals = {}
+    for record in records.select_related('employee'):
+        ot_totals[record.employee_id] = ot_totals.get(record.employee_id, ZERO) + automatic_overtime(record, period, days.get(record.date))['hours']
     standard = WorkCalendarDay.objects.filter(date__year=year, date__month=month).aggregate(value=Sum('expected_units'))['value']
     result = []
     approved_ids = set(EmployeeAttendanceApproval.objects.filter(period=period).values_list('employee_id', flat=True)) if period else set()
@@ -66,11 +51,11 @@ def month_summary(employees, year, month, period):
 
 
 def daily_rows(employee, year, month):
-    records = {r.date: r for r in AttendanceRecord.objects.filter(employee=employee, date__year=year, date__month=month)}
+    records = {r.date: r for r in AttendanceRecord.objects.filter(employee=employee, date__year=year, date__month=month).select_related('employee')}
     calendar_days = {r.date: r for r in WorkCalendarDay.objects.filter(date__year=year, date__month=month)}
-    ot_totals=dict(OvertimeApproval.objects.filter(employee=employee,date__year=year,date__month=month,
-        status='approved',approved=True,approved_by__isnull=False,approved_at__isnull=False,
-        requested_at__isnull=False).values('date').annotate(value=Sum('hours')).values_list('date','value'))
+    from .calculations import automatic_overtime
+    period = AttendancePeriod.objects.filter(year=year, month=month).first()
+    overtime = {r.date: automatic_overtime(r, period, calendar_days.get(r.date)) for r in records.values()}
     result = []
     for day in range(1, calendar.monthrange(year, month)[1] + 1):
         value = date(year, month, day)
@@ -91,7 +76,9 @@ def daily_rows(employee, year, month):
             state = 'rest'
             label = schedule.name or ('Nghỉ lễ' if schedule.kind == 'holiday' else 'Nghỉ hằng tuần')
         result.append({'date': value, 'weekday': ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][value.weekday()],
-            'record': record, 'state': state, 'label': label, 'ot': ot_totals.get(value,ZERO)})
+            'record': record, 'state': state, 'label': label, 'ot': overtime.get(value, {}).get('hours', ZERO),
+            'ot_error': overtime.get(value, {}).get('error', ''),
+            'ot_warnings': overtime.get(value, {}).get('warnings', [])})
     return result
 
 
@@ -146,6 +133,8 @@ def month_data(request, employee):
             unit_fields = {'paid': 'paid_units', 'actual': 'actual_units', 'paid_leave': 'paid_leave_units'}
             if state in unit_fields:
                 rows = [r for r in rows if r['record'] and getattr(r['record'], unit_fields[state]) > 0]
+            elif state == 'ot':
+                rows = [r for r in rows if r['ot'] > 0]
             else:
                 rows = [r for r in rows if r['state'] == state]
     stat_params = request.GET.copy()

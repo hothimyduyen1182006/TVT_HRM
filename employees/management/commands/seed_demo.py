@@ -70,7 +70,7 @@ class Command(BaseCommand):
         for index, (username, name, code, department, salary, role) in enumerate(PEOPLE, 1):
             if code not in departments:
                 departments[code] = Department.objects.create(code='DEMO-' + code, name=f'Phòng {department} (DEMO)',
-                    allows_overtime=department=='Sản xuất')
+                    allows_overtime=False)
             user = User.objects.filter(username=username).first() if reuse_users else None
             if user is None:
                 user = User.objects.create_user(username=username, password=password,

@@ -16,11 +16,10 @@ from django.views.decorators.http import require_POST
 
 from employees.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
 from employees.models import Employee
-from .forms import AttendanceForm, AttendanceFilter, OvertimeRequestForm, OvertimeApprovalForm, OvertimeRejectionForm
-from .models import AttendanceRecord, AttendancePeriod, OvertimeApproval
+from .forms import AttendanceForm, AttendanceFilter
+from .models import AttendanceRecord, AttendancePeriod
 from .services.workflow import save_record, change_period, approve_employee, record_is_locked
 from .services.presentation import month_summary, month_data, audit_data, overtime_context
-from .services.workflow import submit_overtime, approve_overtime, reject_overtime, can_approve_overtime, period_is_locked
 
 
 @login_required
@@ -75,20 +74,6 @@ def employee_month(request, employee_id, own_only=False):
     scope = Employee.objects.filter(user=request.user) if own_only else visible_employees(request.user)
     employee = get_object_or_404(scope, pk=employee_id)
     context = month_data(request, employee)
-    period=context['period']
-    from .services.calculations import overtime_candidate
-    from payroll.models import PayrollPeriod
-    dates=set(OvertimeApproval.objects.filter(employee=employee,date__year=period.year,date__month=period.month).values_list('date',flat=True)) if period else set()
-    locked=not period or period_is_locked(period,employee.pk) or PayrollPeriod.objects.filter(attendance_period=period).filter(
-        Q(status__in=['approved','paid'])|Q(records__employee_id=employee.pk,records__status__in=['approved','paid'])).exists()
-    own=employee.user_id==request.user.pk
-    for item in context['rows']:
-        record=item['record']
-        item['ot_link']=bool(record and item['date'] in dates)
-        if (record and not item['ot_link'] and own and employee.department.allows_overtime and not locked
-                and record.check_out and (record.check_out>period.end_time or record.work_hours==0)):
-            item['ot_link']=bool(overtime_candidate(record,period))
-        item['ot_label']=('OT đã duyệt: '+str(item['ot'])+' giờ') if item['ot'] else ('Chi tiết OT' if item['date'] in dates else 'Gửi yêu cầu duyệt OT')
     personal = own_only or not has_role(request.user, HR, DIRECTOR, MANAGER)
     context.update({'employee': employee, 'personal': personal,
         'can_edit': not personal and has_role(request.user, HR, DIRECTOR) and (not context['period'] or context['period'].status != 'approved')
@@ -145,7 +130,7 @@ def export_month(request, employee_id):
         values = [[r['time'].isoformat(), r['date'], r['field'], r['old'], r['new'], r['actor'], r['reason']]
                   for r in context['rows']]
     else:
-        writer.writerow(['Mã NV', 'Họ tên', 'Ngày', 'Giờ vào', 'Giờ ra', 'Tình trạng', 'Phút muộn', 'Giờ làm', 'Công hưởng lương', 'Ghi chú','OT đã duyệt (giờ)'])
+        writer.writerow(['Mã NV', 'Họ tên', 'Ngày', 'Giờ vào', 'Giờ ra', 'Tình trạng', 'Phút muộn', 'Giờ làm', 'Công hưởng lương', 'Ghi chú','OT tự động (giờ)'])
         values = []
         for row in context['rows']:
             record = row['record']
@@ -167,46 +152,6 @@ def detail(request, pk):
     context={'row':row,'can_edit':has_role(request.user,HR,DIRECTOR) and not record_is_locked(row)}
     context.update(overtime_context(request,row))
     return render(request,'attendance/detail.html',context)
-
-
-@login_required
-@require_POST
-def approve_overtime_view(request, pk, action='approve'):
-    if action=='submit':
-        row=get_object_or_404(AttendanceRecord,pk=pk,employee__user=request.user)
-        if not row.employee.department.allows_overtime:
-            raise PermissionDenied('Chỉ Phòng Sản xuất được đăng ký OT.')
-        form=OvertimeRequestForm(request.POST)
-    else:
-        overtime=get_object_or_404(OvertimeApproval.objects.select_related('employee__department'),pk=pk,
-            employee__in=visible_employees(request.user))
-        if not can_approve_overtime(request.user,overtime.employee):
-            raise PermissionDenied('Chỉ Trưởng phòng Sản xuất phụ trách được xử lý OT.')
-        row=get_object_or_404(AttendanceRecord,employee=overtime.employee,date=overtime.date)
-        form=(OvertimeApprovalForm if action=='approve' else OvertimeRejectionForm)(request.POST)
-    if form.is_valid():
-        try:
-            if action=='submit':
-                submit_overtime(request.user,row.pk,form.cleaned_data['start_time'],form.cleaned_data['end_time'],form.cleaned_data['reason'])
-            elif action=='approve':
-                approve_overtime(request.user,overtime.pk,form.cleaned_data['hours'])
-            else:
-                reject_overtime(request.user,overtime.pk,form.cleaned_data['reason'])
-        except (ValidationError,AttendancePeriod.DoesNotExist) as error:
-            messages.error(request,'; '.join(error.messages) if isinstance(error,ValidationError) else 'Chưa có kỳ công.')
-        else:
-            messages.success(request,{'submit':'Đã gửi yêu cầu OT, chờ Trưởng phòng Sản xuất xử lý.',
-                'approve':'Đã duyệt OT. HR cần tính lại lương nếu đã có bản chờ duyệt.',
-                'reject':'Đã từ chối OT; không tính tiền tăng ca.'}[action])
-    else:
-        messages.error(request,'Không thể xử lý OT: '+'; '.join(str(error) for errors in form.errors.values() for error in errors))
-    return redirect('attendance:detail',pk=row.pk)
-
-
-@login_required
-@require_POST
-def legacy_overtime_view(request, pk):
-    raise PermissionDenied('URL OT cũ không còn dùng. Hãy mở yêu cầu OT để xử lý đúng bản ghi.')
 
 
 @login_required

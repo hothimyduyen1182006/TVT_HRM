@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Sum
 from employees.access import require_role, HR, DIRECTOR
 from employees.models import Employee
-from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
+from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
 from bonuses.models import Bonus, payroll_bonus_records
 from leaves.models import LeaveDay
 from payroll.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
@@ -73,9 +73,9 @@ def payroll_values(employee, attendance, period, standard=None):
     if overtime and (not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()):
         raise ValidationError(f'{employee}: HR cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
     ot_rate=inputs.overtime_hourly_rate or ZERO
-    ot_lines=[{'id':row.pk,'date':str(row.date),'start':str(row.start_time),'end':str(row.end_time),
-        'hours':str(row.hours),'multiplier':str(row.multiplier),'department_id':row.department_id,
-        'amount':str(ot_rate*row.hours*row.multiplier)} for row in overtime]
+    ot_lines=[{**{key: str(row[key]) if key in ['hours','multiplier'] else row[key]
+                     for key in ['id','date','start','end','hours','multiplier']},
+               'amount': str(ot_rate * row['hours'] * row['multiplier'])} for row in overtime]
     ot_pay=sum((Decimal(item['amount']) for item in ot_lines),ZERO)
     bonuses = payroll_bonus_records(Bonus.objects.filter(
         employee=employee, year=attendance.year, month=attendance.month))
@@ -94,11 +94,11 @@ def payroll_values(employee, attendance, period, standard=None):
         base_salary=employee.base_salary, standard_units=standard, paid_units=paid,
         leave_units=total(LeaveDay.objects.filter(employee=employee, date__year=attendance.year,
                                                  date__month=attendance.month, approved=True), 'units'),
-        late_minutes=total(records, 'late_minutes'), ot_hours=total(overtime,'hours'), attendance_pay=wage,
+        late_minutes=total(records, 'late_minutes'), ot_hours=sum((row['hours'] for row in overtime),ZERO), attendance_pay=wage,
         ot_pay=ot_pay, bonus_pay=bonus, allowance=allowance, insurance=insurance, tax=inputs.tax_amount,
         deductions=deductions, net_pay=net.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
         breakdown={'attendance_revision': attendance.revision,
-                   'ot': ot_lines, 'bonuses': bonus_lines, 'insurance': insurance_lines,
+                   'ot': ot_lines, 'overtime_warnings': [warning for row in overtime for warning in row['warnings']], 'bonuses': bonus_lines, 'insurance': insurance_lines,
                    'overtime_hourly_rate':str(ot_rate),'overtime_basis':inputs.overtime_basis,
                    'insurance_base': str(inputs.insurance_base), 'insurance_rates': inputs.insurance_rates,
                    'tax_basis': inputs.tax_basis, 'insurance_basis': inputs.insurance_basis,

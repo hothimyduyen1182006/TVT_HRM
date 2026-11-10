@@ -115,7 +115,7 @@ class PayrollInputForm(ScopedInputForm):
         self.fields['insurance_basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['tax_basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['overtime_basis'].widget = forms.Textarea(attrs={'rows':3})
-        self.fields['overtime_hourly_rate'].help_text='Chỉ bắt buộc khi có OT đã duyệt. HR xác định lương giờ thực trả hợp lệ; không bao gồm thưởng, tiền ăn và khoản không thuộc căn cứ OT.'
+        self.fields['overtime_hourly_rate'].help_text='Bắt buộc khi có OT tự động từ chấm công. HR xác định lương giờ thực trả hợp lệ; không bao gồm thưởng, tiền ăn và khoản không thuộc căn cứ OT.'
         self.fields['insurance_basis'].help_text = 'Ghi đối tượng, kỳ và chính sách áp dụng; nếu không tham gia phải ghi rõ căn cứ.'
         self.fields['tax_basis'].help_text = 'Ghi căn cứ số thuế, kể cả trường hợp không phát sinh. Hệ thống không tự áp dụng biểu thuế.'
 

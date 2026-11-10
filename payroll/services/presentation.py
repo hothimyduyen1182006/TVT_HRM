@@ -21,7 +21,7 @@ def payslip_context(record):
     # Giữ tổng khấu trừ đã lưu; chi tiết khoản được duyệt nằm trong breakdown.adjustments.
     total_income = record.attendance_pay + record.bonus_pay + record.allowance
     historical_overtime = bool((record.ot_hours or record.ot_pay) and
-        record.breakdown.get('source_data',{}).get('overtime_policy')!='production-daytime-200-v1')
+        record.breakdown.get('source_data',{}).get('overtime_policy')!='automatic-checkout-1700-v1')
     if record.ot_pay:
         total_income += record.ot_pay  # Đối chiếu phiếu cũ; tuyệt đối không tính lại số tiền đã lưu.
     total_deductions = record.insurance + record.tax + record.deductions
