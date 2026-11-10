@@ -37,7 +37,7 @@ Bộ kiểm thử liên quan đã chạy thành công:
 python manage.py test attendance payroll config bonuses employees.test_personal_records employees.test_shared_profiles employees.tests.DemoDataTests.test_demo_login_and_personal_page --noinput
 ```
 
-200 kiểm thử liên quan dùng database riêng đã chạy thành công trước khi ghép cập nhật mới nhất từ nhóm. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
+200 kiểm thử liên quan dùng database riêng đã chạy thành công sau khi ghép cập nhật mới nhất từ nhóm. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
 kiểm thử danh sách nghỉ phép đòi hiển thị lý do hiện nằm ở trang chi tiết; hai kiểm thử cũ trong
 employees.tests.DemoDataTests chưa khớp cấu trúc context và điều hướng theo quyền hiện tại.
 
