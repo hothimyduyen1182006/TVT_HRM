@@ -20,7 +20,7 @@
         {% for error in form.remove_certificate.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
       </div>
     </section>
-    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin học vấn{% else %}Thêm học vấn{% endif %}</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a></div>
+    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin học vấn{% else %}Thêm học vấn{% endif %}</button><a class="employee-button secondary" href="{% if personal_view %}{% url 'personal_profile' %}{% else %}{% url 'employee_detail' employee.pk %}{% endif %}">Hủy</a></div>
   </form>
 </section>
 {% elif kind == 'contract' %}
@@ -40,14 +40,14 @@
         {% for error in form.remove_contract_file.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
       </div>
     </section>
-    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin hợp đồng{% else %}Thêm hợp đồng{% endif %}</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a></div>
+    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin hợp đồng{% else %}Thêm hợp đồng{% endif %}</button><a class="employee-button secondary" href="{% if personal_view %}{% url 'personal_profile' %}{% else %}{% url 'employee_detail' employee.pk %}{% endif %}">Hủy</a></div>
   </form>
 </section>
 {% else %}
 <section class="employee-page form-page"><div class="employee-heading"><div><p class="eyebrow">HỒ SƠ / {{ employee.code }}</p><h1>{{ title|upper }} / {{ employee.code }}</h1></div></div>
   <form method="post" enctype="multipart/form-data" class="employee-form"><section class="form-panel record-panel">{% csrf_token %}{% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}<div class="form-grid">
     {% for field in form %}<div class="form-field {% if field.name == 'certificate_file' or field.name == 'contract_file' %}wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% if field.value and field.field.widget.input_type == 'file' %}<small class="current-file">Đã có tệp: {{ field.value }}</small>{% endif %}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}
-  </div></section><div class="form-actions"><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a><button class="employee-button" type="submit">Lưu {{ title|lower }}</button></div></form>
+  </div></section><div class="form-actions"><a class="employee-button secondary" href="{% if personal_view %}{% url 'personal_profile' %}{% else %}{% url 'employee_detail' employee.pk %}{% endif %}">Hủy</a><button class="employee-button" type="submit">Lưu {{ title|lower }}</button></div></form>
 </section>
 {% endif %}
 <script>

@@ -89,8 +89,11 @@
 .bm-status.rejected{background:#fae7e8;color:#b43b48}.bm-status.draft{background:#edf1f6;color:#596a7c}
 .bm-link{display:inline-flex;align-items:center;justify-content:center;padding:4px 20px;border:1px solid #17385e;border-radius:20px;background:#edf2f8;color:#17385e;font-size:12px;font-weight:700;text-decoration:none}
 .bm-link:hover{background:#e4edf9;color:#17385e}
+.bm-title{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 30px;color:#142f55;font-size:32px;font-weight:750;text-align:left}
+.bm-title-icon{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:46px;border-radius:12px;background:#ce9920;color:#122f47;font-size:29px;font-weight:700;line-height:1}
+.bm-title-text{padding:8px 0;border-bottom:1px solid #ce9920}
 </style>{% endblock %}
-{% block content %}<main class="bm-page"><h1 class="h3 bm-title">QUẢN LÝ THƯỞNG</h1>
+{% block content %}<main class="bm-page"><h1 class="bm-title"><span class="bm-title-icon" aria-hidden="true">▦</span><span class="bm-title-text">QUẢN LÝ THƯỞNG</span></h1>
 <form method="get" class="bm-filter">
   <div class="bm-field bm-field-search">{{ form.q.label_tag }}{{ form.q }}</div>
   <div class="bm-field">{{ form.department.label_tag }}{{ form.department }}</div>

@@ -6,7 +6,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from .access import DIRECTOR, HR, MANAGER, has_role, visible_employees
-from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter
+from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter, PersonalProfileForm
 from .models import Education, Employee, LaborContract
 
 
@@ -95,8 +95,19 @@ def personal_profile(request):
     return render(request, 'employees/detail.html', {
         'employee': employee,
         'personal_view': True,
-        'can_manage': False,
+        'can_manage': True,
     })
+
+
+@login_required
+def personal_profile_edit(request):
+    employee = get_object_or_404(Employee.objects.select_related('user'), user=request.user)
+    form = PersonalProfileForm(request.POST or None, request.FILES or None, instance=employee)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Hồ sơ cá nhân đã được cập nhật.')
+        return redirect('personal_profile')
+    return render(request, 'employees/personal_profile_form.html', {'form': form, 'employee': employee})
 
 
 @login_required
@@ -124,10 +135,20 @@ def employee_edit(request, employee_id):
     return render(request, 'employees/employee_form.html', {'form': form, 'employee': employee})
 
 
+def _can_edit_employee_records(user, employee):
+    return has_role(user, *MANAGEMENT_ROLES) or employee.user_id == user.pk
+
+
+def _employee_profile_redirect(request, employee):
+    if employee.user_id == request.user.pk:
+        return redirect('personal_profile')
+    return redirect('employee_detail', employee_id=employee.pk)
+
+
 def _record_form(request, employee_id, record_id, model, form_class, kind, title):
-    if not has_role(request.user, *MANAGEMENT_ROLES):
-        return _forbidden(request)
     employee = get_object_or_404(Employee, pk=employee_id)
+    if not _can_edit_employee_records(request.user, employee):
+        return _forbidden(request)
     record = get_object_or_404(model, pk=record_id, employee=employee) if record_id else None
     form = form_class(request.POST or None, request.FILES or None, instance=record)
     if request.method == 'POST' and form.is_valid():
@@ -135,10 +156,11 @@ def _record_form(request, employee_id, record_id, model, form_class, kind, title
         item.employee = employee
         item.save()
         messages.success(request, f'{title} đã được lưu.')
-        return redirect('employee_detail', employee_id=employee.pk)
+        return _employee_profile_redirect(request, employee)
     return render(request, 'employees/record_form.html', {
         'form': form, 'employee': employee, 'record': record, 'kind': kind,
         'title': title, 'is_edit': record is not None,
+        'personal_view': employee.user_id == request.user.pk,
     })
 
 
@@ -155,26 +177,26 @@ def contract_edit(request, employee_id, record_id=None):
 @login_required
 @require_POST
 def education_delete(request, employee_id, record_id):
-    if not has_role(request.user, *MANAGEMENT_ROLES):
-        return _forbidden(request)
     employee = get_object_or_404(Employee, pk=employee_id)
+    if not _can_edit_employee_records(request.user, employee):
+        return _forbidden(request)
     record = get_object_or_404(Education, pk=record_id, employee=employee)
     if record.certificate_file:
         record.certificate_file.delete(save=False)
     record.delete()
     messages.success(request, 'Đã xóa thông tin học vấn.')
-    return redirect('employee_detail', employee_id=employee.pk)
+    return _employee_profile_redirect(request, employee)
 
 
 @login_required
 @require_POST
 def contract_delete(request, employee_id, record_id):
-    if not has_role(request.user, *MANAGEMENT_ROLES):
-        return _forbidden(request)
     employee = get_object_or_404(Employee, pk=employee_id)
+    if not _can_edit_employee_records(request.user, employee):
+        return _forbidden(request)
     record = get_object_or_404(LaborContract, pk=record_id, employee=employee)
     if record.contract_file:
         record.contract_file.delete(save=False)
     record.delete()
     messages.success(request, 'Đã xóa hợp đồng lao động.')
-    return redirect('employee_detail', employee_id=employee.pk)
+    return _employee_profile_redirect(request, employee)

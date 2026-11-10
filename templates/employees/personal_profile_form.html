@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Sửa hồ sơ cá nhân{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}?v=17">{% endblock %}
+{% block content %}
+<section class="employee-page form-page edit-employee-page">
+  <div class="form-page-heading"><p class="eyebrow">NHÂN SỰ</p><h1>SỬA HỒ SƠ CÁ NHÂN</h1></div>
+  <form method="post" enctype="multipart/form-data" class="employee-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="employee-form-panels edit-form-panels">
+      <section class="form-panel">
+        <h2>Thông tin cá nhân</h2>
+        <div class="edit-profile-top">
+          <div class="edit-avatar-block">
+            {% if employee.avatar %}<img class="edit-avatar-preview" data-avatar-preview src="{{ employee.avatar.url }}" alt="Ảnh {{ employee.full_name }}">{% else %}<div class="edit-avatar-preview avatar-placeholder" data-avatar-placeholder>{{ employee.full_name|slice:':1' }}</div>{% endif %}
+            <label class="avatar-change-button" for="{{ form.avatar.id_for_label }}">Thay ảnh</label>
+            {{ form.avatar }}
+            {% for error in form.avatar.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="edit-identity-fields">
+            <div class="form-field"><label for="{{ form.full_name.id_for_label }}">Họ tên <span class="required">*</span></label>{{ form.full_name }}{% for error in form.full_name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+            <div class="form-field"><label>Mã nhân viên</label><input type="text" value="{{ employee.code }}" disabled></div>
+          </div>
+        </div>
+        <div class="form-grid edit-personal-grid">
+          <div class="form-field edit-date_of_birth"><label for="{{ form.date_of_birth.id_for_label }}">Ngày sinh</label>{{ form.date_of_birth }}{% for error in form.date_of_birth.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="form-field edit-gender"><label for="{{ form.gender.id_for_label }}">Giới tính</label>{{ form.gender }}{% for error in form.gender.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="form-field edit-national_id"><label for="{{ form.national_id.id_for_label }}">CCCD</label>{{ form.national_id }}{% for error in form.national_id.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="form-field edit-phone"><label for="{{ form.phone.id_for_label }}">Số điện thoại</label>{{ form.phone }}{% for error in form.phone.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="form-field edit-address wide"><label for="{{ form.address.id_for_label }}">Địa chỉ</label>{{ form.address }}{% for error in form.address.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="form-field wide"><label>Trạng thái nhân viên</label><input type="text" value="{{ employee.employment_status }}" disabled></div>
+        </div>
+      </section>
+
+      <section class="form-panel">
+        <h2>Thông tin tài khoản và công việc</h2>
+        <div class="form-grid edit-account-grid">
+          <div class="form-field wide"><label>Tên đăng nhập</label><input type="text" value="{{ employee.user.username }}" disabled></div>
+          <div class="form-field wide"><label for="{{ form.email.id_for_label }}">Email</label>{{ form.email }}{% for error in form.email.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          <div class="edit-account-status"><input type="checkbox" {% if employee.user.is_active %}checked{% endif %} disabled><label>Tài khoản đang hoạt động</label></div>
+        </div>
+        <h2 class="work-section-title">Thông tin công việc</h2>
+        <div class="form-grid edit-account-grid">
+          <div class="form-field"><label>Phòng ban</label><input type="text" value="{{ employee.department.name }}" disabled></div>
+          <div class="form-field"><label>Chức vụ</label><input type="text" value="{{ employee.position|default:'—' }}" disabled></div>
+          <div class="form-field"><label>Ngày vào làm</label><input type="text" value="{{ employee.hire_date|date:'d/m/Y' }}" disabled></div>
+          <div class="form-field"><label>Lương cơ bản</label><input type="text" value="{{ employee.base_salary|floatformat:0 }}" disabled></div>
+        </div>
+      </section>
+    </div>
+    <div class="form-actions"><button class="employee-button" type="submit">Lưu thay đổi</button><a class="employee-button secondary" href="{% url 'personal_profile' %}">Hủy</a></div>
+  </form>
+</section>
+<script>
+  (() => {
+    const input = document.getElementById('{{ form.avatar.id_for_label }}');
+    const block = input && input.closest('.edit-avatar-block');
+    if (!input || !block) return;
+
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        let preview = block.querySelector('[data-avatar-preview]');
+        if (!preview) {
+          preview = document.createElement('img');
+          preview.className = 'edit-avatar-preview';
+          preview.dataset.avatarPreview = '';
+          preview.alt = 'Ảnh xem trước';
+          const placeholder = block.querySelector('[data-avatar-placeholder]');
+          if (placeholder) placeholder.replaceWith(preview);
+          else block.prepend(preview);
+        }
+        preview.src = reader.result;
+      });
+      reader.readAsDataURL(file);
+    });
+  })();
+</script>
+{% endblock %}
