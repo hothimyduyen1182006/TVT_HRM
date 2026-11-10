@@ -1,0 +1,131 @@
+/* Shared typography; loaded after module styles. No grid, spacing or business rules. */
+@font-face {
+    font-family: "Inter";
+    src: url("../fonts/InterVariable.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+
+:root {
+    --tvt-font: "Inter", system-ui, sans-serif;
+    --tvt-text: 14px;
+    --tvt-page-title: 24px;
+    --tvt-section-title: 18px;
+    --tvt-number: 20px;
+    --tvt-caption: 12px;
+    --font-family-primary: var(--tvt-font);
+}
+
+body {
+    font-family: var(--tvt-font) !important;
+    font-size: var(--tvt-text) !important;
+    line-height: 1.5;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Reset competing module sizes through inheritance, preserving SVG and icon artwork. */
+body :where(*:not(svg, svg *, [aria-hidden="true"], [aria-hidden="true"] *)) {
+    font-family: var(--tvt-font) !important;
+    font-size: inherit !important;
+}
+
+body :is(h1, .h1, .bm-title, .bp-title, .bd-title, .pr-title, .tvt-main-title),
+body .pr-slip-period h2 {
+    font-size: var(--tvt-page-title) !important;
+    font-weight: 700;
+    line-height: 1.35 !important;
+    letter-spacing: normal !important;
+    overflow-wrap: anywhere;
+}
+
+body :is(h2, h3, h4, h5, h6, legend) {
+    font-size: var(--tvt-section-title) !important;
+    line-height: 1.4 !important;
+    letter-spacing: normal !important;
+    overflow-wrap: anywhere;
+}
+
+/* Labels on statistic cards describe a metric, rather than a new page section. */
+body :is(.db-cards h2, .at-main-stat h2, .at-stat h3,
+         .home-shortcut-copy strong, .tvt-greeting, .tvt-day-date) {
+    font-size: var(--tvt-text) !important;
+    line-height: 1.5 !important;
+}
+
+body :is(table, th, td, caption, label, input, select, textarea, button,
+         .btn, .button, .at-navlinks a, .at-account button, .record-scope a,
+         .pr-button, .at-button, .employee-button, .leave-button,
+         .tvt-punch-button, .submit-row a, .paginator, .actions) {
+    font-size: var(--tvt-text) !important;
+}
+
+body :is(input, select, textarea, button, .btn, .button,
+         .pr-button, .at-button, .employee-button, .leave-button) {
+    font-family: var(--tvt-font) !important;
+    line-height: 1.4 !important;
+}
+
+body :is(.db-cards strong, .db-donut > span, .db-attendance dd,
+         .at-main-stat strong, .at-stat > strong, .at-mini-stats strong,
+         .dp-total strong, .leave-stat-card strong, .tvt-clock,
+         .tvt-stat-card strong, .tvt-time-summary strong,
+         .pr-net strong, .pr-total dd, .pr-summary strong, .pr-stat strong) {
+    font-size: var(--tvt-number) !important;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4 !important;
+    letter-spacing: normal !important;
+}
+
+body :is(small, .small, .help, .helptext, .form-text, .help-block,
+         .eyebrow, .home-eyebrow, .dp-eyebrow, .tvt-eyebrow, .tvt-card-mark span,
+         .leave-eyebrow, .leave-step, .proposal-eyebrow, .at-day-eyebrow,
+         .db-note, .db-list-footer, .dp-footer, .dp-back, .dp-card-heading p,
+         .at-breadcrumb, .at-muted, .pr-muted, .pr-draft, .pr-approval-note,
+         .pr-input-summary, .pr-input-notice, .pr-source-details,
+         .filter-note, .employee-list-meta, .leave-help, .leave-field-error,
+         .proposal-field-help, .proposal-field-error, .tvt-checkin-footnote,
+         .tvt-period-note, .tvt-overtime-note, .tvt-working-status,
+         .status-pill, .at-pill, .bm-status, .bp-status, .history-status,
+         .history-count, .leave-status, .code) {
+    font-size: var(--tvt-caption) !important;
+    line-height: 1.5 !important;
+    letter-spacing: normal !important;
+}
+
+/* Keep nested explanatory text small even inside highlighted metrics. */
+body :is(.pr-line dt > span, .pr-slip-employee p, .pr-net p,
+         .home-shortcut-copy small, .db-donut small,
+         .at-main-stat .caption, .at-stat .at-muted) {
+    font-size: var(--tvt-caption) !important;
+    line-height: 1.5 !important;
+}
+
+body :is(.money, .pr-money, .bm-money, .bd-money, .bp-money) {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Long names, notes and account labels may wrap without changing their containers. */
+body :is(.home-welcome, .employee-heading, .at-person, .pr-slip-employee,
+         .at-account-heading, .leave-sheet-details, .proposal-note) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+body :is(.pr-net strong, .tvt-stat-card strong) {
+    max-width: 100%;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+}
+
+body :is(#nav-sidebar a, .sidebar a, .nav-sidebar a, .breadcrumbs,
+         button, .btn, .button, .pr-button, .at-button, .employee-button, .leave-button) {
+    overflow-wrap: anywhere;
+}
+
+/* Retain each module's existing scrollable tables instead of shrinking text. */
+body :is(.at-table-wrap, .pr-table-wrap, .bm-table-wrap, .dp-table-scroll,
+         .table-responsive, #changelist-form .results) {
+    overflow-x: auto;
+}

@@ -1,9 +1,10 @@
-{% load access_tags %}{% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' 'Nhân viên' as bonus_menu %}
+{% load access_tags static %}{% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' 'Nhân viên' as bonus_menu %}
 {% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' as can_view_dashboard %}
 <nav class="at-nav" aria-label="Điều hướng chính">
   <a class="at-brand" href="{% url 'home' %}" aria-label="TVT trang chủ">
-    <svg viewBox="0 0 76 68" aria-hidden="true"><path fill="currentColor" d="M3 26 38 3 73 26v39H3z"/><path fill="#12324a" d="M14 32h48v6H44v22h-8V38H14zm0 10h8l8 18h-8z"/></svg>
-    <span><small>SINCE 2012</small><b>WOOD &amp;<br>INTERIOR</b></span>
+    <svg class="at-brand-logo" viewBox="96 354 812 260" width="200" height="64" aria-hidden="true">
+      <image href="{% static 'images/tvt-navbar-logo.png' %}" width="1000" height="1000"/>
+    </svg>
   </a>
   <div class="at-navlinks">
     {% if can_view_dashboard %}<a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active" aria-current="page"{% endif %}>DASHBOARD</a>{% endif %}

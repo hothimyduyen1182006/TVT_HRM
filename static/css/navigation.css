@@ -25,21 +25,11 @@ body{
     text-decoration:none;
     flex-shrink:0
 }
-.at-brand svg{
-    width:73px;
-    height:64px
-}
-.at-brand span{
-    line-height:1.02
-}
-.at-brand small{
-    font-size:8px;
-    font-weight:400
-}
-.at-brand b{
+.at-brand .at-brand-logo{
     display:block;
-    font-size:22px;
-    letter-spacing:-.5px
+    width:200px;
+    height:64px;
+    overflow:hidden
 }
 .at-navlinks{
     display:flex;
@@ -145,7 +135,7 @@ body{
   .at-nav { gap: 15px; padding: 14px; }
   .at-navlinks { gap: 5px; flex-wrap: wrap; }
   .at-navlinks a { font-size: 12px; padding: 10px; }
-  .at-brand b { font-size: 17px; }
+  .at-brand .at-brand-logo { width:175px; height:56px; }
 }
 @media(max-width:700px) {
   .at-nav { flex-wrap: wrap; }

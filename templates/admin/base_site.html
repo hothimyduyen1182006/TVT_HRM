@@ -1,3 +1,7 @@
 {% extends 'admin/base_site.html' %}{% load static %}
-{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/navigation.css' %}?v=20261105-personal-scope">{% endblock %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/navigation.css' %}?v=20261110-logo-2">{% endblock %}
 {% block header %}{% include 'includes/navigation.html' %}{% endblock %}
+{% block extrahead %}{{ block.super }}
+<link rel="preload" href="{% static 'fonts/InterVariable.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{% static 'css/typography.css' %}?v=20261110-1">
+{% endblock %}
