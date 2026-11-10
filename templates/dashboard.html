@@ -1,15 +1,15 @@
 {% extends 'base.html' %}{% load static %}
 {% block title %}Dashboard · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v=links"><link rel="stylesheet" href="{% static 'css/dashboard-typography.css' %}?v=2">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v=links"><link rel="stylesheet" href="{% static 'css/dashboard-typography.css' %}?v=4">{% endblock %}
 {% block content %}
 <section class="db-page">
 <header class="db-heading"><div><h1>Dashboard</h1><p>Tổng quan tình hình nhân sự</p></div><form method="get"><label for="id_date">Ngày thống kê</label>{{ form.date }}{% if form.department.value %}<input type="hidden" name="department" value="{{ form.department.value }}">{% endif %}<button>Xem</button></form></header>
 {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% else %}
 <div class="db-cards">
-<a class="db-card-link" href="{% url 'employees' %}?active_as_of={{ selected_day|date:'Y-m-d' }}"><span class="db-icon">♙</span><div><h2>Tổng nhân viên</h2><strong>{{ total_employees }}</strong></div></a>
-<a class="db-card-link" href="{% url 'departments' %}?date={{ selected_day|date:'Y-m-d' }}"><span class="db-icon">▦</span><div><h2>Phòng ban có nhân viên</h2><strong>{{ department_count }}</strong></div></a>
-<a class="db-card-link" href="{% url 'attendance:list' %}?month={{ selected_day.month }}&amp;year={{ selected_day.year }}&amp;day={{ selected_day|date:'Y-m-d' }}&amp;day_state=ontime"><span class="db-icon">◷</span><div><h2>Đi làm đúng giờ</h2><strong>{{ attendance_counts.ontime }}</strong></div></a>
-<a class="db-card-link" href="{% url 'attendance:list' %}?month={{ selected_day.month }}&amp;year={{ selected_day.year }}&amp;day={{ selected_day|date:'Y-m-d' }}&amp;day_state=late"><span class="db-icon">◴</span><div><h2>Đi trễ</h2><strong>{{ attendance_counts.late }}</strong></div></a>
+<a class="db-card-link" href="{% url 'employees' %}?active_as_of={{ selected_day|date:'Y-m-d' }}"><span class="db-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1.5a5.5 5.5 0 0 1 11 0V19zM16 5.5a3 3 0 0 1 0 5.8M17 14a4.5 4.5 0 0 1 3.5 4.4V19h-4"/></svg></span><div><h2>Tổng nhân viên</h2><strong>{{ total_employees }}</strong></div></a>
+<a class="db-card-link" href="{% url 'departments' %}?date={{ selected_day|date:'Y-m-d' }}"><span class="db-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 21V4h16v17M2 21h20M8 8h2m4 0h2M8 12h2m4 0h2M10 21v-4h4v4"/></svg></span><div><h2>Phòng ban có nhân viên</h2><strong>{{ department_count }}</strong></div></a>
+<a class="db-card-link" href="{% url 'attendance:list' %}?month={{ selected_day.month }}&amp;year={{ selected_day.year }}&amp;day={{ selected_day|date:'Y-m-d' }}&amp;day_state=ontime"><span class="db-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div><h2>Đi làm đúng giờ</h2><strong>{{ attendance_counts.ontime }}</strong></div></a>
+<a class="db-card-link" href="{% url 'attendance:list' %}?month={{ selected_day.month }}&amp;year={{ selected_day.year }}&amp;day={{ selected_day|date:'Y-m-d' }}&amp;day_state=late"><span class="db-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2z"/></svg></span><div><h2>Đi trễ</h2><strong>{{ attendance_counts.late }}</strong></div></a>
 </div>
 <div class="db-charts">
 <article class="db-panel"><h2>Nhân viên theo phòng ban</h2><div class="db-bars">{% for department in departments %}<a class="db-bar-column" href="{% url 'employees' %}?active_as_of={{ selected_day|date:'Y-m-d' }}&amp;department={{ department.department_id }}"><div class="db-bar-track"><div class="db-bar" style="height:{{ department.height }}%"><strong>{{ department.total }}</strong></div></div><span>{{ department.department__name }}</span></a>{% empty %}<p>Chưa có dữ liệu nhân viên.</p>{% endfor %}</div></article>

@@ -5,7 +5,9 @@
 {% block extra_head %}
 <style>
   .bp-page{max-width:1180px;margin:1.5rem auto}
-  .bp-title{color:#17385e;font-size:32px;font-weight:750;line-height:1.25;text-align:center;margin:0 0 1.1rem}
+  .bp-title{display:flex;align-items:center;justify-content:center;gap:8px;color:#17385e;font-size:32px;font-weight:750;line-height:1.25;text-align:left;margin:0 0 1.1rem}
+  .bp-title-icon{display:inline-flex;flex:0 0 56px;width:56px;height:56px;align-items:center;justify-content:center;border-radius:16px;background:#d8a319;color:#17385e;font-size:28px}
+  .bp-title-name{color:#d08a00}
   .bp-filter{display:flex;justify-content:center;align-items:end;gap:12px;flex-wrap:wrap;width:fit-content;max-width:100%;margin:0 auto 24px;padding:14px 18px;border:1px solid #e2e7ed;border-radius:8px;background:#fff}
   .bp-field{display:flex;flex-direction:column;gap:4px}
   .bp-field label{font-size:14px;font-weight:700;color:#344054}
@@ -24,22 +26,33 @@
   .bp-no-data{display:inline-block;width:.7rem;height:1px;border-radius:1px;background:#aeb8c4;vertical-align:middle}
   .bp-empty{text-align:center;padding:3rem!important;color:#718198}
   .bp-total{text-align:right;color:#17385e;font-size:14px;font-weight:700;margin-top:1rem}
-  @media(max-width:700px){.bp-page{padding:0 .55rem}.bp-title{font-size:25px}.bp-filter{width:100%;justify-content:flex-start;padding:.8rem}.bp-field{flex:1 1 130px}.bp-field select{width:100%;min-width:0}}
+  .bp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 28px}
+  .bp-summary-card{padding:12px 16px;border:1px solid #e0e5ec;border-radius:10px;background:#fff}
+  .bp-summary-value{color:#17385e;font-size:24px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums}
+  .bp-summary-label{margin-top:3px;color:#596a7c;font-size:13px}
+  .bp-detail-link{display:inline-flex;align-items:center;justify-content:center;padding:4px 20px;border:1px solid #17385e;border-radius:20px;background:#edf2f8;color:#17385e;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
+  .bp-detail-link:hover{background:#e4edf9;color:#17385e}
+  @media(max-width:700px){.bp-page{padding:0 .55rem}.bp-title{font-size:25px}.bp-filter{width:100%;justify-content:flex-start;padding:.8rem}.bp-field{flex:1 1 130px}.bp-field select{width:100%;min-width:0}.bp-summary{grid-template-columns:1fr;gap:9px}.bp-summary-value{font-size:21px}}
 </style>
 {% endblock %}
 {% block content %}
 <main class="bp-page">
-  <h1 class="h3 bp-title">{% if employee %}THÔNG TIN THƯỞNG CỦA {{ employee.full_name|upper }}{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</h1>
+  <h1 class="h3 bp-title"><span class="bp-title-icon" aria-hidden="true">▣</span><span>{% if employee %}THÔNG TIN THƯỞNG CỦA <span class="bp-title-name">{{ employee.full_name|upper }}</span>{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</span></h1>
   <form method="get" class="bp-filter">
     {% for field in form %}<div class="bp-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
     <button class="btn" type="submit">Lọc</button>
     <a class="bp-reset" href="{% url 'bonuses:personal' %}">Đặt lại</a>
   </form>
   {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
+  <section class="bp-summary" aria-label="Tổng hợp thưởng cá nhân">
+    <article class="bp-summary-card bp-summary-received"><div class="bp-summary-label">{{ received_label }}</div><div class="bp-summary-value">{{ total_received|money }} ₫</div></article>
+    <article class="bp-summary-card bp-summary-pending"><div class="bp-summary-label">Đang chờ duyệt</div><div class="bp-summary-value">{{ pending_total|money }} ₫</div></article>
+    <article class="bp-summary-card bp-summary-month"><div class="bp-summary-label">{{ summary_label }}</div><div class="bp-summary-value">{{ summary_total|money }} ₫</div></article>
+  </section>
   <h2 class="h5 fw-bold text-uppercase mb-3" style="color:#17385e">Thông tin thưởng cá nhân</h2>
   <div class="table-responsive bg-white rounded">
     <table class="table table-bordered bp-table mb-0">
-      <thead><tr><th>Mã thưởng</th><th>Tháng</th><th>Năm</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th></tr></thead>
+      <thead><tr><th>Mã thưởng</th><th>Tháng</th><th>Năm</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Chi tiết</th></tr></thead>
       <tbody>
         {% for row in rows %}
         <tr>
@@ -50,8 +63,9 @@
           <td class="bp-money">{{ row.total|money }}</td>
           <td><span class="bp-status {{ row.status }}">{% if row.status == 'approved' %}Đã duyệt{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'draft' %}Bản nháp{% else %}Từ chối{% endif %}</span></td>
           <td>{% if row.approved_at and row.status != 'pending' and row.status != 'draft' %}{{ row.approved_at|date:'d/m/Y' }}{% else %}<span class="bp-no-data" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td>
+          <td><a class="bp-detail-link" href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Xem chi tiết</a></td>
         </tr>
-        {% empty %}<tr><td colspan="9" class="bp-empty">Không tìm thấy dữ liệu thưởng phù hợp</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="10" class="bp-empty">Không tìm thấy dữ liệu thưởng phù hợp</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
