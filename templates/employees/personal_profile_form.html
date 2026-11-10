@@ -13,7 +13,7 @@
         <h2>Thông tin cá nhân</h2>
         <div class="edit-profile-top">
           <div class="edit-avatar-block">
-            {% if employee.avatar %}<img class="edit-avatar-preview" src="{{ employee.avatar.url }}" alt="Ảnh {{ employee.full_name }}">{% else %}<div class="edit-avatar-preview avatar-placeholder">{{ employee.full_name|slice:':1' }}</div>{% endif %}
+            {% if employee.avatar %}<img class="edit-avatar-preview" data-avatar-preview src="{{ employee.avatar.url }}" alt="Ảnh {{ employee.full_name }}">{% else %}<div class="edit-avatar-preview avatar-placeholder" data-avatar-placeholder>{{ employee.full_name|slice:':1' }}</div>{% endif %}
             <label class="avatar-change-button" for="{{ form.avatar.id_for_label }}">Thay ảnh</label>
             {{ form.avatar }}
             {% for error in form.avatar.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
@@ -52,4 +52,32 @@
     <div class="form-actions"><button class="employee-button" type="submit">Lưu thay đổi</button><a class="employee-button secondary" href="{% url 'personal_profile' %}">Hủy</a></div>
   </form>
 </section>
+<script>
+  (() => {
+    const input = document.getElementById('{{ form.avatar.id_for_label }}');
+    const block = input && input.closest('.edit-avatar-block');
+    if (!input || !block) return;
+
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        let preview = block.querySelector('[data-avatar-preview]');
+        if (!preview) {
+          preview = document.createElement('img');
+          preview.className = 'edit-avatar-preview';
+          preview.dataset.avatarPreview = '';
+          preview.alt = 'Ảnh xem trước';
+          const placeholder = block.querySelector('[data-avatar-placeholder]');
+          if (placeholder) placeholder.replaceWith(preview);
+          else block.prepend(preview);
+        }
+        preview.src = reader.result;
+      });
+      reader.readAsDataURL(file);
+    });
+  })();
+</script>
 {% endblock %}
