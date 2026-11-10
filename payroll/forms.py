@@ -110,17 +110,25 @@ class PayrollInputForm(ScopedInputForm):
         self.rate_formset = InsuranceRateFormSet(self.data if self.is_bound and not self.legacy_rates else None,
                                                initial=initial_rates, prefix='insurance')
         self.fields['insurance_base'].label = 'Lương làm căn cứ đóng bảo hiểm (VNĐ)'
-        self.fields['tax_amount'].label = 'Thuế TNCN đã xác định trong kỳ (VNĐ)'
+        self.fields['tax_method'].choices = [choice for choice in self.fields['tax_method'].choices if choice[0] != 'legacy']
+        self.fields['tax_method'].required = False
+        self.fields['tax_dependents'].required = False
+        if self.instance.tax_method == 'legacy':
+            self.initial['tax_method'] = 'resident_2026'
+        self.fields['tax_dependents'].help_text = 'Chỉ nhập số người phụ thuộc đủ điều kiện và hồ sơ giảm trừ trong tháng; không tự tính theo số con.'
+        self.fields['tax_exempt_overtime'].help_text = 'Để trống nếu toàn bộ OT hợp lệ trong giới hạn. Khi có cảnh báo, nhập số tiền đủ điều kiện sau đối soát và ghi căn cứ.'
         self.fields['verified'].label = 'Tôi đã kiểm tra dữ liệu và căn cứ áp dụng trong kỳ'
         self.fields['insurance_basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['tax_basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['overtime_basis'].widget = forms.Textarea(attrs={'rows':3})
         self.fields['overtime_hourly_rate'].help_text='Bắt buộc khi có OT tự động từ chấm công. HR xác định lương giờ thực trả hợp lệ; không bao gồm thưởng, tiền ăn và khoản không thuộc căn cứ OT.'
         self.fields['insurance_basis'].help_text = 'Ghi đối tượng, kỳ và chính sách áp dụng; nếu không tham gia phải ghi rõ căn cứ.'
-        self.fields['tax_basis'].help_text = 'Ghi căn cứ số thuế, kể cả trường hợp không phát sinh. Hệ thống không tự áp dụng biểu thuế.'
+        self.fields['tax_basis'].help_text = 'Xác nhận tình trạng cư trú, hợp đồng từ 03 tháng, đăng ký giảm trừ, người phụ thuộc và điều kiện miễn thuế. Thuế được tính tự động khi tính lương.'
 
     def clean(self):
         data = super().clean()
+        data['tax_method'] = data.get('tax_method') or 'resident_2026'
+        data['tax_dependents'] = data.get('tax_dependents') or 0
         if self.legacy_rates:
             self.instance.insurance_rates = forms.JSONField().clean(self.data['insurance_rates'])
         elif not self.rate_formset.is_valid():
@@ -134,7 +142,8 @@ class PayrollInputForm(ScopedInputForm):
     class Meta:
         model = PayrollInput
         fields = ['period', 'employee', 'insurance_base', 'insurance_basis',
-                  'tax_amount', 'tax_basis', 'overtime_hourly_rate', 'overtime_basis', 'verified']
+                  'tax_method', 'tax_dependents', 'claim_personal_deduction', 'tax_exempt_overtime',
+                  'tax_basis', 'overtime_hourly_rate', 'overtime_basis', 'verified']
 
 
 class AdjustmentForm(ScopedInputForm):
@@ -142,9 +151,13 @@ class AdjustmentForm(ScopedInputForm):
         super().__init__(user, *args, **kwargs)
         self.fields['amount'].label = 'Số tiền (VNĐ)'
         self.fields['approved'].label = 'Khoản này đã được duyệt theo thẩm quyền'
+        self.fields['tax_category'].required = False
         self.fields['basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['basis'].help_text = 'Ghi căn cứ khoản tiền. Không trừ thêm tiền cho thời gian đi muộn đã giảm công.'
 
+    def clean_tax_category(self):
+        return self.cleaned_data.get('tax_category') or 'taxable'
+
     class Meta:
         model = PayrollAdjustment
-        fields = ['period', 'employee', 'name', 'kind', 'amount', 'basis', 'approved']
+        fields = ['period', 'employee', 'name', 'kind', 'amount', 'tax_category', 'basis', 'approved']

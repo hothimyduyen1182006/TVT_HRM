@@ -6,6 +6,7 @@ from employees.access import require_role, DIRECTOR
 from payroll.models import PayrollPeriod, PayrollAuditLog, PayrollRecord
 from .calculations import snapshot, payroll_values
 from .source_data import legacy_breakdown
+from .tax import tax_source_error
 from decimal import Decimal, InvalidOperation
 from bonuses.models import Bonus, payroll_bonus_records
 
@@ -113,7 +114,7 @@ def change_payroll(actor, period_id, action, reason, evidence=''):
         if attendance.status != 'approved':
             raise ValidationError('Bảng công chưa được duyệt.')
         for record in period.records.all():
-            error = overtime_source_error(record)
+            error = overtime_source_error(record) or tax_source_error(record)
             if error:
                 raise ValidationError(f'{record.employee_code}: {error}')
         for record in period.records.filter(status='pending'):
@@ -128,7 +129,7 @@ def change_payroll(actor, period_id, action, reason, evidence=''):
         if period.status != 'approved' or not evidence.strip() or period.records.filter(status='pending').exists():
             raise ValidationError('Chỉ xác nhận kỳ đã duyệt khi có bằng chứng thanh toán.')
         for record in period.records.all():
-            error = bonus_source_error(record) or overtime_source_error(record)
+            error = bonus_source_error(record) or overtime_source_error(record) or tax_source_error(record)
             if error:
                 raise ValidationError(f'{record.employee_code}: {error}')
         period.status = 'paid'

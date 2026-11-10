@@ -11,7 +11,7 @@
  <div class="at-field">{{ form.month.label_tag }}{{ form.month }}</div>
  <div class="at-field">{{ form.year.label_tag }}{{ form.year }}</div>
  {% if form.day.value %}<div class="at-field">{{ form.day.label_tag }}{{ form.day }}</div><div class="at-field">{{ form.day_state.label_tag }}{{ form.day_state }}</div>{% endif %}
- <button class="at-button" type="submit">⚑ Lọc</button>
+ <button class="at-button" type="submit">Lọc</button>
  {% if form.employee.value %}<input type="hidden" name="employee" value="{{ form.employee.value }}">{% endif %}
  {% if form.errors %}<div class="at-errors w-100">{{ form.errors }}</div>{% endif %}
 </form>

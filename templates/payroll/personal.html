@@ -45,6 +45,14 @@
  <p>Căn cứ thuế: {{ row.breakdown.tax_basis }}</p><p>Căn cứ bảo hiểm: {{ row.breakdown.insurance_basis }}</p>
  {% for item in adjustments %}<p>{{ item.name }} · {{ item.amount|money }} · {{ item.basis }}</p>{% endfor %}
  {% for item in row.breakdown.bonuses %}<p>Thưởng: {{ item.name }} · {{ item.amount|money }}</p>{% endfor %}
+ {% if row.breakdown.tax_calculation.policy == 'vn-resident-salary-2026-v1' %}
+ <p>Thuế TNCN tự động: thu nhập chịu thuế {{ row.breakdown.tax_calculation.taxable_gross|money }}đ;
+ BH được trừ {{ row.breakdown.tax_calculation.insurance_deduction|money }}đ;
+ giảm trừ bản thân {{ row.breakdown.tax_calculation.personal_deduction|money }}đ;
+ {{ row.breakdown.tax_calculation.dependent_count }} người phụ thuộc, giảm trừ {{ row.breakdown.tax_calculation.dependent_deduction|money }}đ;
+ thu nhập tính thuế {{ row.breakdown.tax_calculation.taxable_income|money }}đ; thuế {{ row.tax|money }}đ.</p>
+ {% for bracket in row.breakdown.tax_calculation.brackets %}<p>Phần thu nhập {{ bracket.income|money }}đ × {{ bracket.rate }} = {{ bracket.tax|money }}đ.</p>{% endfor %}
+ {% endif %}
  <p>Số tiền thực lĩnh lấy từ kết quả đã lưu. Lương cơ bản là thông tin tham chiếu, không cộng thêm lần nữa vào tổng thu nhập.</p>
  {% if metrics.actual == None %}<p>Chưa có số công thực tế/nghỉ không phép khớp phiên bản công đã dùng tính lương; các chỉ số này hiển thị “—”.</p>{% endif %}
 </details>

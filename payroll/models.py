@@ -23,17 +23,24 @@ class PayrollPeriod(models.Model):
 
 
 class PayrollInput(models.Model):
-    """Dữ liệu kỳ do nhân sự kiểm tra; thuế nhập theo kết quả tính có căn cứ."""
+    """Căn cứ theo kỳ do HR kiểm tra để tính bảo hiểm và thuế tự động."""
     period = models.ForeignKey(PayrollPeriod, on_delete=models.PROTECT)
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     insurance_base = models.DecimalField('Lương đóng BH', max_digits=16, decimal_places=2,
                                          validators=[MinValueValidator(0)])
     insurance_rates = models.JSONField('Tỷ lệ BH (tên: tỷ lệ dạng thập phân)', default=dict, blank=True)
-    tax_amount = models.DecimalField('Thuế TNCN đã xác định', max_digits=16, decimal_places=2,
+    tax_amount = models.DecimalField('Thuế TNCN nhập trong dữ liệu lịch sử', max_digits=16, decimal_places=2, default=0,
                                      validators=[MinValueValidator(0)])
     tax_basis = models.TextField('Căn cứ thuế: chính sách kỳ, thu nhập, giảm trừ, người phụ thuộc')
     insurance_basis = models.TextField('Căn cứ BH: đối tượng, chính sách và kỳ áp dụng')
     verified = models.BooleanField('Đã kiểm tra đủ dữ liệu', default=False)
+    tax_method = models.CharField('Phương pháp thuế', max_length=20, default='resident_2026', choices=[
+        ('resident_2026', 'Cá nhân cư trú, hợp đồng từ 03 tháng (2026)'),
+        ('other', 'Trường hợp khác/chưa xác định'), ('legacy', 'Số thuế lịch sử đã nhập')])
+    tax_dependents = models.PositiveSmallIntegerField('Số người phụ thuộc đủ điều kiện trong tháng', default=0)
+    claim_personal_deduction = models.BooleanField('Áp dụng giảm trừ bản thân tại TVT', default=True)
+    tax_exempt_overtime = models.DecimalField('Tiền OT đủ điều kiện miễn thuế đã đối soát', max_digits=18,
+        decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)])
     overtime_hourly_rate = models.DecimalField('Lương giờ căn cứ OT (VNĐ)', max_digits=18, decimal_places=4,
         null=True, blank=True, validators=[MinValueValidator(Decimal('0.0001'))])
     overtime_basis = models.TextField('Căn cứ lương giờ OT', blank=True)
@@ -77,6 +84,9 @@ class PayrollAdjustment(models.Model):
     amount = models.DecimalField('Số tiền', max_digits=16, decimal_places=2, validators=[MinValueValidator(0)])
     basis = models.TextField('Căn cứ; khấu trừ không được trùng phần thời gian đã giảm công')
     approved = models.BooleanField('Đã duyệt', default=False)
+    tax_category = models.CharField('Phân loại thuế', max_length=20, default='taxable', choices=[
+        ('taxable', 'Tính vào thu nhập chịu thuế'), ('meal_cash', 'Tiền ăn giữa ca/ăn trưa bằng tiền'),
+        ('exempt', 'Khoản không chịu thuế/miễn thuế có căn cứ')])
 
     @property
     def is_locked(self):
@@ -84,6 +94,10 @@ class PayrollAdjustment(models.Model):
             period_id=self.period_id, employee_id=self.employee_id, status__in=['approved', 'paid']).exists()
 
     def clean(self):
+        if self.kind == 'deduction' and self.tax_category != 'taxable':
+            raise ValidationError('Khoản khấu trừ thực lĩnh không được khai là phụ cấp miễn thuế.')
+        if self.tax_category != 'taxable' and not self.basis.strip():
+            raise ValidationError('Cần ghi căn cứ và điều kiện áp dụng cho khoản không chịu thuế.')
         if self.period_id and self.employee_id and self.is_locked:
             raise ValidationError('Phiếu lương nhân viên đã duyệt, cần mở lại trước khi chỉnh khoản tiền.')
 

@@ -104,9 +104,9 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 - BH = tổng lương đóng BH × từng tỷ lệ trong JSON; ví dụ cú pháp {"BHXH": "0.08"}.
   Đây là ví dụ định dạng, không phải tỷ lệ mặc định. Không tham gia BH thì nhập {}, căn cứ
   miễn/không áp dụng và xác nhận. Tỷ lệ phải ở [0,1], tổng không vượt 1.
-- Thuế: bản hiện tại nhận số thuế đã xác định và căn cứ chính sách, thu nhập tính thuế,
-  giảm trừ/người phụ thuộc từ người có trách nhiệm. Chưa tự tính biểu thuế lũy tiến vì nhóm
-  chưa thống nhất quy tắc và dữ liệu. Nhập 0 chỉ khi có căn cứ; thiếu đầu vào thì chặn tính.
+- Thuế TNCN: tự tính biểu lũy tiến 5 bậc cho cá nhân cư trú, hợp đồng từ 03 tháng,
+  kỳ 07–12/2026. HR xác nhận căn cứ, giảm trừ và phân loại phụ cấp; không nhập đè số thuế.
+  Dữ liệu lịch sử giữ nguyên. Xem phạm vi, công thức và nguồn luật tại [hướng dẫn thuế](docs/income-tax.md).
 - Thực nhận = lương theo công + OT hợp lệ + thưởng duyệt + phụ cấp duyệt - BH - thuế - khấu trừ duyệt.
   Dùng Decimal; tính thực nhận từ giá trị trung gian chưa làm tròn, ROUND_HALF_UP tới đồng
   ở cuối. Thành phần lưu 8 số thập phân, breakdown giữ công thức/giá trị chính xác dạng chuỗi.

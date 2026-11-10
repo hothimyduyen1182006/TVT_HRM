@@ -17,8 +17,8 @@ def canonical(value):
     return value
 
 
-def source_data(employee, attendance, inputs, records, overtime, bonuses, adjustments):
-    return canonical({
+def source_data(employee, attendance, inputs, records, overtime, bonuses, adjustments, tax_details):
+    data = {
         'base_salary': employee.base_salary,
         'schedule': [attendance.start_time, attendance.lunch_start, attendance.lunch_end,
                      attendance.end_time, attendance.standard_hours],
@@ -36,8 +36,14 @@ def source_data(employee, attendance, inputs, records, overtime, bonuses, adjust
         'adjustments': list(adjustments.order_by('pk').values('id', 'kind', 'amount')),
         'insurance_base': inputs.insurance_base,
         'insurance_rates': {key: Decimal(str(rate)) for key, rate in inputs.insurance_rates.items()},
-        'tax': inputs.tax_amount,
-    })
+        'tax': tax_details['tax'],
+    }
+    if inputs.tax_method != 'legacy':
+        data['tax_calculation'] = tax_details
+        data['tax_inputs'] = {'method': inputs.tax_method, 'dependents': inputs.tax_dependents,
+            'personal_deduction': inputs.claim_personal_deduction, 'exempt_ot': inputs.tax_exempt_overtime}
+        data['adjustments'] = list(adjustments.order_by('pk').values('id', 'kind', 'amount', 'tax_category'))
+    return canonical(data)
 
 
 def legacy_breakdown(breakdown):

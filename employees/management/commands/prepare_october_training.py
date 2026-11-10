@@ -13,7 +13,7 @@ from django.utils import timezone
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
 from attendance.services import calculations as attendance_calculations
 from attendance.services.workflow import save_record, approve_employee
-from bonuses.models import Bonus, payroll_bonus_records
+from bonuses.models import Bonus
 from bonuses.views import calculate_automatic
 from employees.access import has_role, HR, DIRECTOR
 from employees.models import Employee
@@ -182,14 +182,6 @@ class Command(BaseCommand):
         standard=sum(WorkCalendarDay.objects.filter(date__year=YEAR,date__month=MONTH).values_list('expected_units',flat=True),Decimal(0))
         for code,employee in sorted(people.items()):
             rate=(employee.base_salary/standard/attendance.standard_hours).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
-            paid=sum(AttendanceRecord.objects.filter(employee=employee,date__year=YEAR,date__month=MONTH).values_list('paid_units',flat=True),Decimal(0))
-            bonus=sum(payroll_bonus_records(Bonus.objects.filter(employee=employee,year=YEAR,month=MONTH)).values_list('amount',flat=True),Decimal(0))
-            income=employee.base_salary/standard*paid+bonus
-            taxable=max(Decimal(0),income-employee.base_salary*Decimal('.105')-Decimal(15500000))
-            # All incomes in this fixed dataset stay in the first 2026 tax bracket.
-            if taxable>10000000:
-                raise CommandError('Thu nhập vượt giả định bậc thuế của bộ dữ liệu; cần xác định lại thuế.')
-            tax=(taxable*Decimal('.05')).quantize(Decimal('.01'),rounding=ROUND_HALF_UP)
             basis=('Dữ liệu thực hành 10/2026: giả định cá nhân cư trú, 0 người phụ thuộc; giảm trừ bản thân '
                    '15.500.000đ, BH 10,5% lương cơ bản; thu nhập tính thuế bậc đầu không quá 10 triệu, thuế suất 5%. '
                    'Phụ cấp ăn trưa giả định đủ điều kiện loại khỏi thu nhập chịu thuế. Các nhân viên có OT '
@@ -197,13 +189,13 @@ class Command(BaseCommand):
             if code=='NV08':
                 basis+=' Chưa xác nhận: lương hồ sơ 20 triệu khác lương hợp đồng 11,5 triệu; HR cần đối chiếu căn cứ BH/thuế.'
             inputs=PayrollInput(period=payroll,employee=employee,insurance_base=employee.base_salary,
-                insurance_rates={'BHXH':'0.08','BHYT':'0.015','BHTN':'0.01'},tax_amount=tax,
+                insurance_rates={'BHXH':'0.08','BHYT':'0.015','BHTN':'0.01'},tax_method='resident_2026',
                 tax_basis=basis,insurance_basis='Giả định thuộc diện BH bắt buộc, lương đóng BH bằng lương cơ bản; cần HR đối chiếu hồ sơ thực tế.',
                 verified=code!='NV08',overtime_hourly_rate=rate,
                 overtime_basis=f'Lương cơ bản {employee.base_salary} / {standard} công / 8 giờ; không gồm thưởng, ăn trưa và khoản hỗ trợ.')
             save_input(hr,inputs)
             adjustment=PayrollAdjustment(period=payroll,employee=employee,name='Phụ cấp ăn trưa',kind='allowance',
-                amount=450000,basis='Phụ cấp ăn trưa cố định tháng 10/2026, không tính vào căn cứ lương giờ OT.',approved=True)
+                amount=450000,tax_category='meal_cash',basis='Phụ cấp ăn trưa cố định tháng 10/2026, không tính vào căn cứ lương giờ OT.',approved=True)
             save_input(hr,adjustment)
         extras=[('NV03','Hỗ trợ điều kiện làm việc','allowance',200000,True,'Khoản hỗ trợ điều kiện làm việc tháng 10 đã chấp thuận'),
                 ('NV06','Hỗ trợ điện thoại','allowance',200000,True,'Hỗ trợ liên lạc phục vụ công việc tháng 10'),

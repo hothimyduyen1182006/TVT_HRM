@@ -8,7 +8,8 @@ from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDa
 from bonuses.models import Bonus, payroll_bonus_records
 from leaves.models import LeaveDay
 from payroll.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
-from .source_data import source_data
+from .source_data import source_data, canonical
+from .tax import calculate_tax
 
 ZERO = Decimal(0)
 
@@ -87,7 +88,9 @@ def payroll_values(employee, attendance, period, standard=None):
     insurance_lines = {name: str(inputs.insurance_base * Decimal(str(rate)))
                        for name, rate in inputs.insurance_rates.items()}
     insurance = sum((Decimal(value) for value in insurance_lines.values()), ZERO)
-    net = wage + ot_pay + bonus + allowance - insurance - inputs.tax_amount - deductions
+    tax_details = calculate_tax(inputs, attendance, wage, ot_pay, bonus, insurance, adjustments, overtime)
+    tax = tax_details['tax']
+    net = wage + ot_pay + bonus + allowance - insurance - tax - deductions
     values = dict(
         period=period, employee=employee, employee_code=employee.code, employee_name=employee.full_name,
         department_id_snapshot=employee.department_id, department_name=employee.department.name,
@@ -95,16 +98,16 @@ def payroll_values(employee, attendance, period, standard=None):
         leave_units=total(LeaveDay.objects.filter(employee=employee, date__year=attendance.year,
                                                  date__month=attendance.month, approved=True), 'units'),
         late_minutes=total(records, 'late_minutes'), ot_hours=sum((row['hours'] for row in overtime),ZERO), attendance_pay=wage,
-        ot_pay=ot_pay, bonus_pay=bonus, allowance=allowance, insurance=insurance, tax=inputs.tax_amount,
+        ot_pay=ot_pay, bonus_pay=bonus, allowance=allowance, insurance=insurance, tax=tax,
         deductions=deductions, net_pay=net.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
         breakdown={'attendance_revision': attendance.revision,
                    'ot': ot_lines, 'overtime_warnings': [warning for row in overtime for warning in row['warnings']], 'bonuses': bonus_lines, 'insurance': insurance_lines,
                    'overtime_hourly_rate':str(ot_rate),'overtime_basis':inputs.overtime_basis,
                    'insurance_base': str(inputs.insurance_base), 'insurance_rates': inputs.insurance_rates,
-                   'tax_basis': inputs.tax_basis, 'insurance_basis': inputs.insurance_basis,
+                   'tax_basis': inputs.tax_basis, 'tax_calculation': canonical(tax_details), 'insurance_basis': inputs.insurance_basis,
                    'hourly_rate': str(hourly), 'attendance_pay_exact': str(wage), 'net_exact': str(net),
                    'adjustments': [{'id': row.pk, 'name': row.name, 'kind': row.kind,
                                     'amount': str(row.amount), 'basis': row.basis} for row in adjustments]})
 
-    values['breakdown']['source_data'] = source_data(employee, attendance, inputs, records, overtime, bonuses, adjustments)
+    values['breakdown']['source_data'] = source_data(employee, attendance, inputs, records, overtime, bonuses, adjustments, tax_details)
     return values

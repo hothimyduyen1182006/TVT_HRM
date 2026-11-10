@@ -31,9 +31,10 @@ def export_records(actor, queryset, fmt, month, year, scope):
     if any(row.status not in ['approved', 'paid'] for row in rows):
         raise ValidationError('Không xuất bảng lương chưa duyệt.')
     from .workflow import overtime_source_error
+    from .tax import tax_source_error
     for row in rows:
         if row.status!='paid':
-            error=overtime_source_error(row)
+            error=overtime_source_error(row) or tax_source_error(row)
             if error:
                 raise ValidationError(error)
     from attendance.services.calculations import OT_POLICY

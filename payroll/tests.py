@@ -45,7 +45,7 @@ class PayrollTests(TestCase):
         for employee in [self.emp, self.other]:
             AttendanceRecord.objects.create(employee=employee, date=date(2026, 1, 5), status='present',
                          check_in=time(8), check_out=time(17), work_hours=8, actual_units=1, paid_units=1)
-            PayrollInput.objects.create(period=self.period, employee=employee, insurance_base=8000000,
+            PayrollInput.objects.create(period=self.period, employee=employee, insurance_base=8000000, tax_method='legacy',
                          insurance_rates={'BH': '0.1'}, tax_amount=100000, tax_basis='Chính sách kỳ thử',
                          insurance_basis='Chỉ là dữ liệu test', verified=True)
 
@@ -209,21 +209,27 @@ class PayrollTests(TestCase):
         self.assertEqual(client.post(f'/payroll/period/{self.period.pk}/', {'action': 'approve', 'reason': 'Test'}).status_code, 403)
 
     def test_inputs_pages_and_invalidate_calculation(self):
+        self.attendance.month = 10
+        self.attendance.save()
+        WorkCalendarDay.objects.update(date=date(2026, 10, 5))
+        AttendanceRecord.objects.update(date=date(2026, 10, 5))
         self.calculate()
         self.client.force_login(self.hr)
         self.assertEqual(self.client.get('/payroll/inputs/').status_code, 200)
         obj = PayrollInput.objects.get(employee=self.emp)
         response = self.client.post(f'/payroll/inputs/tax/{obj.pk}/', {
             'insurance_base': '8000000', 'insurance_rates': '{"BH": "0.1"}', 'insurance_basis': 'Đã kiểm tra',
-            'tax_amount': '200000', 'tax_basis': 'Căn cứ điều chỉnh', 'verified': 'on'})
+            'tax_amount': '200000', 'tax_method': 'resident_2026', 'claim_personal_deduction': 'on',
+            'tax_basis': 'Căn cứ điều chỉnh', 'verified': 'on'})
         self.assertEqual(response.status_code, 302)
         with self.assertRaises(ValidationError):
             self.approve()
-        self.assertEqual(self.calculate().net_pay, Decimal('7000000'))
+        self.assertEqual(self.calculate().net_pay, Decimal('7200000'))
         self.approve()
         self.assertEqual(self.client.post(f'/payroll/inputs/tax/{obj.pk}/', {}).status_code, 200)
         obj.refresh_from_db()
-        self.assertEqual(obj.tax_amount, 200000)
+        self.assertEqual(obj.tax_amount, 100000)  # Historical input is preserved, never used as an override.
+        self.assertEqual(obj.tax_method, 'resident_2026')
 
     def test_admin_cannot_bypass_employee_scope(self):
         self.calculate()

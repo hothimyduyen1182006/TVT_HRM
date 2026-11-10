@@ -17,6 +17,10 @@ Hai lệnh `prepare_october_training` kiểm tra rồi chuẩn bị công, thư�
 
 Nếu tháng 10 trên máy nhận đã có dữ liệu khác, lệnh chuẩn bị sẽ dừng để bảo vệ dữ liệu đó; không tự xóa hoặc đặt lại. Nếu đã chạy thành công bộ tình huống này, chạy lại sẽ giữ nguyên các thao tác đã thực hiện.
 
+Bản cập nhật mới bổ sung cột tiền tăng ca ở Bảng lương, cột giờ tăng ca trong chi tiết Bảng công, nút Lọc không có biểu tượng và tự tính thuế TNCN. Sau `migrate`, đầu vào cũ được giữ ở chế độ lịch sử: với phiếu chưa khóa, HR vào **Bảng lương → Điều chỉnh → Chỉnh sửa**, chọn chế độ cá nhân cư trú/hợp đồng từ 03 tháng, xác nhận giảm trừ và căn cứ rồi tính lại lương. Phụ cấp ăn trưa 450.000đ cần chọn phân loại tiền ăn giữa ca bằng tiền. Phiếu đã duyệt/chi trả không tự thay đổi. Xem [hướng dẫn thuế](income-tax.md).
+
+Git chia sẻ source, hồ sơ JSON và lệnh chuẩn bị dữ liệu; `git pull` không đồng bộ database hay các thao tác duyệt/chỉnh sửa đang có trên máy khác. Lệnh chuẩn bị tái tạo bộ tình huống ban đầu trên kỳ trống, không nhập đè trạng thái hiện tại của người nhận.
+
 Nếu muốn giữ mật khẩu các tài khoản đã có, bỏ `--reset-passwords`. Khi cần tạo tài khoản mới, lệnh vẫn hỏi mật khẩu cho tài khoản mới. Chạy lại không tạo thêm nhân viên, bằng cấp hoặc hợp đồng trùng.
 
 | Mã nhân viên | Tên đăng nhập | Vai trò |

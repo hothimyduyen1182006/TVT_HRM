@@ -42,7 +42,13 @@ class InputAdmin(admin.ModelAdmin):
 
 @admin.register(PayrollInput)
 class PayrollInputAdmin(InputAdmin):
-    list_display = ('employee', 'period', 'tax_amount', 'verified')
+    list_display = ('employee', 'period', 'tax_method', 'verified')
+    readonly_fields = ('tax_amount',)
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        if db_field.name == 'tax_method':
+            kwargs['choices'] = [choice for choice in db_field.choices if choice[0] != 'legacy']
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
 
 
 @admin.register(PayrollAdjustment)
