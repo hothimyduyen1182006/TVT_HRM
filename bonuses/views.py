@@ -82,7 +82,7 @@ def grouped_bonuses(rows):
 def bonus_list(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
         return personal_list(request)
-    form = BonusFilter(request.user, request.GET)
+    form = BonusFilter(request.user, request.GET, default_current_period=True)
     if not form.is_valid() and {'employee', 'department'} & set(form.errors):
         return access_denied(request)
     source_rows = bonus_rows(request.user, form)

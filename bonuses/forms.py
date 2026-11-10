@@ -34,7 +34,7 @@ class BonusFilter(PeriodFilter):
     )
     status = forms.ChoiceField(label='Trạng thái', required=False, choices=[('', 'Tất cả'), *Bonus.STATUSES])
 
-    def __init__(self, user, data=None):
+    def __init__(self, user, data=None, default_current_period=False):
         super().__init__(user, data)
         self.fields['month'].required = False
         self.fields['year'].required = False
@@ -46,10 +46,11 @@ class BonusFilter(PeriodFilter):
         self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [
             (y, f'Năm {y}') for y in range(2000, timezone.localdate().year + 2)
         ])
-        if not data or 'month' not in data:
-            self.data['month'] = ''
-        if not data or 'year' not in data:
-            self.data['year'] = ''
+        if not default_current_period:
+            if not data or 'month' not in data:
+                self.data['month'] = ''
+            if not data or 'year' not in data:
+                self.data['year'] = ''
 
 
 class PersonalBonusFilter(forms.Form):
@@ -60,8 +61,13 @@ class PersonalBonusFilter(forms.Form):
 
     def __init__(self, data=None):
         today = timezone.localdate()
-        initial = {'month': '', 'year': ''}
-        super().__init__(data=data if data else None, initial=initial)
+        if data is None:
+            super().__init__(initial={'month': today.month, 'year': today.year})
+        else:
+            mutable_data = data.copy()
+            mutable_data.setdefault('month', today.month)
+            mutable_data.setdefault('year', today.year)
+            super().__init__(data=mutable_data)
         self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [(m, f'Tháng {m:02}') for m in range(1, 13)])
         self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [(y, f'Năm {y}') for y in range(2000, today.year + 2)])
 
