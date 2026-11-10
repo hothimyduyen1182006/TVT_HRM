@@ -1,26 +1,26 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Chi tiết đơn nghỉ phép · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261110-detail-processed-center">{% endblock %}
 {% block content %}
 <main class="leave-detail-page">
   <a class="leave-back-link" href="{% url 'leaves:list' %}?view={{ back_view }}">← Quay lại danh sách đơn</a>
   <section class="leave-review-sheet">
     <span class="leave-sheet-mark">TVT · NHÂN SỰ</span>
-    <h1>Chi tiết đơn nghỉ phép</h1>
+    <h1>CHI TIẾT ĐƠN NGHỈ PHÉP</h1>
     <div class="leave-sheet-details">
       <p><b>Nhân viên:</b> {{ item.employee.full_name }} <span>({{ item.employee.code }})</span></p>
       <p><b>Phòng ban:</b> {{ item.employee.department.name }}</p>
-      <p><b>Thời gian nghỉ:</b> {{ item.start_date|date:'d/m/Y' }} – {{ item.end_date|date:'d/m/Y' }} ({{ days_count }} ngày)</p>
       <p><b>Loại nghỉ:</b> {{ item.get_leave_type_display }}</p>
-      <p><b>Số công mỗi ngày:</b> {{ item.units }}</p>
-      <p><b>Hưởng lương:</b> {{ item.paid|yesno:'Có,Không' }}</p>
+      <p><b>Ngày bắt đầu:</b> {{ item.start_date|date:'d/m/Y' }}</p>
+      <p><b>Ngày kết thúc:</b> {{ item.end_date|date:'d/m/Y' }}</p>
+      <p><b>Số ngày nghỉ:</b> {{ days_count }} ngày</p>
+      <p class="detail-wide detail-inline-row"><b>Lý do:</b> {{ item.reason }}</p>
+      {% if item.evidence %}<p class="detail-wide detail-inline-row"><b>Minh chứng:</b> <a class="leave-sheet-evidence" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener">Mở minh chứng</a></p>{% endif %}
       <p><b>Trạng thái:</b> <span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></p>
       <p><b>Ngày gửi:</b> {{ item.created_at|date:'d/m/Y H:i' }}</p>
-      <div class="detail-wide"><small class="leave-step">LÝ DO</small><p>{{ item.reason }}</p></div>
-      {% if item.evidence %}<div class="detail-wide"><small class="leave-step">ẢNH MINH CHỨNG</small><p><a class="leave-sheet-evidence" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener"><img src="{% url 'leaves:evidence' item.pk %}" alt="Ảnh minh chứng đơn nghỉ phép">Mở ảnh minh chứng</a></p></div>{% endif %}
       {% if item.reviewed_by %}<p><b>Người xử lý:</b> {{ item.reviewed_by.get_full_name|default:item.reviewed_by.username }}</p><p><b>Thời gian xử lý:</b> {{ item.reviewed_at|date:'d/m/Y H:i' }}</p>{% endif %}
-      {% if item.review_note %}<div class="detail-wide leave-sheet-note"><small class="leave-step">PHẢN HỒI</small><p>{{ item.review_note }}</p></div>{% endif %}
+      {% if item.review_note %}<div class="detail-wide leave-sheet-note"><small class="leave-step">LÝ DO TỪ CHỐI</small><p>{{ item.review_note }}</p></div>{% endif %}
     </div>
     {% if can_review and item.status == 'pending' %}
       <form method="post" class="leave-sheet-actions" action="{% url 'leaves:review' item.pk 'approve' %}">

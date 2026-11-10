@@ -38,6 +38,11 @@ def today(request):
     if not record or success.get('record') != record.pk:
         success = {}
     hours = record.work_hours if record else Decimal(0)
+    elapsed_hours = Decimal(0)
+    if record and record.check_in and record.check_out:
+        elapsed_seconds = (datetime.combine(record.date, record.check_out) -
+                           datetime.combine(record.date, record.check_in)).total_seconds()
+        elapsed_hours = Decimal(str(elapsed_seconds)) / Decimal(3600)
     if record and record.check_in and not record.check_out and period:
         start = max(datetime.combine(now.date(), record.check_in), datetime.combine(now.date(), period.start_time))
         end = min(now.replace(tzinfo=None), datetime.combine(now.date(), period.end_time))
@@ -51,5 +56,6 @@ def today(request):
         'can_check_in': can_punch and record is None,
         'can_check_out': can_punch and bool(record and record.check_in and not record.check_out),
         'locked': locked, 'is_late': bool(record and record.late_minutes),
+        'elapsed_hours': elapsed_hours,
         'duration': f'{minutes // 60:02}:{minutes % 60:02}',
     })
