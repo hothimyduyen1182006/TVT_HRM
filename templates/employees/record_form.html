@@ -1,11 +1,63 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{{ title }} · {{ employee.code }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}?v=16">{% endblock %}
 {% block content %}
+{% if kind == 'education' %}
+<section class="employee-page form-page education-edit-page">
+  <div class="form-page-heading"><p class="eyebrow">HỒ SƠ / {{ employee.code }}</p><h1>{% if is_edit %}SỬA THÔNG TIN HỌC VẤN{% else %}THÊM THÔNG TIN HỌC VẤN{% endif %}</h1></div>
+  <form method="post" enctype="multipart/form-data" class="employee-form">
+    {% csrf_token %}{% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <section class="form-panel education-edit-card">
+      <div class="education-edit-intro"><span class="education-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m2 9 10-5 10 5-10 5L2 9Z"/><path d="M6 11v5c3 2.6 9 2.6 12 0v-5M22 9v6"/></svg></span><div><h2>Thông tin học vấn</h2><p>Cập nhật bằng cấp, chuyên ngành và hồ sơ đính kèm.</p></div></div>
+      <div class="form-grid education-edit-grid">
+        {% for field in form %}{% if field.name != 'certificate_file' and field.name != 'remove_certificate' %}<div class="form-field education-field-{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+      </div>
+      <div class="education-upload-section">
+        <div class="education-upload-heading"><div><h3>Tệp bằng cấp</h3><p>Tải lên bản scan hoặc ảnh bằng cấp để lưu cùng hồ sơ.</p></div><span class="education-file-types">PDF · DOC · DOCX · JPG · PNG</span></div>
+        {% if record and record.certificate_file %}<div class="education-current-file"><span class="education-file-mark" aria-hidden="true">FILE</span><div class="education-current-file-info"><strong data-current-file-name>{{ record.certificate_file.name|cut:'employees/education/' }}</strong><small data-current-file-note>Tệp hiện đang lưu trong hồ sơ</small></div><div class="education-file-actions"><a class="education-file-action" href="{{ record.certificate_file.url }}" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>Xem</a><label class="education-file-action education-file-change" for="{{ form.certificate_file.id_for_label }}"><span aria-hidden="true">✎</span>Sửa</label><label class="education-remove-file" title="Đánh dấu xóa tệp">{{ form.remove_certificate }}<span class="education-file-action education-remove-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg><span>Xóa</span></span></label></div>{{ form.certificate_file }}</div>{% else %}<div class="education-file-picker"><label for="{{ form.certificate_file.id_for_label }}">Chọn tệp bằng cấp</label>{{ form.certificate_file }}</div>{% endif %}
+        {% if form.certificate_file.errors %}{% for error in form.certificate_file.errors %}<small class="field-error">{{ error }}</small>{% endfor %}{% endif %}
+        {% for error in form.remove_certificate.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+      </div>
+    </section>
+    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin học vấn{% else %}Thêm học vấn{% endif %}</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a></div>
+  </form>
+</section>
+{% elif kind == 'contract' %}
+<section class="employee-page form-page education-edit-page contract-edit-page">
+  <div class="form-page-heading"><p class="eyebrow">HỒ SƠ / {{ employee.code }}</p><h1>{% if is_edit %}SỬA THÔNG TIN HỢP ĐỒNG{% else %}THÊM HỢP ĐỒNG LAO ĐỘNG{% endif %}</h1></div>
+  <form method="post" enctype="multipart/form-data" class="employee-form">
+    {% csrf_token %}{% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <section class="form-panel education-edit-card contract-edit-card">
+      <div class="education-edit-intro"><span class="education-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5M10 13h5M10 17h5"/></svg></span><div><h2>Thông tin hợp đồng</h2><p>Thông tin và thời hạn của hợp đồng lao động.</p></div></div>
+      <div class="form-grid education-edit-grid contract-edit-grid">
+        {% for field in form %}{% if field.name != 'contract_file' and field.name != 'remove_contract_file' %}<div class="form-field contract-field-{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+      </div>
+      <div class="education-upload-section">
+        <div class="education-upload-heading"><div><h3>Tệp hợp đồng</h3><p>Tải lên bản scan hoặc tệp hợp đồng để lưu cùng hồ sơ.</p></div><span class="education-file-types">PDF · DOC · DOCX · JPG · PNG</span></div>
+        {% if record and record.contract_file %}<div class="education-current-file"><span class="education-file-mark" aria-hidden="true">FILE</span><div class="education-current-file-info"><strong data-current-file-name>{{ record.contract_file.name|cut:'employees/contracts/' }}</strong><small data-current-file-note>Tệp hiện đang lưu trong hồ sơ</small></div><div class="education-file-actions"><a class="education-file-action" href="{{ record.contract_file.url }}" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>Xem</a><label class="education-file-action education-file-change" for="{{ form.contract_file.id_for_label }}"><span aria-hidden="true">✎</span>Sửa</label><label class="education-remove-file" title="Đánh dấu xóa tệp">{{ form.remove_contract_file }}<span class="education-file-action education-remove-action"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg><span>Xóa</span></span></label></div>{{ form.contract_file }}</div>{% else %}<div class="education-file-picker"><label for="{{ form.contract_file.id_for_label }}">Chọn tệp hợp đồng</label>{{ form.contract_file }}</div>{% endif %}
+        {% for error in form.contract_file.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        {% for error in form.remove_contract_file.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+      </div>
+    </section>
+    <div class="form-actions education-edit-actions"><button class="employee-button" type="submit">{% if is_edit %}Lưu thông tin hợp đồng{% else %}Thêm hợp đồng{% endif %}</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a></div>
+  </form>
+</section>
+{% else %}
 <section class="employee-page form-page"><div class="employee-heading"><div><p class="eyebrow">HỒ SƠ / {{ employee.code }}</p><h1>{{ title|upper }} / {{ employee.code }}</h1></div></div>
   <form method="post" enctype="multipart/form-data" class="employee-form"><section class="form-panel record-panel">{% csrf_token %}{% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}<div class="form-grid">
     {% for field in form %}<div class="form-field {% if field.name == 'certificate_file' or field.name == 'contract_file' %}wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% if field.value and field.field.widget.input_type == 'file' %}<small class="current-file">Đã có tệp: {{ field.value }}</small>{% endif %}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}
   </div></section><div class="form-actions"><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a><button class="employee-button" type="submit">Lưu {{ title|lower }}</button></div></form>
 </section>
+{% endif %}
+<script>
+  document.querySelectorAll('[data-file-replacement]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const card = input.closest('.education-current-file');
+      if (!card || !input.files || !input.files.length) return;
+      card.querySelector('[data-current-file-name]').textContent = input.files[0].name;
+      card.querySelector('[data-current-file-note]').textContent = 'Tệp thay thế đã chọn';
+    });
+  });
+</script>
 {% endblock %}

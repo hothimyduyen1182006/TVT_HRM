@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
+from django.views.decorators.http import require_POST
 
 from .access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter
@@ -91,10 +92,11 @@ def employee_detail(request, employee_id):
 def personal_profile(request):
     employee = Employee.objects.filter(user=request.user).select_related(
         'user', 'department', 'position').first()
-    if employee:
-        return redirect('employee_detail', employee_id=employee.pk) if has_role(request.user, *DIRECTORY_ROLES) else render(
-            request, 'employees/detail.html', {'employee': employee, 'personal_view': True, 'can_manage': False})
-    return render(request, 'employees/detail.html', {'employee': None, 'personal_view': True, 'can_manage': False})
+    return render(request, 'employees/detail.html', {
+        'employee': employee,
+        'personal_view': True,
+        'can_manage': False,
+    })
 
 
 @login_required
@@ -135,7 +137,8 @@ def _record_form(request, employee_id, record_id, model, form_class, kind, title
         messages.success(request, f'{title} đã được lưu.')
         return redirect('employee_detail', employee_id=employee.pk)
     return render(request, 'employees/record_form.html', {
-        'form': form, 'employee': employee, 'kind': kind, 'title': title,
+        'form': form, 'employee': employee, 'record': record, 'kind': kind,
+        'title': title, 'is_edit': record is not None,
     })
 
 
@@ -147,3 +150,31 @@ def education_edit(request, employee_id, record_id=None):
 @login_required
 def contract_edit(request, employee_id, record_id=None):
     return _record_form(request, employee_id, record_id, LaborContract, LaborContractForm, 'contract', 'Thông tin hợp đồng lao động')
+
+
+@login_required
+@require_POST
+def education_delete(request, employee_id, record_id):
+    if not has_role(request.user, *MANAGEMENT_ROLES):
+        return _forbidden(request)
+    employee = get_object_or_404(Employee, pk=employee_id)
+    record = get_object_or_404(Education, pk=record_id, employee=employee)
+    if record.certificate_file:
+        record.certificate_file.delete(save=False)
+    record.delete()
+    messages.success(request, 'Đã xóa thông tin học vấn.')
+    return redirect('employee_detail', employee_id=employee.pk)
+
+
+@login_required
+@require_POST
+def contract_delete(request, employee_id, record_id):
+    if not has_role(request.user, *MANAGEMENT_ROLES):
+        return _forbidden(request)
+    employee = get_object_or_404(Employee, pk=employee_id)
+    record = get_object_or_404(LaborContract, pk=record_id, employee=employee)
+    if record.contract_file:
+        record.contract_file.delete(save=False)
+    record.delete()
+    messages.success(request, 'Đã xóa hợp đồng lao động.')
+    return redirect('employee_detail', employee_id=employee.pk)

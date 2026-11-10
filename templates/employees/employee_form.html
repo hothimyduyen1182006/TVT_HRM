@@ -1,18 +1,58 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{% if is_create %}Thêm mới nhân viên{% else %}Sửa hồ sơ nhân viên{% endif %}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}?v=7">{% endblock %}
 {% block content %}
-<section class="employee-page form-page"><div class="employee-heading"><div><p class="eyebrow">NHÂN SỰ</p><h1>{% if is_create %}THÊM MỚI NHÂN VIÊN{% else %}SỬA HỒ SƠ NHÂN VIÊN{% endif %}</h1></div></div>
+<section class="employee-page form-page {% if not is_create %}edit-employee-page{% endif %}"><div class="form-page-heading"><p class="eyebrow">NHÂN SỰ</p><h1>{% if is_create %}THÊM MỚI NHÂN VIÊN{% else %}SỬA HỒ SƠ NHÂN VIÊN{% endif %}</h1></div>
   <form method="post" enctype="multipart/form-data" class="employee-form">{% csrf_token %}
     {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
-    <section class="form-panel"><h2>Thông tin cá nhân</h2><div class="form-grid">
-      {% for field in form %}{% if field.name == 'avatar' or field.name == 'full_name' or field.name == 'code' or field.name == 'date_of_birth' or field.name == 'gender' or field.name == 'national_id' or field.name == 'phone' or field.name == 'address' or field.name == 'employment_status' %}<div class="form-field {% if field.name == 'address' %}wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
-    </div></section>
-    <section class="form-panel"><h2>Thông tin tài khoản và công việc</h2><div class="form-grid">
-      {% for field in form %}{% if field.name == 'username' or field.name == 'email' or field.name == 'account_active' or field.name == 'password' or field.name == 'password_confirm' or field.name == 'department' or field.name == 'position' or field.name == 'hire_date' or field.name == 'base_salary' %}<div class="form-field {% if field.name == 'account_active' %}checkbox-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
-    </div></section>
-    <div class="form-actions"><a class="employee-button secondary" href="{% if employee %}{% url 'employee_detail' employee.pk %}{% else %}{% url 'employees' %}{% endif %}">Hủy</a><button class="employee-button" type="submit">{% if is_create %}Thêm nhân viên{% else %}Lưu thay đổi{% endif %}</button></div>
+    {% if is_create %}<div class="employee-form-panels">
+      <section class="form-panel"><h2>Thông tin cá nhân</h2><div class="form-grid personal-form-grid">
+        {% for field in form %}
+          {% if field.name == 'avatar' or field.name == 'full_name' or field.name == 'code' or field.name == 'date_of_birth' or field.name == 'gender' or field.name == 'national_id' or field.name == 'phone' or field.name == 'address' or field.name == 'employment_status' %}
+            <div class="form-field personal-{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          {% endif %}
+        {% endfor %}
+      </div></section>
+      <section class="form-panel"><h2>Thông tin đăng nhập</h2><div class="form-grid account-form-grid">
+        {% for field in form %}
+          {% if field.name == 'username' or field.name == 'email' or field.name == 'password' or field.name == 'password_confirm' %}
+            <div class="form-field {% if field.name == 'username' or field.name == 'email' %}wide{% endif %} {% if field.name == 'password' or field.name == 'password_confirm' %}secret-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          {% endif %}
+        {% endfor %}
+        <div class="form-field checkbox-field wide">{{ form.account_active }}<label for="{{ form.account_active.id_for_label }}">{{ form.account_active.label }}</label>{% for error in form.account_active.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+      </div>
+      <h2 class="work-section-title">Thông tin công việc</h2><div class="form-grid work-form-grid">
+        {% for field in form %}
+          {% if field.name == 'department' or field.name == 'position' or field.name == 'hire_date' or field.name == 'base_salary' %}
+            <div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+          {% endif %}
+        {% endfor %}
+      </div></section>
+    </div>{% else %}
+    <div class="employee-form-panels edit-form-panels">
+      <section class="form-panel"><h2>Thông tin cá nhân</h2>
+        <div class="edit-profile-top">
+          <div class="edit-avatar-block">
+            {% if employee.avatar %}<img class="edit-avatar-preview" src="{{ employee.avatar.url }}" alt="Ảnh {{ employee.full_name }}">{% else %}<div class="edit-avatar-preview avatar-placeholder">{{ employee.full_name|slice:':1' }}</div>{% endif %}
+            <label class="avatar-change-button" for="{{ form.avatar.id_for_label }}">Thay ảnh</label>{{ form.avatar }}
+            {% for error in form.avatar.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+          </div>
+          <div class="edit-identity-fields">
+            {% for field in form %}{% if field.name == 'full_name' or field.name == 'code' %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+          </div>
+        </div>
+        <div class="form-grid edit-personal-grid">
+          {% for field in form %}{% if field.name == 'gender' or field.name == 'date_of_birth' or field.name == 'national_id' or field.name == 'address' or field.name == 'phone' or field.name == 'employment_status' %}<div class="form-field edit-{{ field.name }} {% if field.name == 'address' %}wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+        </div>
+      </section>
+      <section class="form-panel"><h2>Thông tin tài khoản và công việc</h2><div class="form-grid edit-account-grid">
+        {% for field in form %}{% if field.name == 'username' or field.name == 'email' %}<div class="form-field wide"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+        <div class="edit-account-status">{{ form.account_active }}<label for="{{ form.account_active.id_for_label }}">{{ form.account_active.label }}</label>{% for error in form.account_active.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>
+        {% for field in form %}{% if field.name == 'department' or field.name == 'position' or field.name == 'hire_date' or field.name == 'base_salary' %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
+      </div></section>
+    </div>{% endif %}
+    <div class="form-actions">{% if is_create %}<a class="employee-button secondary" href="{% url 'employees' %}">Hủy</a><button class="employee-button" type="submit">Thêm</button>{% else %}<button class="employee-button" type="submit">Lưu thay đổi</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a>{% endif %}</div>
   </form>
 </section>
 {% endblock %}
