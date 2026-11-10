@@ -1,0 +1,30 @@
+{% extends 'base.html' %}{% load static %}
+{% block title %}Trang chủ · TVT Wood &amp; Interior{% endblock %}
+{% block body_class %}tvt-home-page{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/home.css' %}?v=20261110-1">{% endblock %}
+{% block content %}
+<section class="home-hero" aria-labelledby="home-greeting">
+  <div class="home-welcome">
+    <p class="home-eyebrow">TVT WOOD &amp; INTERIOR</p>
+    <h1 id="home-greeting">Chào mừng trở lại!<span>{{ display_name }}</span></h1>
+    <p class="home-message">Chúc bạn một ngày làm việc hiệu quả<br>và nhiều năng lượng</p>
+  </div>
+  <div class="home-shortcuts" aria-label="Truy cập nhanh">
+    <a class="home-shortcut home-attendance{% if not attendance_url %} is-disabled{% endif %}" {% if attendance_url %}href="{{ attendance_url }}"{% else %}role="link" aria-disabled="true"{% endif %}>
+      <span class="home-shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 10h16m-11 5 2 2 4-4"/></svg></span>
+      <span class="home-shortcut-copy"><strong>Xem bảng công</strong><small>{{ attendance_description }}</small></span>
+      <span class="home-shortcut-arrow" aria-hidden="true">›</span>
+    </a>
+    <a class="home-shortcut home-payroll" href="{{ payroll_url }}">
+      <span class="home-shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18m4-14H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H7"/></svg></span>
+      <span class="home-shortcut-copy"><strong>Xem bảng lương</strong><small>{{ payroll_description }}</small></span>
+      <span class="home-shortcut-arrow" aria-hidden="true">›</span>
+    </a>
+    <a class="home-shortcut home-leave{% if not leave_url %} is-disabled{% endif %}" {% if leave_url %}href="{{ leave_url }}"{% else %}role="link" aria-disabled="true"{% endif %}>
+      <span class="home-shortcut-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+      <span class="home-shortcut-copy"><strong>{{ leave_title }}</strong><small>{{ leave_description }}</small></span>
+      <span class="home-shortcut-arrow" aria-hidden="true">›</span>
+    </a>
+  </div>
+</section>
+{% endblock %}

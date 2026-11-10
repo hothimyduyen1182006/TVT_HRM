@@ -293,7 +293,8 @@ class AttendanceTests(TestCase):
 
     def test_dashboard_and_employees(self):
         self.client.force_login(self.user)
-        self.assertRedirects(self.client.get('/'), '/attendance/', fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/').status_code, 200)
+        self.assertRedirects(self.client.get('/dashboard/'), '/attendance/', fetch_redirect_response=False)
         response = self.client.get('/employees/')
         self.assertEqual(response.status_code, 403)
         response = self.client.get('/employees/me/')
@@ -413,7 +414,7 @@ class AttendanceTests(TestCase):
     def test_shared_navigation_on_application_and_admin_pages(self):
         root = User.objects.create_user('navigation-root', is_superuser=True, is_staff=True)
         self.client.force_login(root)
-        pages = [('/', 'DASHBOARD'), ('/employees/', 'NHÂN VIÊN'),
+        pages = [('/', None), ('/dashboard/', 'DASHBOARD'), ('/employees/', 'NHÂN VIÊN'),
                  ('/attendance/', 'BẢNG CÔNG'), ('/payroll/', 'BẢNG LƯƠNG'),
                  ('/payroll/inputs/', 'BẢNG LƯƠNG'), ('/admin/bonuses/bonus/', 'BẢNG THƯỞNG'),
                  ('/admin/leaves/leaveday/', 'NGHỈ PHÉP'), ('/admin/', None)]

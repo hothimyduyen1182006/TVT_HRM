@@ -1,7 +1,7 @@
 {% load access_tags %}{% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' 'Nhân viên' as bonus_menu %}
 {% role_allowed user 'Giám đốc' 'Nhân sự' 'Trưởng phòng' as can_view_dashboard %}
 <nav class="at-nav" aria-label="Điều hướng chính">
-  <a class="at-brand" href="{% if can_view_dashboard %}{% url 'dashboard' %}{% else %}{% url 'attendance:list' %}{% endif %}" aria-label="TVT trang chủ">
+  <a class="at-brand" href="{% url 'home' %}" aria-label="TVT trang chủ">
     <svg viewBox="0 0 76 68" aria-hidden="true"><path fill="currentColor" d="M3 26 38 3 73 26v39H3z"/><path fill="#12324a" d="M14 32h48v6H44v22h-8V38H14zm0 10h8l8 18h-8z"/></svg>
     <span><small>SINCE 2012</small><b>WOOD &amp;<br>INTERIOR</b></span>
   </a>

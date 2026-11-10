@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 from django.contrib.auth.models import Group
 from employees.models import Education, LaborContract
 from leaves.models import LeaveRequest
-from datetime import date
+from datetime import date, time
 
 from django.conf import settings
 from django.contrib.auth import SESSION_KEY, get_user_model
@@ -12,6 +12,83 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from employees.models import Department, Employee
+from employees import test_personal_records as personal_fixtures
+from attendance.models import AttendancePeriod
+from payroll.models import PayrollRecord, PayrollPeriod
+
+
+class HomePageTests(TestCase):
+    setUp=personal_fixtures.ManagementPersonalRecordsTests.setUp
+
+    def test_home_requires_login_and_does_not_accept_post(self):
+        self.assertRedirects(self.client.get('/'),'/accounts/login/?next=/',fetch_redirect_response=False)
+        self.client.force_login(self.people[3].user)
+        self.assertEqual(self.client.post('/').status_code,405)
+
+    def test_every_role_has_own_attendance_and_salary_shortcuts(self):
+        before=list(PayrollRecord.objects.values())
+        for employee in self.people:
+            with self.subTest(user=employee.user.username):
+                self.client.force_login(employee.user)
+                response=self.client.get('/')
+                self.assertEqual(response.status_code,200)
+                self.assertContains(response,employee.full_name)
+                self.assertContains(response,'Chào mừng trở lại!')
+                self.assertEqual(response.context['attendance_url'],'/attendance/personal/')
+                self.assertEqual(response.context['payroll_url'],'/payroll/personal/?month=1&year=2026')
+                self.assertEqual(self.client.get(response.context['attendance_url']).status_code,200)
+                self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
+                self.assertEqual(response.context['leave_url'],'/leaves/')
+        self.assertEqual(list(PayrollRecord.objects.values()),before)
+
+    def test_latest_salary_is_selected_only_for_current_user(self):
+        employee=self.people[3]
+        for owner,year in [(employee,2027),(self.people[0],2028)]:
+            attendance=AttendancePeriod.objects.create(year=year,month=2,start_time=time(8),lunch_start=time(12),
+                lunch_end=time(13),end_time=time(17),standard_hours=8)
+            period=PayrollPeriod.objects.create(attendance_period=attendance)
+            record=PayrollRecord.objects.get(employee=owner)
+            record.pk=None
+            record.period=period
+            record.save()
+        self.client.force_login(employee.user)
+        response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
+        self.assertEqual(response.context['payroll_url'],'/payroll/personal/?month=2&year=2027')
+        self.assertContains(response,'Phiếu lương mới nhất · 02/2027')
+        self.assertNotContains(response,'02/2028')
+
+    def test_employee_without_salary_has_working_empty_payslip_link(self):
+        employee=self.people[3]
+        PayrollRecord.objects.filter(employee=employee).delete()
+        self.client.force_login(employee.user)
+        response=self.client.get('/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
+
+    def test_unlinked_accounts_and_admin_have_no_broken_personal_links(self):
+        user=get_user_model().objects.create_user('home-unlinked',first_name='Nguyễn',last_name='Nhi')
+        self.client.force_login(user)
+        response=self.client.get('/')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.context['display_name'],'Nguyễn Nhi')
+        self.assertEqual(response.context['attendance_url'],'')
+        self.assertEqual(response.context['leave_url'],'')
+        admin=get_user_model().objects.create_superuser('home-admin',password='TestOnly')
+        self.client.force_login(admin)
+        response=self.client.get('/')
+        self.assertEqual(response.context['attendance_url'],'/attendance/')
+        self.assertEqual(response.context['payroll_url'],'/payroll/')
+        self.assertEqual(self.client.get('/dashboard/').status_code,200)
+
+    def test_display_name_is_escaped_and_dashboard_stays_protected(self):
+        employee=self.people[3]
+        employee.full_name='<script>alert(1)</script>'
+        employee.save()
+        self.client.force_login(employee.user)
+        response=self.client.get('/')
+        self.assertContains(response,'&lt;script&gt;alert(1)&lt;/script&gt;')
+        self.assertNotContains(response,'<script>alert(1)</script>')
+        self.assertRedirects(self.client.get('/dashboard/'),'/attendance/',fetch_redirect_response=False)
 
 
 class LoginSessionTests(TestCase):
@@ -39,7 +116,7 @@ class LoginSessionTests(TestCase):
 
     def test_remember_sets_default_age_and_persistent_cookie(self):
         response = self.login(remember=True)
-        self.assertRedirects(response, reverse('attendance:list'))
+        self.assertRedirects(response, reverse('home'))
         session = self.client.session
         self.assertFalse(session.get_expire_at_browser_close())
         self.assertEqual(session.get_expiry_age(), settings.SESSION_COOKIE_AGE)
@@ -111,7 +188,7 @@ class LoginSessionTests(TestCase):
         self.assertRedirects(self.login(next=target), target)
 
     def test_external_next_does_not_override_local_redirect(self):
-        self.assertRedirects(self.login(next='https://outside.invalid/'), reverse('attendance:list'))
+        self.assertRedirects(self.login(next='https://outside.invalid/'), reverse('home'))
 
     def test_post_logout_clears_authentication_session_and_old_session_row(self):
         self.login(remember=True)
@@ -149,7 +226,7 @@ class LoginSessionTests(TestCase):
 
     def test_existing_navbar_keeps_logout_form_and_csrf(self):
         self.login()
-        response = self.client.get(reverse('attendance:list'))
+        response = self.client.get(reverse('home'))
         self.assertContains(response, f'<form method="post" action="{reverse("logout")}">')
         self.assertContains(response, 'name="csrfmiddlewaretoken"')
         self.assertContains(response, 'Đăng xuất')

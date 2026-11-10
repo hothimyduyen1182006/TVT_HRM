@@ -1,6 +1,7 @@
 from datetime import date, time
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
+from django.urls import reverse
 from employees.models import Department, Employee
 from attendance.models import AttendancePeriod, AttendanceRecord
 
@@ -27,7 +28,7 @@ class DashboardTests(TestCase):
 
     def test_statistics_use_actual_checkin_even_before_checkout(self):
         self.client.force_login(self.hr)
-        response = self.client.get('/', {'date': '2026-01-05'})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['total_employees'], 3)
         self.assertEqual(response.context['attendance_counts'], {'ontime': 1, 'late': 1, 'unchecked': 1})
@@ -36,35 +37,35 @@ class DashboardTests(TestCase):
 
     def test_manager_scope_and_department_tampering(self):
         self.client.force_login(self.manager)
-        response = self.client.get('/', {'date': '2026-01-05'})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertEqual(response.context['total_employees'], 2)
         self.assertNotContains(response, 'DASH2')
-        response = self.client.get('/', {'date': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].department_id})
         self.assertTrue(response.context['form'].errors)
         self.assertNotContains(response, 'DASH2')
 
     def test_department_only_filters_list_and_bad_date_is_handled(self):
         self.client.force_login(self.hr)
-        response = self.client.get('/', {'date': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].department_id})
         self.assertEqual(response.context['total_employees'], 3)
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
         self.assertEqual(response.context['page_obj'][0]['employee'], self.people[2])
-        response = self.client.get('/', {'date': 'bad'})
+        response = self.client.get(reverse('dashboard'), {'date': 'bad'})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['form'].errors)
 
     def test_employee_still_redirects_and_empty_scope_is_supported(self):
         self.client.force_login(self.people[1].user)
-        self.assertRedirects(self.client.get('/'), '/attendance/', fetch_redirect_response=False)
+        self.assertRedirects(self.client.get(reverse('dashboard')), '/attendance/', fetch_redirect_response=False)
         Employee.objects.update(is_active=False)
         self.client.force_login(self.hr)
-        response = self.client.get('/', {'date': '2026-01-05'})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['total_employees'], 0)
 
     def test_dashboard_links_and_attendance_day_filters_match_totals(self):
         self.client.force_login(self.hr)
-        response = self.client.get('/', {'date': '2026-01-05'})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertContains(response, 'href="/employees/?active_as_of=2026-01-05"')
         self.assertContains(response, 'href="/departments/?date=2026-01-05"')
         expected = {'ontime': self.people[0], 'late': self.people[1], 'unchecked': self.people[2]}

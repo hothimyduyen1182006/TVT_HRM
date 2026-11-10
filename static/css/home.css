@@ -1,0 +1,28 @@
+.tvt-home-page{background:#12324a}
+.tvt-home-page .at-nav{margin-bottom:0}
+.tvt-home-page main.container-fluid{padding:0!important}
+.tvt-home-page main>.alert{margin:0;border-radius:0}
+.home-hero{isolation:isolate;position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:100px;min-height:calc(100vh - 94px);min-height:calc(100svh - 94px);padding:clamp(36px,5vw,72px) clamp(24px,5vw,80px) clamp(28px,4vw,55px);background:#7b6957 url('../images/login-lobby.png') center center/cover no-repeat;color:#fff}
+.home-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(10,22,25,.55),rgba(10,22,25,.16) 62%,rgba(10,22,25,.12)),linear-gradient(0deg,rgba(10,22,25,.36),transparent 48%)}
+.home-welcome{max-width:760px}
+.home-eyebrow{font-size:11px;font-weight:700;letter-spacing:2.4px;margin:0 0 18px;color:#f5f1e6}
+.home-welcome h1{margin:0;font-size:clamp(32px,4.1vw,56px);font-weight:800;line-height:1.2;letter-spacing:-1.1px;text-shadow:0 2px 14px #0002}
+.home-welcome h1 span{display:block;margin-top:5px;color:#f4dd36;font-size:.83em;overflow-wrap:anywhere}
+.home-message{margin:13px 0 0;font-size:clamp(16px,1.6vw,21px);line-height:1.55;font-weight:400;color:#fff}
+.home-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,4vw,64px);width:min(100%,1230px);margin:0 auto}
+.home-shortcut{--shortcut-color:#278256;display:flex;align-items:center;gap:14px;min-height:112px;padding:24px 21px;border:1px solid #ffffff65;border-radius:18px;background:#e8f8ef;text-decoration:none;color:var(--shortcut-color);box-shadow:0 8px 30px #00000010;transition:transform .18s ease,box-shadow .18s ease}
+.home-payroll{--shortcut-color:#cc8b00;background:#fff7df}
+.home-leave{--shortcut-color:#f35b6e;background:#ffedf0}
+.home-shortcut-icon{display:grid;place-items:center;flex:0 0 46px;width:46px;height:46px;border-radius:50%;background:#fff;color:var(--shortcut-color)}
+.home-shortcut-icon svg{width:22px;height:22px}
+.home-shortcut-copy{min-width:0;flex:1}
+.home-shortcut-copy strong{display:block;font-size:16px;line-height:1.4;font-weight:750;color:var(--shortcut-color)}
+.home-shortcut-copy small{display:block;margin-top:5px;font-size:12px;line-height:1.5;color:#788291}
+.home-shortcut-arrow{font-size:25px;line-height:1;font-weight:700;color:var(--shortcut-color)}
+.home-shortcut:hover{color:var(--shortcut-color);transform:translateY(-4px);box-shadow:0 12px 28px #0002}
+.home-shortcut:focus-visible{outline:3px solid #f4dd36;outline-offset:5px}
+.home-shortcut.is-disabled{cursor:default;opacity:.85}
+.home-shortcut.is-disabled:hover{transform:none;box-shadow:0 8px 30px #00000010}
+@media(max-width:1000px){.home-shortcuts{gap:18px}.home-shortcut{padding:20px 16px;gap:11px}.home-shortcut-copy strong{font-size:15px}.home-shortcut-icon{flex-basis:40px;width:40px;height:40px}}
+@media(max-width:700px){.home-hero{padding:34px 20px 26px;gap:60px;background-position:57% center}.home-shortcuts{grid-template-columns:1fr;gap:13px}.home-shortcut{min-height:88px;padding:18px 22px}.home-shortcut-copy strong{font-size:16px}.home-welcome h1{letter-spacing:-.6px}.home-eyebrow{margin-bottom:15px}}
+@media(prefers-reduced-motion:reduce){.home-shortcut{transition:none}.home-shortcut:hover{transform:none}}

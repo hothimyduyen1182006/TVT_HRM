@@ -111,7 +111,8 @@ class ManagementPersonalRecordsTests(TestCase):
 
     def test_dashboard_is_only_available_to_management(self):
         self.client.force_login(self.people[3].user)
-        self.assertRedirects(self.client.get('/'), '/attendance/', fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/').status_code, 200)
+        self.assertRedirects(self.client.get('/dashboard/'), '/attendance/', fetch_redirect_response=False)
         self.assertNotContains(self.client.get('/attendance/'), '>DASHBOARD</a>')
         for employee in self.people[:3]:
             self.client.force_login(employee.user)
