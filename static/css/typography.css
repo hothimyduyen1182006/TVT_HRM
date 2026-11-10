@@ -26,7 +26,7 @@ body {
 }
 
 /* Reset competing module sizes through inheritance, preserving SVG and icon artwork. */
-body :where(*:not(svg, svg *, [aria-hidden="true"], [aria-hidden="true"] *)) {
+body :where(*:not(svg, svg *, [aria-hidden="true"], [aria-hidden="true"] *, .tvt-clock)) {
     font-family: var(--tvt-font) !important;
     font-size: inherit !important;
 }
@@ -69,7 +69,7 @@ body :is(input, select, textarea, button, .btn, .button,
 
 body :is(.db-cards strong, .db-donut > span, .db-attendance dd,
          .at-main-stat strong, .at-stat > strong, .at-mini-stats strong,
-         .dp-total strong, .leave-stat-card strong, .tvt-clock,
+         .dp-total strong, .leave-stat-card strong,
          .tvt-stat-card strong, .tvt-time-summary strong,
          .pr-net strong, .pr-total dd, .pr-summary strong, .pr-stat strong) {
     font-size: var(--tvt-number) !important;

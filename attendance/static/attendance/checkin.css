@@ -52,7 +52,7 @@
 .tvt-greeting{margin:12px 0 0;color:#1c3552;font-size:22px;font-weight:750}
 .tvt-encouragement{margin:7px 0 0;color:#7c8998;font-size:15px}
 .tvt-day-date{margin:25px 0 0;color:#40536b;font-size:17px;font-weight:750}
-.tvt-checkin-main .tvt-clock{margin:4px 0 12px;text-align:center;color:#2459b1;font-size:clamp(64px,8vw,104px);letter-spacing:1px;text-shadow:0 3px 14px #2459b11b}
+.tvt-checkin-main .tvt-clock{margin:4px 0 12px;text-align:center;color:#2459b1;font-size:clamp(72px,8vw,112px);letter-spacing:1px;text-shadow:0 3px 14px #2459b11b}
 .tvt-status-strip{display:flex;align-items:center;gap:12px;min-height:48px;margin:8px 0 15px;padding:10px 16px;border-radius:10px;background:#f0f4fc;color:#2459b1;font-size:16px;font-weight:750}
 .tvt-status-strip span{width:13px;height:13px;flex:none;border-radius:50%;background:#2459b1}
 .tvt-status-working{background:#eef4fc}

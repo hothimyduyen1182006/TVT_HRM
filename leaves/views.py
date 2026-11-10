@@ -4,8 +4,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.db import transaction, IntegrityError
-from django.db.models import Q, Count
+from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
@@ -27,8 +28,13 @@ def leave_list(request):
     own = Employee.objects.filter(user=request.user, is_active=True).first()
     scope = reviewer_scope(request.user)
     is_reviewer = has_role(request.user, HR, DIRECTOR, MANAGER)
+    default_view = 'manage' if is_reviewer else 'mine'
+    active_view = (request.POST.get('view') if request.method == 'POST' else request.GET.get('view')) or default_view
+    if not is_reviewer or active_view not in ('mine', 'manage'):
+        active_view = default_view
+    manage_view = is_reviewer and active_view == 'manage'
     base = LeaveRequest.objects.select_related('employee', 'employee__department', 'reviewed_by')
-    if is_reviewer:
+    if manage_view:
         base = base.filter(employee__in=scope)
     elif own:
         base = base.filter(employee=own)
@@ -37,7 +43,9 @@ def leave_list(request):
 
     form = LeaveRequestForm(request.POST or None, request.FILES or None)
     if request.method == 'POST':
-        if not own:
+        if manage_view:
+            messages.error(request, 'Hãy chuyển sang tab Đơn nghỉ phép của tôi để gửi đơn.')
+        elif not own:
             messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
         elif form.is_valid():
             item = form.save(commit=False)
@@ -51,11 +59,13 @@ def leave_list(request):
                     form.add_error(None, error)
             else:
                 messages.success(request, 'Đã gửi đơn nghỉ phép. Bạn có thể theo dõi trạng thái trong lịch sử đơn.')
+                if is_reviewer:
+                    return redirect(f"{reverse('leaves:list')}?view=mine")
                 return redirect('leaves:list')
     departments = Department.objects.filter(employee__in=scope).distinct() if is_reviewer else Department.objects.none()
     filters = LeaveFilterForm(departments, request.GET)
     rows = base
-    if filters.is_valid():
+    if manage_view and filters.is_valid():
         data = filters.cleaned_data
         if data['q']:
             rows = rows.filter(Q(employee__full_name__icontains=data['q']) |
@@ -70,30 +80,38 @@ def leave_list(request):
             rows = rows.filter(end_date__gte=data['start_date'])
         if data['end_date']:
             rows = rows.filter(start_date__lte=data['end_date'])
-    counts = base.aggregate(total=Count('id'), pending=Count('id', filter=Q(status='pending')),
-                            approved=Count('id', filter=Q(status='approved')),
-                            rejected=Count('id', filter=Q(status='rejected')))
     return render(request, 'leaves/list.html', {
         'requests': rows, 'form': form, 'filters': filters, 'is_reviewer': is_reviewer,
-        'own_employee': own, 'can_review': is_reviewer, 'counts': counts,
+        'own_employee': own, 'can_review': is_reviewer, 'active_view': active_view,
+        'manage_view': manage_view,
     })
 
 
 @login_required
 def leave_detail(request, pk):
     scope = visible_employees(request.user)
+    own = Employee.objects.filter(user=request.user, is_active=True).first()
+    detail_scope = scope | Employee.objects.filter(pk=own.pk) if own else scope
     item = get_object_or_404(LeaveRequest.objects.select_related(
-        'employee', 'employee__department', 'reviewed_by'), pk=pk, employee__in=scope)
+        'employee', 'employee__department', 'reviewed_by'), pk=pk, employee__in=detail_scope)
     can_review = has_role(request.user, HR, DIRECTOR, MANAGER)
+    can_review = can_review and (not own or item.employee_id != own.pk)
+    back_view = request.GET.get('view', 'manage' if can_review else 'mine')
+    if back_view not in ('mine', 'manage'):
+        back_view = 'manage' if can_review else 'mine'
     return render(request, 'leaves/detail.html', {'item': item, 'can_review': can_review,
-                  'days_count': (item.end_date - item.start_date).days + 1})
+                  'days_count': (item.end_date - item.start_date).days + 1,
+                  'back_view': back_view})
 
 
 @never_cache
 @login_required
 @require_safe
 def leave_evidence(request, pk):
-    item = get_object_or_404(LeaveRequest, pk=pk, employee__in=visible_employees(request.user))
+    scope = visible_employees(request.user)
+    own = Employee.objects.filter(user=request.user, is_active=True).first()
+    detail_scope = scope | Employee.objects.filter(pk=own.pk) if own else scope
+    item = get_object_or_404(LeaveRequest, pk=pk, employee__in=detail_scope)
     if not item.evidence:
         raise Http404
     content_type = mimetypes.guess_type(item.evidence.name)[0] or 'application/octet-stream'
