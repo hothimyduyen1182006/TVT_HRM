@@ -1,43 +1,51 @@
-# Đưa phần attendance/payroll vào repository nhóm
+# Chia sẻ và làm việc với repository TVT HRM
 
-## Bản làm việc hiện tại
+Repository: https://github.com/hothimyduyen1182006/TVT_HRM
 
-Thư mục này chưa có .git. ZIP trong references là bản tham khảo, không có lịch sử Git.
-Không push nguyên thư mục này đè lên repository nhóm.
+## Lấy bản hiện tại
 
-1. Trong PyCharm chọn Git > Clone, nhập URL repository nhóm và chọn thư mục mới.
-   Tài khoản GitHub cần được chủ repository cấp quyền nếu repository riêng tư.
-2. Trong bản clone, tạo nhánh feature/attendance-payroll từ main mới nhất.
-3. Chép docs/integration-contract.md và docs/github-workflow.md vào nhánh.
-4. Thống nhất requirements.txt dùng Django==4.2.8; giữ các thư viện khác nếu nhóm cần,
-   không chép đè toàn bộ requirements hoặc settings của nhóm.
-5. Dùng attendance đã có trong repository nhóm; không thêm timesheets.
-6. Bổ sung services vào attendance và payroll khi triển khai; không chép đè app thành viên khác.
-7. Review diff, commit tài liệu và gửi Pull Request để nhóm chốt giao tiếp dữ liệu.
-
-## Mỗi lần hoàn thành chức năng
-
-- Cập nhật main bằng Pull, rồi merge main vào nhánh của mình trước khi làm tiếp.
-- Commit file thuộc phần mình, migration thật và kiểm thử liên quan.
-- Push nhánh rồi mở Pull Request vào main; mô tả thay đổi, cách thử và phụ thuộc module khác.
-- Không force-push main, không sửa/xóa migration người khác để xử lý xung đột.
-- Không commit .venv, db.sqlite3, references, .env, media cá nhân hoặc khóa bí mật.
-  .gitignore không tự bỏ theo dõi file đã được commit trước đó; kiểm tra diff trước khi push.
-- Không chép SECRET_KEY từ settings hiện tại lên GitHub; phối hợp người quản lý cấu hình
-  để dùng biến môi trường trước khi đưa thay đổi cấu hình lên repository nhóm.
-
-## Chạy trong PyCharm
-
-Chọn interpreter của dự án đã cài Django 4.2.8. Các lệnh dưới chạy trong Terminal của
-bản clone đã cấu hình đúng interpreter:
+Bản hoàn thiện công/lương theo chính sách không tăng ca nằm trên nhánh `feature/tvt-hrm-no-overtime`.
 
 ```powershell
-python -m django --version
-python manage.py check
-python manage.py makemigrations --check --dry-run
-python manage.py runserver
+git clone --branch feature/tvt-hrm-no-overtime https://github.com/hothimyduyen1182006/TVT_HRM.git
+cd TVT_HRM
 ```
 
-Bản tích hợp hiện đã có model, migration và giao diện. Xem README.md cho thứ tự chạy
-migrate, setup_roles, createsuperuser, cấu hình lịch và thử quy trình công/lương.
-Không chạy migrate lên database chung trước khi review migration và có bản sao lưu.
+Nếu đã clone và không có thay đổi chưa lưu:
+
+```powershell
+git fetch origin
+git switch --track origin/feature/tvt-hrm-no-overtime
+```
+
+Nếu nhánh đã tồn tại trên máy, dùng `git switch feature/tvt-hrm-no-overtime`, sau đó `git pull --ff-only`.
+Không chạy reset hoặc xóa thay đổi riêng để đổi nhánh. Nếu repository riêng tư, chủ repository cần cấp quyền cho thành viên.
+
+## Khởi chạy
+
+Làm theo README.md để tạo môi trường Python 3.12, cài requirements.txt, chạy migrate,
+setup_roles, createsuperuser và runserver. Mỗi máy tự tạo database và tài khoản của mình.
+Không có database, tài liệu nhân sự hoặc mật khẩu tài khoản cá nhân trong repository.
+
+Công ty không cho phép tăng ca. Giờ check-out thực tế được giữ nguyên nhưng chỉ tính công trong ca;
+lương mới không có khoản OT. Các bảng/trường OT còn lại phục vụ dữ liệu lịch sử và migration.
+
+## Kiểm thử và lưu ý
+
+Bộ kiểm thử liên quan đã chạy thành công:
+
+```powershell
+python manage.py test attendance payroll config bonuses employees.test_personal_records employees.tests.DemoDataTests.test_demo_login_and_personal_page --noinput
+```
+
+168 kiểm thử dùng database riêng. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
+kiểm thử danh sách nghỉ phép đòi hiển thị lý do hiện nằm ở trang chi tiết; hai kiểm thử cũ trong
+employees.tests.DemoDataTests chưa khớp cấu trúc context và điều hướng theo quyền hiện tại.
+
+## Làm việc nhóm
+
+- Commit và push lên nhánh riêng; mở Pull Request để nhóm xem trước khi gộp vào main.
+- Không force-push main hoặc xóa migration đã chia sẻ.
+- Không commit .venv, .idea, db.sqlite3, .env, media, references hoặc .local-backups.
+- Dùng DJANGO_SECRET_KEY qua biến môi trường khi triển khai; giá trị mặc định chỉ dành cho chạy local.
+- Không chạy migration hoặc lệnh tạo/xóa dữ liệu trên database chung khi chưa thống nhất với nhóm.

@@ -17,17 +17,16 @@
 </form>
 {% if form.day.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.day.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'attendance:list' %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">Bỏ lọc theo ngày</a></div>{% endif %}
 {% if not period and form.is_valid %}<div class="at-notice">Chưa cấu hình kỳ công cho tháng đã chọn. Công chuẩn chỉ hiển thị khi có lịch làm việc.</div>{% endif %}
-<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Giờ tăng ca</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
+<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
 {% for row in page_obj %}<tr>
  <td class="name">{{ row.employee.full_name }}<span class="code">{{ row.employee.code }}</span></td>
  <td><span class="at-pill department">{{ row.employee.department.name }}</span></td>
  <td class="at-muted">{{ row.standard|floatformat:'-4'|default:'—' }}</td>
  <td class="at-strong">{% if row.has_records %}{{ row.paid|floatformat:'-4' }}{% else %}—{% endif %}</td>
- <td class="{% if row.ot %}at-ot{% else %}at-muted{% endif %}">{{ row.ot|floatformat:1 }}</td>
  <td class="{% if row.late_count %}at-red{% else %}at-muted{% endif %}">{{ row.late_count }} lần{% if row.late_count %} / {{ row.late }}p{% endif %}</td>
  <td><span class="at-pill {{ row.state }}">{{ row.state_label }}</span></td>
  <td><a class="pill-link" href="{% url 'attendance:employee-month' row.employee.pk %}?month={{ form.month.value }}&year={{ form.year.value }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
-</tr>{% empty %}<tr><td colspan="8" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
+</tr>{% empty %}<tr><td colspan="7" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
 </tbody></table></div>
 <div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên · Duyệt công tại trang chi tiết của từng nhân viên.</span></div>
 {% include 'attendance/pagination.html' %}

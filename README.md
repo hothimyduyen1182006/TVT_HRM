@@ -2,7 +2,8 @@
 
 Bản tích hợp đồ án: nhân viên/phòng ban/tài khoản dùng Django Admin; bảng công và
 bảng lương có giao diện Bootstrap, phân quyền backend, service, migration và kiểm thử.
-Nghỉ phép, thưởng, lịch và phê duyệt OT được quản trị trong Admin. Không tạo sẵn nhân viên
+Công ty không cho phép tăng ca: không gửi/duyệt yêu cầu OT và không tính tiền OT vào lương mới.
+Giữ dữ liệu OT cũ chỉ để đối chiếu lịch sử. Không tạo sẵn nhân viên
 hoặc mật khẩu mẫu trong database thật.
 
 ## Chạy trên PyCharm / Windows
@@ -29,7 +30,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 - Nhân sự/Giám đốc/Trưởng phòng mở /attendance/ để xem tổng hợp một dòng mỗi nhân viên,
   tìm theo mã/họ tên và lọc phòng, trạng thái, tháng/năm trong phạm vi quyền.
 - Chọn Xem chi tiết để mở /attendance/employee/<id>/ với chỉ số tháng và bảng từng ngày.
-  Có lọc khoảng ngày, tình trạng, các tab đi trễ/nghỉ phép/nghỉ không phép/OT và phân trang.
+  Có lọc khoảng ngày, tình trạng, đi trễ/nghỉ phép/nghỉ không phép và phân trang.
 - Nhân viên thông thường vào /attendance/ sẽ thấy giao diện công cá nhân.
 - Lịch sử tại /attendance/employee/<id>/history/ hiển thị từng trường trước/sau, người sửa,
   lý do; lọc theo thời gian điều chỉnh, trường và người. Chỉ hiển thị lần sửa thực sự;
@@ -40,7 +41,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
   cạnh Lịch sử điều chỉnh công trên trang chi tiết. Kỳ công hoàn tất khi đủ nhân viên đã duyệt.
   Cần kiểm tra cho biết có bản ghi thiếu dữ liệu,
   không phải trạng thái phê duyệt mới. Ngày trống không tự trở thành nghỉ không phép.
-- Bố cục dùng xanh đậm/vàng theo mẫu. Công chuẩn, giờ làm và OT đều lấy từ dữ liệu thật;
+- Bố cục dùng xanh đậm/vàng theo mẫu. Công chuẩn và giờ làm lấy từ dữ liệu thực tế trong ca;
   không cố định 26 công hay tính 08:00–17:00 thành 9 giờ như số minh họa trong ảnh.
 
 ## Thiết lập dữ liệu thật
@@ -51,7 +52,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 3. Tạo Department chưa gán manager; tạo Employee gắn User, Department, ngày vào làm và
    lương cơ bản. Sau đó gán manager của Department tới Employee phụ trách phòng đó.
 4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
-   nhóm đã xác nhận. Chính sách không có giờ hay hệ số OT mặc định trong code.
+   nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
 5. Tạo lịch đủ tháng bằng lệnh dưới sau khi nhóm xác nhận ngày làm/ngày lễ; đây chỉ là
    ví dụ tham số, không phải lịch chính thức. Lệnh không ghi đè tháng đã có lịch.
 
@@ -66,8 +67,8 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 7. Nhân sự ghi công tại /attendance/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.
-8. Quản trị nhập OT và hệ số cụ thể tại Admin > Overtime approvals; chỉ bản ghi đã duyệt
-   có người và thời gian duyệt được tính. Checkout sau giờ kết thúc không tự sinh OT.
+8. Không nhập OT. Check-out sau giờ kết thúc vẫn lưu giờ ra thực tế, chỉ tính công trong ca.
+   Mọi URL gửi/duyệt/từ chối OT cũ đều bị chặn; lịch sử OT chỉ được xem.
 9. Nhân sự/Giám đốc chọn tháng/năm tại /attendance/, mở chi tiết từng nhân viên và bấm
    Duyệt bảng công cạnh Lịch sử điều chỉnh công. Hệ thống kiểm tra đủ ngày của riêng người đó,
    tính lại chỉ số, lưu người/thời gian duyệt và chuyển dòng đó sang Đã duyệt. Khi đủ nhân viên
@@ -84,18 +85,18 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 ## Công thức và ranh giới chính sách
 
 - Giờ làm thường là giao giữa giờ vào/ra với khung làm việc, trừ giao với nghỉ trưa.
-  Ngày nghỉ/lễ không sinh công thường; giờ làm những ngày này phải đi qua OT được duyệt.
+  Ngày nghỉ/lễ không sinh công thường hoặc tiền OT.
 - Công thực tế = giờ hợp lệ / giờ mỗi công, tối đa công chuẩn ngày; cộng công nghỉ hưởng
   lương đã duyệt, kiểm tra trùng với công thực tế. Chỉ số công/giờ lưu 4 chữ số thập phân.
 - Lương theo công = lương cơ bản / công chuẩn tháng × công hưởng lương.
-- OT = lương cơ bản / công chuẩn / giờ mỗi công × giờ duyệt × hệ số đã nhập cho ngày.
+- Lương mới có giờ OT và tiền OT bằng 0; OT lịch sử không được dùng làm đầu vào.
 - BH = tổng lương đóng BH × từng tỷ lệ trong JSON; ví dụ cú pháp {"BHXH": "0.08"}.
   Đây là ví dụ định dạng, không phải tỷ lệ mặc định. Không tham gia BH thì nhập {}, căn cứ
   miễn/không áp dụng và xác nhận. Tỷ lệ phải ở [0,1], tổng không vượt 1.
 - Thuế: bản hiện tại nhận số thuế đã xác định và căn cứ chính sách, thu nhập tính thuế,
   giảm trừ/người phụ thuộc từ người có trách nhiệm. Chưa tự tính biểu thuế lũy tiến vì nhóm
   chưa thống nhất quy tắc và dữ liệu. Nhập 0 chỉ khi có căn cứ; thiếu đầu vào thì chặn tính.
-- Thực nhận = lương theo công + OT + thưởng duyệt + phụ cấp duyệt - BH - thuế - khấu trừ duyệt.
+- Thực nhận = lương theo công + thưởng duyệt + phụ cấp duyệt - BH - thuế - khấu trừ duyệt.
   Dùng Decimal; tính thực nhận từ giá trị trung gian chưa làm tròn, ROUND_HALF_UP tới đồng
   ở cuối. Thành phần lưu 8 số thập phân, breakdown giữ công thức/giá trị chính xác dạng chuỗi.
 - Số công nghỉ là tổng nghỉ phép đã duyệt, không suy diễn ngày thiếu chấm công thành ngày nghỉ.
@@ -140,7 +141,7 @@ python manage.py test
 
 Test dùng database riêng, tài khoản/nhân viên giả chỉ tồn tại trong test. Không đổ dữ liệu mẫu
 vào database thật. Các test bao phủ phạm vi cá nhân/phòng, trùng công, checkout,
-nghỉ hưởng/không hưởng lương, OT/thưởng duyệt, điều kiện tính/duyệt/chi trả, snapshot,
+nghỉ hưởng/không hưởng lương, chặn OT, thưởng duyệt, điều kiện tính/duyệt/chi trả, snapshot,
 CSV/JSON/TXT, CSRF và làm tròn tiền.
 
 ## GitHub và tích hợp nhóm

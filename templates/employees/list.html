@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Quản lý nhân viên{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}?v=3">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/employees.css' %}">{% endblock %}
 {% block content %}
 <section class="employee-page">
   <div class="employee-heading"><div><p class="eyebrow">NHÂN SỰ</p><h1>QUẢN LÝ NHÂN VIÊN</h1></div>{% if can_manage %}<a class="employee-button" href="{% url 'employee_create' %}">＋ Thêm mới</a>{% endif %}</div>
@@ -18,7 +18,7 @@
   <div class="employee-list-meta"><span>Tổng cộng: <strong>{{ rows|length }}</strong> nhân viên</span>{% if filters.q or filters.department or filters.position or filters.status or filters.hire_from or filters.hire_to %}<span class="filter-note">Kết quả theo điều kiện lọc</span>{% endif %}</div>
   {% if rows %}
   <div class="employee-table-wrap"><table class="employee-table"><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Phòng ban</th><th>Chức vụ</th><th>Ngày bắt đầu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
-    {% for row in rows %}<tr><td><strong>{{ row.code }}</strong></td><td>{{ row.full_name }}</td><td>{{ row.department.name }}</td><td>{{ row.position|default:'—' }}</td><td>{{ row.hire_date|date:'d/m/Y' }}</td><td><span class="status-pill {% if row.employment_status == 'Đang làm việc' %}active{% elif row.employment_status == 'Tạm nghỉ' %}paused{% else %}inactive{% endif %}">{{ row.employment_status }}</span></td><td><div class="row-actions"><a class="row-action" href="{% url 'employee_detail' row.pk %}" aria-label="Xem chi tiết nhân viên {{ row.full_name }}" title="Xem chi tiết"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.7"/></svg></a>{% if can_manage %}<a class="row-action" href="{% url 'employee_edit' row.pk %}" aria-label="Sửa hồ sơ">✎</a>{% endif %}</div></td></tr>{% endfor %}
+    {% for row in rows %}<tr><td><strong>{{ row.code }}</strong></td><td>{{ row.full_name }}</td><td>{{ row.department.name }}</td><td>{{ row.position|default:'—' }}</td><td>{{ row.hire_date|date:'d/m/Y' }}</td><td><span class="status-pill {% if row.employment_status == 'Đang làm việc' %}active{% elif row.employment_status == 'Tạm nghỉ' %}paused{% else %}inactive{% endif %}">{{ row.employment_status }}</span></td><td><a class="row-action" href="{% url 'employee_detail' row.pk %}" aria-label="Xem hồ sơ">◉</a>{% if can_manage %}<a class="row-action" href="{% url 'employee_edit' row.pk %}" aria-label="Sửa hồ sơ">✎</a>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>
   {% else %}<div class="employee-empty"><span class="empty-icon">!</span><strong>Không tìm thấy người dùng</strong><p>Hãy kiểm tra lại điều kiện tìm kiếm hoặc bộ lọc.</p></div>{% endif %}
 </section>

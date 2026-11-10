@@ -5,12 +5,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Đăng nhập · Hệ thống quản lý nhân sự</title>
-  <link rel="stylesheet" href="{% static 'css/login.css' %}?v=5">
+  <link rel="stylesheet" href="{% static 'css/login.css' %}">
 </head>
 <body class="login-page">
   <header class="login-header">
     <a class="brand" href="/" aria-label="Wood & Interior">
-      <img class="brand-logo" src="{% static 'images/wood-interior-logo.png' %}" alt="">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <span class="brand-copy"><small>SINCE 2000</small><strong>WOOD &amp;<br>INTERIOR</strong></span>
     </a>
     <h1>HỆ THỐNG QUẢN LÝ NHÂN SỰ</h1>
     <span class="header-spacer" aria-hidden="true"></span>
@@ -24,12 +25,12 @@
       <form method="post" class="login-form">
         {% csrf_token %}
         <label class="login-field">
-          <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4" fill="#fff"/><path d="M4 21v-2a8 8 0 0 1 16 0v2z" fill="#fff"/></svg></span>
+          <span class="field-icon" aria-hidden="true">♟</span>
           <span class="visually-hidden">Tên đăng nhập</span>
           <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" placeholder="Tên đăng nhập" autocomplete="username" required autofocus>
         </label>
         <label class="login-field">
-          <span class="field-icon lock-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="12" rx="1" fill="#fff"/><path d="M8 10V7a4 4 0 1 1 8 0v3" fill="none" stroke="#fff"/><circle cx="12" cy="15" r="1" fill="#20334f"/><path d="M12 16v3" fill="none" stroke="#20334f"/></svg></span>
+          <span class="field-icon lock-icon" aria-hidden="true">▣</span>
           <span class="visually-hidden">Mật khẩu</span>
           <input type="password" name="password" id="id_password" placeholder="Mật khẩu" autocomplete="current-password" required>
         </label>

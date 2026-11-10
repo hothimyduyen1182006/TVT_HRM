@@ -43,7 +43,7 @@ class DemoDataTests(TestCase):
 
     def test_demo_login_and_personal_page(self):
         self.assertTrue(self.client.login(username='demo_employee', password='OnlyForDemoTest@2026'))
-        response = self.client.get('/payroll/?month=9&year=2026')
+        response = self.client.get('/payroll/?month=9&year=2026', follow=True)
         self.assertContains(response, 'PHIẾU LƯƠNG CÁ NHÂN')
         self.assertContains(response, 'DEMO-NV01')
         self.assertNotContains(response, 'DEMO-NV02')

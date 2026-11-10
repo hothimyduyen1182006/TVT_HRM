@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 
@@ -17,6 +18,23 @@ def approved_bonus_records(rows):
     return complete_bonus_records(rows).filter(
         status='approved', approved_by__isnull=False, approved_at__isnull=False
     )
+
+
+def displayed_bonus_records(rows):
+    """Keep approved historical rows visible without making them payroll eligible."""
+    return rows.filter(Q(pk__in=complete_bonus_records(rows).values('pk')) | Q(status='approved'))
+
+
+def incomplete_approved_bonus_records(rows):
+    return rows.filter(status='approved').exclude(pk__in=approved_bonus_records(rows).values('pk'))
+
+
+def payroll_bonus_records(rows):
+    """Never silently treat an invalid approved bonus as zero."""
+    if incomplete_approved_bonus_records(rows).exists():
+        raise ValidationError('Có khoản thưởng đã duyệt thiếu thông tin đề xuất hoặc phê duyệt. '
+                              'Cần kiểm tra và hoàn thiện Bảng thưởng trước khi tính hoặc duyệt lương.')
+    return approved_bonus_records(rows)
 
 
 class Bonus(models.Model):

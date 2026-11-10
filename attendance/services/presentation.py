@@ -2,10 +2,14 @@
 import calendar
 from datetime import date
 from decimal import Decimal
+from urllib.parse import urlencode
+
 from django.db.models import Sum, Count, Q, F
-from attendance.models import AttendanceRecord, WorkCalendarDay, OvertimeApproval, AttendanceAuditLog
-from attendance.models import EmployeeAttendanceApproval
-from attendance.forms import AUDIT_FIELDS
+
+from attendance.models import AttendanceRecord, WorkCalendarDay, AttendanceAuditLog
+from attendance.models import EmployeeAttendanceApproval, AttendancePeriod
+from attendance.forms import AUDIT_FIELDS, AttendanceFilter, DailyFilter, HistoryFilter
+from employees.models import Employee
 
 ZERO = Decimal(0)
 
@@ -18,9 +22,6 @@ def month_summary(employees, year, month, period):
         late_count=Count('pk', filter=Q(late_minutes__gt=0)), count=Count('pk'),
         incomplete=Count('pk', filter=Q(status='incomplete')), absent=Count('pk', filter=Q(status='absent')))
     by_employee = {row['employee_id']: row for row in grouped}
-    overtime = OvertimeApproval.objects.filter(employee_id__in=scope, date__year=year, date__month=month,
-        approved=True, approved_by__isnull=False, approved_at__isnull=False)
-    ot = {row['employee_id']: row['hours'] for row in overtime.values('employee_id').annotate(hours=Sum('hours'))}
     standard = WorkCalendarDay.objects.filter(date__year=year, date__month=month).aggregate(value=Sum('expected_units'))['value']
     result = []
     approved_ids = set(EmployeeAttendanceApproval.objects.filter(period=period).values_list('employee_id', flat=True)) if period else set()
@@ -31,7 +32,7 @@ def month_summary(employees, year, month, period):
         result.append({'employee': employee, 'standard': standard, 'paid': values.get('paid', ZERO),
             'actual': values.get('actual', ZERO), 'leave': values.get('leave', ZERO),
             'hours': values.get('hours', ZERO), 'late': values.get('late', 0), 'late_count': values.get('late_count', 0),
-            'absent': values.get('absent', 0), 'ot': ot.get(employee.pk, ZERO), 'state': state,
+            'absent': values.get('absent', 0), 'ot': ZERO, 'state': state,
             'state_label': {'empty': 'Chưa có dữ liệu', 'approved': 'Đã duyệt', 'pending': 'Chờ duyệt',
                             'incomplete': 'Cần kiểm tra'}[state], 'has_records': bool(values)})
     return result
@@ -40,8 +41,6 @@ def month_summary(employees, year, month, period):
 def daily_rows(employee, year, month):
     records = {r.date: r for r in AttendanceRecord.objects.filter(employee=employee, date__year=year, date__month=month)}
     calendar_days = {r.date: r for r in WorkCalendarDay.objects.filter(date__year=year, date__month=month)}
-    overtime = {r.date: r.hours for r in OvertimeApproval.objects.filter(employee=employee,
-        date__year=year, date__month=month, approved=True, approved_by__isnull=False, approved_at__isnull=False)}
     result = []
     for day in range(1, calendar.monthrange(year, month)[1] + 1):
         value = date(year, month, day)
@@ -62,7 +61,7 @@ def daily_rows(employee, year, month):
             state = 'rest'
             label = schedule.name or ('Nghỉ lễ' if schedule.kind == 'holiday' else 'Nghỉ hằng tuần')
         result.append({'date': value, 'weekday': ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][value.weekday()],
-            'record': record, 'state': state, 'label': label, 'ot': overtime.get(value, ZERO)})
+            'record': record, 'state': state, 'label': label, 'ot': ZERO})
     return result
 
 
@@ -89,3 +88,64 @@ def history_rows(logs, field=''):
                 'new': labels.get(new, new) if key in ['status', 'approval_status'] else new,
                 'actor': log.actor.get_full_name() or log.actor.username, 'reason': log.reason})
     return result
+
+
+def month_data(request, employee):
+    """Tổng hợp ngày công và bộ lọc cho một nhân viên, không thay đổi dữ liệu."""
+    form = DailyFilter(request.user, request.GET)
+    rows, summary, period, progress, average = [], None, None, 0, '—'
+    month_query = ''
+    if form.is_valid():
+        data = form.cleaned_data
+        month_query = urlencode({'month': data['month'], 'year': data['year']})
+        period = AttendancePeriod.objects.filter(year=data['year'], month=data['month']).first()
+        summary = month_summary(Employee.objects.filter(pk=employee.pk), data['year'], data['month'], period)[0]
+        rows = daily_rows(employee, data['year'], data['month'])
+        work_count = sum(1 for row in rows if row['record'] and row['record'].check_in)
+        if work_count:
+            minutes = int(summary['hours'] * 60 / work_count)
+            average = f'{minutes // 60}:{minutes % 60:02}'
+        if summary['standard']:
+            progress = max(0, min(100, int(summary['paid'] / summary['standard'] * 100)))
+        if data['start']:
+            rows = [r for r in rows if r['date'] >= data['start']]
+        if data['end']:
+            rows = [r for r in rows if r['date'] <= data['end']]
+        if data['state']:
+            state = data['state']
+            unit_fields = {'paid': 'paid_units', 'actual': 'actual_units', 'paid_leave': 'paid_leave_units'}
+            if state in unit_fields:
+                rows = [r for r in rows if r['record'] and getattr(r['record'], unit_fields[state]) > 0]
+            else:
+                rows = [r for r in rows if r['state'] == state]
+    stat_params = request.GET.copy()
+    stat_params.pop('page', None)
+    stat_params.pop('state', None)
+    if form.is_valid():
+        stat_params['month'] = form.cleaned_data['month']
+        stat_params['year'] = form.cleaned_data['year']
+    return {'form': form, 'rows': rows, 'summary': summary, 'period': period, 'progress': progress,
+            'average': average, 'month_query': month_query, 'stat_query': stat_params.urlencode()}
+
+
+def audit_data(request, employee):
+    """Lọc lịch sử theo kỳ công và điều kiện người dùng đã chọn."""
+    period_form = AttendanceFilter(request.user, request.GET)
+    logs = AttendanceAuditLog.objects.none()
+    month_query = ''
+    if period_form.is_valid():
+        data = period_form.cleaned_data
+        month_query = urlencode({'month': data['month'], 'year': data['year']})
+        logs = history_logs(employee, data['year'], data['month'])
+    form = HistoryFilter(request.GET, logs)
+    rows = []
+    if form.is_valid() and period_form.is_valid():
+        data = form.cleaned_data
+        if data['start']:
+            logs = logs.filter(created_at__date__gte=data['start'])
+        if data['end']:
+            logs = logs.filter(created_at__date__lte=data['end'])
+        if data['actor']:
+            logs = logs.filter(actor=data['actor'])
+        rows = history_rows(logs, data['field'])
+    return {'form': form, 'period_form': period_form, 'rows': rows, 'month_query': month_query}

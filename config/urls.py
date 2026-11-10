@@ -17,10 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from .views import dashboard, departments
+from .views import dashboard, departments, protected_media
 from django.contrib.auth.forms import AuthenticationForm
 from django.conf import settings
-from django.conf.urls.static import static
 from employees import views as employee_views
 
 
@@ -34,9 +33,13 @@ class TVTAuthenticationForm(AuthenticationForm):
 class TVTLoginView(auth_views.LoginView):
     def form_valid(self, form):
         response = super().form_valid(form)
-        if self.request.POST.get('remember') != '1':
-            self.request.session.set_expiry(0)
+        expiry = settings.SESSION_COOKIE_AGE if self.request.POST.get('remember') == '1' else 0
+        self.request.session.set_expiry(expiry)
         return response
+
+
+class TVTLogoutView(auth_views.LogoutView):
+    http_method_names = ['post', 'options']
 
 
 urlpatterns = [
@@ -48,19 +51,15 @@ urlpatterns = [
     path('employees/<int:employee_id>/edit/', employee_views.employee_edit, name='employee_edit'),
     path('employees/<int:employee_id>/education/new/', employee_views.education_edit, name='education_create'),
     path('employees/<int:employee_id>/education/<int:record_id>/edit/', employee_views.education_edit, name='education_edit'),
-    path('employees/<int:employee_id>/education/<int:record_id>/delete/', employee_views.education_delete, name='education_delete'),
     path('employees/<int:employee_id>/contracts/new/', employee_views.contract_edit, name='contract_create'),
     path('employees/<int:employee_id>/contracts/<int:record_id>/edit/', employee_views.contract_edit, name='contract_edit'),
-    path('employees/<int:employee_id>/contracts/<int:record_id>/delete/', employee_views.contract_delete, name='contract_delete'),
     path('employees/<int:employee_id>/', employee_views.employee_detail, name='employee_detail'),
     path('accounts/login/', TVTLoginView.as_view(authentication_form=TVTAuthenticationForm), name='login'),
-    path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('accounts/logout/', TVTLogoutView.as_view(), name='logout'),
     path('attendance/', include('attendance.urls')),
     path('payroll/', include('payroll.urls')),
     path('bonuses/', include('bonuses.urls')),
     path('leaves/', include('leaves.urls')),
     path('admin/', admin.site.urls),
+    path(settings.MEDIA_URL.strip('/') + '/<path:path>', protected_media, name='protected-media'),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

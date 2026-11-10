@@ -7,9 +7,36 @@ from payroll.models import PayrollPeriod, PayrollAuditLog, PayrollRecord
 from .calculations import snapshot, payroll_values
 from .source_data import legacy_breakdown
 from decimal import Decimal, InvalidOperation
+from bonuses.models import Bonus, payroll_bonus_records
 
+
+def bonus_source_error(record):
+    """Check saved bonus sources without recalculating or modifying a locked payslip."""
+    attendance = record.period.attendance_period
+    try:
+        rows = payroll_bonus_records(Bonus.objects.filter(employee_id=record.employee_id,
+            year=attendance.year, month=attendance.month))
+        current = {row.pk: row.amount for row in rows}
+        saved = {int(item['id']): Decimal(str(item['amount']))
+                 for item in record.breakdown.get('bonuses', [])}
+    except ValidationError as error:
+        return '; '.join(error.messages)
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return 'Phiếu lương thiếu thông tin thưởng nguồn để đối chiếu. Cần kiểm tra lại trước khi chi trả.'
+    if current != saved or sum(current.values(), Decimal(0)) != record.bonus_pay:
+        return 'Bảng thưởng đã thay đổi so với phiếu lương đã lưu. Cần mở lại và tính lại lương trước khi chi trả.'
+    return ''
+
+
+def overtime_source_error(record):
+    if record.ot_hours or record.ot_pay or record.breakdown.get('ot'):
+        return 'Công ty không cho phép tăng ca. Cần mở lại và tính lại phiếu lương còn OT trước khi duyệt hoặc chi trả.'
+    return ''
 
 def record_approval_error(record, period=None, attendance=None):
+    error = overtime_source_error(record)
+    if error:
+        return error
     period = period or record.period
     attendance = attendance or period.attendance_period
     approval = attendance.employee_approvals.filter(employee_id=record.employee_id).first()
@@ -55,6 +82,10 @@ def change_payroll(actor, period_id, action, reason, evidence=''):
             raise ValidationError('Cần kỳ chờ duyệt có kết quả tính lương.')
         if attendance.status != 'approved':
             raise ValidationError('Bảng công chưa được duyệt.')
+        for record in period.records.all():
+            error = overtime_source_error(record)
+            if error:
+                raise ValidationError(f'{record.employee_code}: {error}')
         for record in period.records.filter(status='pending'):
             error = record_approval_error(record, period, attendance)
             if error:
@@ -66,6 +97,10 @@ def change_payroll(actor, period_id, action, reason, evidence=''):
     elif action == 'paid':
         if period.status != 'approved' or not evidence.strip() or period.records.filter(status='pending').exists():
             raise ValidationError('Chỉ xác nhận kỳ đã duyệt khi có bằng chứng thanh toán.')
+        for record in period.records.all():
+            error = bonus_source_error(record) or overtime_source_error(record)
+            if error:
+                raise ValidationError(f'{record.employee_code}: {error}')
         period.status = 'paid'
         period.paid_by = actor
         period.paid_at = timezone.now()

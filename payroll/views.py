@@ -1,44 +1,32 @@
+"""Xử lý request Bảng lương; tách truy vấn hiển thị khỏi thao tác ghi dữ liệu."""
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_POST
+from django.db import IntegrityError
 from django.http import Http404
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+
 from employees.access import visible_employees, has_role, require_role, HR, DIRECTOR, MANAGER
 from .models import PayrollRecord, PayrollPeriod, PayrollInput, PayrollAdjustment
 from .forms import PayrollInputForm, AdjustmentForm, PayrollFilter, PayslipFilter, PayrollInputFilter
-from django.db import IntegrityError
 from .services.calculations import calculate_payroll
 from .services.workflow import change_payroll, approve_record, record_approval_error
 from .services.exports import export_records
-from .services.presentation import payslip_context
-from django.db.models import Q
-from django.urls import reverse
-from urllib.parse import urlencode
-from decimal import Decimal
-from datetime import date
-import calendar
+from .services.presentation import payslip_context, scoped_records, employee_records, input_list_context
 from .services.inputs import save_input
-
-
-def scoped_records(user, form):
-    if not form.is_valid():
-        return PayrollRecord.objects.none()
-    data = form.cleaned_data
-    rows = PayrollRecord.objects.select_related('period__attendance_period').filter(
-        employee__in=form.employee_scope(user), period__attendance_period__month=data['month'],
-        period__attendance_period__year=data['year'])
-    if data.get('q'):
-        rows = rows.filter(Q(employee_name__icontains=data['q']) | Q(employee_code__icontains=data['q']))
-    if data.get('status'):
-        rows = rows.filter(status=data['status'])
-    return rows
 
 
 @login_required
 def record_list(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
-        return personal(request)
+        messages.error(request, 'Bạn không có quyền truy cập chức năng quản lý lương.')
+        target = reverse('payroll:personal')
+        period_query = urlencode({key: request.GET[key] for key in ['month', 'year'] if request.GET.get(key)})
+        return redirect(target + ('?' + period_query if period_query else ''))
     form = PayrollFilter(request.user, request.GET)
     rows = scoped_records(request.user, form)
     if has_role(request.user, DIRECTOR):
@@ -52,11 +40,6 @@ def record_list(request):
                   'has_approved_records': period.records.filter(status='approved').exists() if period else False,
                   'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value(),
                   'can_manage': has_role(request.user, HR, DIRECTOR), 'director': has_role(request.user, DIRECTOR)})
-
-
-def employee_records(user):
-    # Giữ điều kiện hiển thị hiện có cho đến khi nhóm xác nhận mâu thuẫn UC-7.1/ảnh mẫu.
-    return PayrollRecord.objects.select_related('period__attendance_period').filter(employee__user=user)
 
 
 @login_required
@@ -146,41 +129,7 @@ def export(request, fmt):
 def inputs(request):
     require_role(request.user, HR, DIRECTOR)
     form = PayrollInputFilter(request.user, request.GET)
-    period, employee_rows = None, []
-    input_rows, adjustments = PayrollInput.objects.none(), PayrollAdjustment.objects.none()
-    counts = {'total': 0, 'missing': 0, 'draft': 0, 'verified': 0, 'locked': 0}
-    if form.is_valid():
-        data = form.cleaned_data
-        scope = form.employee_scope(request.user)
-        scope = scope.filter(hire_date__lte=date(data['year'], data['month'], calendar.monthrange(data['year'], data['month'])[1]))
-        if data['q']:
-            scope = scope.filter(Q(code__icontains=data['q']) | Q(full_name__icontains=data['q']))
-        period = PayrollPeriod.objects.select_related('attendance_period').filter(
-            attendance_period__month=data['month'], attendance_period__year=data['year']).first()
-        if period:
-            input_rows = PayrollInput.objects.select_related('employee', 'period').filter(period=period, employee__in=scope)
-            adjustments = PayrollAdjustment.objects.select_related('employee', 'period').filter(period=period, employee__in=scope).order_by('employee__code', 'kind', 'name')
-            by_employee = {item.employee_id: item for item in input_rows}
-            salary_statuses = dict(period.records.values_list('employee_id', 'status'))
-            for employee in scope:
-                item = by_employee.get(employee.pk)
-                locked = period.status != 'pending' or salary_statuses.get(employee.pk) in ['approved', 'paid']
-                state = 'locked' if locked else ('missing' if item is None else ('verified' if item.verified else 'draft'))
-                counts['total'] += 1
-                counts[state] += 1
-                if data['readiness'] and data['readiness'] != state:
-                    continue
-                rates = [{'name': name, 'percent': Decimal(str(rate)) * 100} for name, rate in item.insurance_rates.items()] if item else []
-                employee_rows.append({'employee': employee, 'input': item, 'locked': locked, 'state': state,
-                    'state_label': {'missing': 'Chưa nhập', 'draft': 'Chưa kiểm tra', 'verified': 'Đã kiểm tra', 'locked': 'Đã khóa'}[state],
-                    'rates': rates, 'salary_status': salary_statuses.get(employee.pk)})
-            if data['readiness']:
-                adjustments = adjustments.filter(employee_id__in=[row['employee'].pk for row in employee_rows])
-            for item in adjustments:
-                item.ui_locked = period.status != 'pending' or salary_statuses.get(item.employee_id) in ['approved', 'paid']
-    return render(request, 'payroll/inputs.html', {'form': form, 'period': period, 'employee_rows': employee_rows,
-        'inputs': input_rows, 'adjustments': adjustments, 'counts': counts,
-        'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value()})
+    return render(request, 'payroll/inputs.html', input_list_context(request.user, form))
 
 
 @login_required

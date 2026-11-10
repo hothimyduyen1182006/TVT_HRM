@@ -1,6 +1,7 @@
+"""Lưu, duyệt và mở lại công; dùng chung kiểm tra khóa kỳ và ghi lịch sử."""
 import calendar
 from datetime import date
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -9,6 +10,44 @@ from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, AttendanceAuditLog, WorkCalendarDay
 from attendance.models import EmployeeAttendanceApproval
 from .calculations import calculate_record
+
+
+def can_approve_overtime(user, employee):
+    return False
+
+
+def submit_overtime(*args, **kwargs):
+    raise PermissionDenied('Công ty không cho phép tăng ca.')
+
+
+def approve_overtime(*args, **kwargs):
+    raise PermissionDenied('Công ty không cho phép tăng ca.')
+
+
+def reject_overtime(*args, **kwargs):
+    raise PermissionDenied('Công ty không triển khai nghiệp vụ OT.')
+
+
+def period_is_locked(period, employee_id):
+    return bool(period and (period.status == 'approved' or
+        period.employee_approvals.filter(employee_id=employee_id).exists()))
+
+
+def record_is_locked(record):
+    period = AttendancePeriod.objects.filter(year=record.date.year, month=record.date.month).first()
+    return period_is_locked(period, record.employee_id)
+
+
+def _recalculate_records(records, period, actor, reason):
+    """Tính lại công và ghi lịch sử bằng cùng một luồng khi duyệt kỳ hoặc nhân viên."""
+    for record in records:
+        before = record_values(record)
+        calculate_record(record, period)
+        record.save()
+        after = record_values(record)
+        if before != after:
+            AttendanceAuditLog.objects.create(actor=actor, action='recalculate', reason=reason,
+                before=before, after=after)
 
 
 def record_values(record):
@@ -23,7 +62,7 @@ def save_record(actor, record, reason):
     if not reason.strip():
         raise ValidationError('Cần lý do thay đổi.')
     period = AttendancePeriod.objects.select_for_update().get(year=record.date.year, month=record.date.month)
-    if period.status == 'approved' or period.employee_approvals.filter(employee_id=record.employee_id).exists():
+    if period_is_locked(period, record.employee_id):
         raise ValidationError('Kỳ công đã duyệt, cần mở lại trước.')
     before = {}
     if record.pk:
@@ -64,13 +103,7 @@ def change_period(actor, period_id, action, reason):
             available = set(records.filter(employee=employee).exclude(status='incomplete').values_list('date', flat=True))
             if not set(required).issubset(available):
                 raise ValidationError(f'{employee}: còn ngày làm việc chưa kiểm tra.')
-        for record in records:
-            old_values = record_values(record)
-            calculate_record(record, period)
-            record.save()
-            if old_values != record_values(record):
-                AttendanceAuditLog.objects.create(actor=actor, action='recalculate', reason=reason,
-                                                  before=old_values, after=record_values(record))
+        _recalculate_records(records, period, actor, reason)
         period.status = 'approved'
         period.employee_ids = list(employees.values_list('pk', flat=True))
         for employee in employees:
@@ -100,7 +133,7 @@ def change_period(actor, period_id, action, reason):
 def approve_employee(actor, employee, period_id):
     require_role(actor, HR, DIRECTOR)
     period = AttendancePeriod.objects.select_for_update().get(pk=period_id)
-    if period.status == 'approved' or period.employee_approvals.filter(employee=employee).exists():
+    if period_is_locked(period, employee.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
     if not period.policy_confirmed:
         raise ValidationError('Chưa xác nhận chính sách kỳ công.')
@@ -113,13 +146,7 @@ def approve_employee(actor, employee, period_id):
     available = set(records.exclude(status='incomplete').values_list('date', flat=True))
     if not records.exists() or not required.issubset(available) or records.filter(status='incomplete').exists():
         raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
-    for record in records:
-        before = record_values(record)
-        calculate_record(record, period)
-        record.save()
-        if before != record_values(record):
-            AttendanceAuditLog.objects.create(actor=actor, action='recalculate', reason='Tính lại trước khi duyệt nhân viên',
-                                              before=before, after=record_values(record))
+    _recalculate_records(records, period, actor, 'Tính lại trước khi duyệt nhân viên')
     approval = EmployeeAttendanceApproval.objects.create(period=period, employee=employee, approved_by=actor)
     AttendanceAuditLog.objects.create(actor=actor, action='approve_employee', reason='Duyệt công nhân viên từ trang chi tiết chấm công',
         before={'approval_status': 'pending'}, after={'employee_id': str(employee.pk),

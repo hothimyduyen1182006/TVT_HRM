@@ -1,5 +1,4 @@
 from django.contrib import admin
-from django.utils import timezone
 from employees.admin_utils import ReadOnlyAdmin, CalendarLockedAdmin
 from .models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval, AttendanceAuditLog
 from .models import EmployeeAttendanceApproval
@@ -26,17 +25,9 @@ class CalendarAdmin(CalendarLockedAdmin):
 
 
 @admin.register(OvertimeApproval)
-class OvertimeAdmin(CalendarLockedAdmin):
+class OvertimeAdmin(ReadOnlyAdmin):
     list_display = ('employee', 'date', 'hours', 'multiplier', 'approved')
     readonly_fields = ('approved_by', 'approved_at')
-
-    def save_model(self, request, obj, form, change):
-        if obj.approved:
-            obj.approved_by = request.user
-            obj.approved_at = timezone.now()
-        else:
-            obj.approved_by = obj.approved_at = None
-        super().save_model(request, obj, form, change)
 
 
 @admin.register(AttendanceRecord)

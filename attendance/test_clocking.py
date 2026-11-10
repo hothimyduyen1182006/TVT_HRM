@@ -30,6 +30,16 @@ class ClockTests(TestCase):
                 punch(self.user, 'out')
         self.assertFalse(AttendanceAuditLog.objects.exists())
 
+    def test_late_checkout_does_not_submit_or_approve_ot(self):
+        from .models import OvertimeApproval
+        with self.at(8):
+            punch(self.user, 'in')
+        with self.at(19):
+            row = punch(self.user, 'out')
+        self.assertEqual(row.check_out, time(19))
+        self.assertEqual(row.work_hours, 8)
+        self.assertFalse(OvertimeApproval.objects.exists())
+
     def test_out_without_in_and_approved_lock(self):
         with self.at(9):
             with self.assertRaises(ValidationError):

@@ -43,7 +43,6 @@
         <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ BẮT ĐẦU</small><strong>{% if today_record.check_in %}{{ today_record.check_in|time:'H:i:s' }}{% else %}Chưa ghi nhận{% endif %}</strong></div></article>
         <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ KẾT THÚC</small><strong>{% if today_record.check_out %}{{ today_record.check_out|time:'H:i:s' }}{% else %}—{% endif %}</strong></div></article>
         <article class="tvt-stat-card tvt-stat-total"><span class="tvt-stat-icon" aria-hidden="true">⌛</span><div><small>TỔNG THỜI GIAN</small><strong>{% if today_record.check_out %}{{ today_record.work_hours|floatformat:2 }} giờ{% elif today_record.check_in %}<span data-elapsed data-checkin="{{ today_record.check_in|time:'H:i:s' }}">00:00:00</span>{% else %}00:00:00{% endif %}</strong></div></article>
-        {% if overtime and overtime.hours %}<div class="tvt-overtime-note">OT: {{ overtime.hours|floatformat:2 }} giờ{% if not overtime.approved %} · Chờ HR duyệt{% endif %}</div>{% endif %}
       </aside>
     </div>
   {% endif %}

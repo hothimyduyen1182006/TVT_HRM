@@ -2,13 +2,14 @@ from datetime import timedelta
 import mimetypes
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import FileResponse, Http404
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST, require_safe
 from employees.access import visible_employees, has_role, require_role, HR, DIRECTOR, MANAGER
 from employees.models import Employee, Department
 from .forms import LeaveRequestForm, LeaveFilterForm
@@ -51,12 +52,6 @@ def leave_list(request):
             else:
                 messages.success(request, 'Đã gửi đơn nghỉ phép. Bạn có thể theo dõi trạng thái trong lịch sử đơn.')
                 return redirect('leaves:list')
-        base = LeaveRequest.objects.select_related('employee', 'employee__department', 'reviewed_by')
-        if is_reviewer:
-            base = base.filter(employee__in=scope)
-        elif own:
-            base = base.filter(employee=own)
-
     departments = Department.objects.filter(employee__in=scope).distinct() if is_reviewer else Department.objects.none()
     filters = LeaveFilterForm(departments, request.GET)
     rows = base
@@ -94,13 +89,21 @@ def leave_detail(request, pk):
                   'days_count': (item.end_date - item.start_date).days + 1})
 
 
+@never_cache
 @login_required
+@require_safe
 def leave_evidence(request, pk):
     item = get_object_or_404(LeaveRequest, pk=pk, employee__in=visible_employees(request.user))
     if not item.evidence:
         raise Http404
-    response = FileResponse(item.evidence.open('rb'), content_type=mimetypes.guess_type(item.evidence.name)[0] or 'application/octet-stream')
-    response['Content-Disposition'] = f'inline; filename="{item.evidence.name.rsplit("/", 1)[-1]}"'
+    content_type = mimetypes.guess_type(item.evidence.name)[0] or 'application/octet-stream'
+    inline_image = content_type in ('image/jpeg', 'image/png', 'image/webp', 'image/gif')
+    try:
+        opened = item.evidence.open('rb')
+    except (OSError, SuspiciousFileOperation):
+        raise Http404
+    response = FileResponse(opened, content_type=content_type, as_attachment=not inline_image,
+                            filename=item.evidence.name.rsplit('/', 1)[-1])
     response['X-Content-Type-Options'] = 'nosniff'
     return response
 

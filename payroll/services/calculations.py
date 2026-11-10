@@ -5,7 +5,7 @@ from django.db.models import Sum
 from employees.access import require_role, HR, DIRECTOR
 from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
-from bonuses.models import Bonus, approved_bonus_records
+from bonuses.models import Bonus, payroll_bonus_records
 from leaves.models import LeaveDay
 from payroll.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
 from .source_data import source_data
@@ -68,13 +68,9 @@ def payroll_values(employee, attendance, period, standard=None):
     paid = total(records, 'paid_units')
     hourly = employee.base_salary / standard / attendance.standard_hours
     wage = employee.base_salary / standard * paid
-    overtime = OvertimeApproval.objects.filter(employee=employee, date__year=attendance.year,
-                                               date__month=attendance.month, approved=True,
-                                               approved_by__isnull=False, approved_at__isnull=False)
-    ot_lines = [{'id': row.pk, 'date': str(row.date), 'hours': str(row.hours), 'multiplier': str(row.multiplier),
-                 'amount': str(hourly * row.hours * row.multiplier)} for row in overtime]
-    ot_pay = sum((Decimal(line['amount']) for line in ot_lines), ZERO)
-    bonuses = approved_bonus_records(Bonus.objects.filter(
+    overtime = OvertimeApproval.objects.none()  # Lịch sử OT không tham gia tính lương mới.
+    ot_lines, ot_pay = [], ZERO
+    bonuses = payroll_bonus_records(Bonus.objects.filter(
         employee=employee, year=attendance.year, month=attendance.month))
     bonus_lines = [{'id': row.pk, 'name': row.name, 'amount': str(row.amount)} for row in bonuses]
     bonus = sum((Decimal(line['amount']) for line in bonus_lines), ZERO)
@@ -84,14 +80,14 @@ def payroll_values(employee, attendance, period, standard=None):
     insurance_lines = {name: str(inputs.insurance_base * Decimal(str(rate)))
                        for name, rate in inputs.insurance_rates.items()}
     insurance = sum((Decimal(value) for value in insurance_lines.values()), ZERO)
-    net = wage + ot_pay + bonus + allowance - insurance - inputs.tax_amount - deductions
+    net = wage + bonus + allowance - insurance - inputs.tax_amount - deductions
     values = dict(
         period=period, employee=employee, employee_code=employee.code, employee_name=employee.full_name,
         department_id_snapshot=employee.department_id, department_name=employee.department.name,
         base_salary=employee.base_salary, standard_units=standard, paid_units=paid,
         leave_units=total(LeaveDay.objects.filter(employee=employee, date__year=attendance.year,
                                                  date__month=attendance.month, approved=True), 'units'),
-        late_minutes=total(records, 'late_minutes'), ot_hours=total(overtime, 'hours'), attendance_pay=wage,
+        late_minutes=total(records, 'late_minutes'), ot_hours=ZERO, attendance_pay=wage,
         ot_pay=ot_pay, bonus_pay=bonus, allowance=allowance, insurance=insurance, tax=inputs.tax_amount,
         deductions=deductions, net_pay=net.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
         breakdown={'attendance_revision': attendance.revision,

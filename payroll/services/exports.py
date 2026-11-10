@@ -8,7 +8,7 @@ from employees.access import require_role, HR, DIRECTOR
 from payroll.models import PayrollExportLog, PayrollPeriod
 
 FIELDS = ['employee_code', 'employee_name', 'department_name', 'base_salary', 'standard_units',
-          'leave_units', 'paid_units', 'attendance_pay', 'ot_hours', 'ot_pay', 'bonus_pay', 'late_minutes',
+          'leave_units', 'paid_units', 'attendance_pay', 'bonus_pay', 'late_minutes',
           'allowance', 'insurance', 'tax', 'deductions', 'net_pay']
 
 
@@ -30,7 +30,12 @@ def export_records(actor, queryset, fmt, month, year, scope):
         raise ValidationError('Không có dữ liệu để xuất.')
     if any(row.status not in ['approved', 'paid'] for row in rows):
         raise ValidationError('Không xuất bảng lương chưa duyệt.')
+    if any((row.ot_hours or row.ot_pay or row.breakdown.get('ot')) and row.status != 'paid' for row in rows):
+        raise ValidationError('Phiếu lương chưa chi trả còn OT cần mở lại và tính lại trước khi xuất.')
+    historical = any(row.ot_hours or row.ot_pay for row in rows)
+    fields = FIELDS + (['historical_ot_hours', 'historical_ot_pay'] if historical else [])
     data = [{**{name: str(getattr(row, name)) for name in FIELDS},
+             **({'historical_ot_hours': str(row.ot_hours), 'historical_ot_pay': str(row.ot_pay)} if historical else {}),
              'status': row.get_status_display(), 'breakdown': row.breakdown} for row in rows]
     if fmt == 'json':
         content = json.dumps(data, ensure_ascii=False, indent=2)
@@ -38,9 +43,9 @@ def export_records(actor, queryset, fmt, month, year, scope):
     else:
         output = io.StringIO(newline='')
         writer = csv.writer(output, delimiter=',' if fmt == 'csv' else '\t')
-        writer.writerow(FIELDS + ['status'])
+        writer.writerow(fields + ['status'])
         for row in data:
-            writer.writerow([safe_cell(row[key]) for key in FIELDS + ['status']])
+            writer.writerow([safe_cell(row[key]) for key in fields + ['status']])
         content = ('\ufeff' if fmt == 'csv' else '') + output.getvalue()
         content_type = 'text/csv; charset=utf-8' if fmt == 'csv' else 'text/plain; charset=utf-8'
     PayrollExportLog.objects.create(actor=actor, month=month, year=year, format=fmt,

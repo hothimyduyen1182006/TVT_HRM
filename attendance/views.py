@@ -1,22 +1,25 @@
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
-from django.db import IntegrityError
-from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_POST
-from employees.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
-from employees.models import Employee
-from .forms import AttendanceForm, AttendanceFilter, DailyFilter, HistoryFilter
-from .models import AttendanceRecord, AttendancePeriod, OvertimeApproval, AttendanceAuditLog
-from .services.workflow import save_record, change_period, approve_employee
-from .services.presentation import month_summary, daily_rows, history_logs, history_rows
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import HttpResponse, Http404
-from django.urls import reverse
-from urllib.parse import urlencode
+"""Nhận request, kiểm tra quyền và trả trang Bảng công; nghiệp vụ nằm trong services."""
 import csv
 import io
+from urllib.parse import urlencode
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError, PermissionDenied
+from django.db import IntegrityError
+from django.db.models import Q
+from django.core.paginator import Paginator
+from django.http import HttpResponse, Http404
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+
+from employees.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
+from employees.models import Employee
+from .forms import AttendanceForm, AttendanceFilter
+from .models import AttendanceRecord, AttendancePeriod
+from .services.workflow import save_record, change_period, approve_employee, record_is_locked
+from .services.presentation import month_summary, month_data, audit_data
 
 
 @login_required
@@ -60,45 +63,6 @@ def page_query(request):
     return values.urlencode()
 
 
-def month_data(request, employee):
-    form = DailyFilter(request.user, request.GET)
-    rows, summary, period, progress, average = [], None, None, 0, '—'
-    month_query = ''
-    if form.is_valid():
-        data = form.cleaned_data
-        month_query = urlencode({'month': data['month'], 'year': data['year']})
-        period = AttendancePeriod.objects.filter(year=data['year'], month=data['month']).first()
-        summary = month_summary(Employee.objects.filter(pk=employee.pk), data['year'], data['month'], period)[0]
-        rows = daily_rows(employee, data['year'], data['month'])
-        work_count = sum(1 for row in rows if row['record'] and row['record'].check_in)
-        if work_count:
-            minutes = int(summary['hours'] * 60 / work_count)
-            average = f'{minutes // 60}:{minutes % 60:02}'
-        if summary['standard']:
-            progress = max(0, min(100, int(summary['paid'] / summary['standard'] * 100)))
-        if data['start']:
-            rows = [r for r in rows if r['date'] >= data['start']]
-        if data['end']:
-            rows = [r for r in rows if r['date'] <= data['end']]
-        if data['state']:
-            state = data['state']
-            unit_fields = {'paid': 'paid_units', 'actual': 'actual_units', 'paid_leave': 'paid_leave_units'}
-            if state in unit_fields:
-                rows = [r for r in rows if r['record'] and getattr(r['record'], unit_fields[state]) > 0]
-            elif state == 'ot':
-                rows = [r for r in rows if r['ot'] > 0]
-            else:
-                rows = [r for r in rows if r['state'] == state]
-    stat_params = request.GET.copy()
-    stat_params.pop('page', None)
-    stat_params.pop('state', None)
-    if form.is_valid():
-        stat_params['month'] = form.cleaned_data['month']
-        stat_params['year'] = form.cleaned_data['year']
-    return {'form': form, 'rows': rows, 'summary': summary, 'period': period, 'progress': progress,
-            'average': average, 'month_query': month_query, 'stat_query': stat_params.urlencode()}
-
-
 @login_required
 def personal(request):
     employee = get_object_or_404(Employee, user=request.user)
@@ -119,7 +83,7 @@ def employee_month(request, employee_id, own_only=False):
         'page_obj': Paginator(context['rows'], 6 if personal else 12).get_page(request.GET.get('page')),
         'page_query': page_query(request), 'director': has_role(request.user, DIRECTOR),
         'initials': ''.join(word[0] for word in employee.full_name.split()[-2:]).upper(),
-        'tabs': [('', 'Tất cả'), ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép'), ('ot', 'Tăng ca')]})
+        'tabs': [('', 'Tất cả'), ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép')]})
     return render(request, 'attendance/month.html', context)
 
 
@@ -137,28 +101,6 @@ def approve_employee_view(request, employee_id, period_id):
         messages.success(request, f'Đã duyệt bảng công của {employee.full_name} tháng {period}.')
     return redirect(reverse('attendance:employee-month', args=[employee.pk]) + '?' +
                     urlencode({'month': period.month, 'year': period.year}))
-
-
-def audit_data(request, employee):
-    period_form = AttendanceFilter(request.user, request.GET)
-    logs = AttendanceAuditLog.objects.none()
-    month_query = ''
-    if period_form.is_valid():
-        data = period_form.cleaned_data
-        month_query = urlencode({'month': data['month'], 'year': data['year']})
-        logs = history_logs(employee, data['year'], data['month'])
-    form = HistoryFilter(request.GET, logs)
-    rows = []
-    if form.is_valid() and period_form.is_valid():
-        data = form.cleaned_data
-        if data['start']:
-            logs = logs.filter(created_at__date__gte=data['start'])
-        if data['end']:
-            logs = logs.filter(created_at__date__lte=data['end'])
-        if data['actor']:
-            logs = logs.filter(actor=data['actor'])
-        rows = history_rows(logs, data['field'])
-    return {'form': form, 'period_form': period_form, 'rows': rows, 'month_query': month_query}
 
 
 @login_required
@@ -188,13 +130,13 @@ def export_month(request, employee_id):
         values = [[r['time'].isoformat(), r['date'], r['field'], r['old'], r['new'], r['actor'], r['reason']]
                   for r in context['rows']]
     else:
-        writer.writerow(['Mã NV', 'Họ tên', 'Ngày', 'Giờ vào', 'Giờ ra', 'Tình trạng', 'Phút muộn', 'Giờ làm', 'OT duyệt', 'Công hưởng lương', 'Ghi chú'])
+        writer.writerow(['Mã NV', 'Họ tên', 'Ngày', 'Giờ vào', 'Giờ ra', 'Tình trạng', 'Phút muộn', 'Giờ làm', 'Công hưởng lương', 'Ghi chú'])
         values = []
         for row in context['rows']:
             record = row['record']
             values.append([employee.code, employee.full_name, row['date'], record.check_in if record else '',
                 record.check_out if record else '', row['label'], record.late_minutes if record else '',
-                record.work_hours if record else '', row['ot'], record.paid_units if record else '', record.note if record else ''])
+                record.work_hours if record else '', record.paid_units if record else '', record.note if record else ''])
     for row in values:
         cells = [str(value) if value is not None else '' for value in row]
         writer.writerow(["'" + value if value.lstrip().startswith(('=', '+', '-', '@')) else value for value in cells])
@@ -207,16 +149,22 @@ def export_month(request, employee_id):
 def detail(request, pk):
     row = get_object_or_404(AttendanceRecord.objects.select_related('employee'), pk=pk,
                             employee__in=visible_employees(request.user))
-    overtime = OvertimeApproval.objects.filter(employee=row.employee, date=row.date, approved=True,
-                                               approved_by__isnull=False, approved_at__isnull=False)
-    return render(request, 'attendance/detail.html', {'row': row, 'overtime': overtime,
-                  'can_edit': has_role(request.user, HR, DIRECTOR)})
+    return render(request, 'attendance/detail.html', {'row': row,
+        'can_edit': has_role(request.user, HR, DIRECTOR) and not record_is_locked(row)})
+
+
+@login_required
+@require_POST
+def approve_overtime_view(request, pk, action='approve'):
+    raise PermissionDenied('Công ty không cho phép tăng ca. Chức năng OT đã ngừng hoạt động.')
 
 
 @login_required
 def edit(request, pk=None):
     require_role(request.user, HR, DIRECTOR)
     row = get_object_or_404(AttendanceRecord, pk=pk, employee__in=visible_employees(request.user)) if pk else None
+    if row and record_is_locked(row):
+        raise PermissionDenied('Kỳ công đã duyệt, không được chỉnh sửa chấm công.')
     initial = {'employee': request.GET.get('employee'), 'date': request.GET.get('date')} if not row else None
     form = AttendanceForm(request.user, request.POST or None, instance=row, initial=initial)
     if request.method == 'POST' and form.is_valid():

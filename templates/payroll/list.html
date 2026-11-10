@@ -20,19 +20,19 @@
  <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-export">Xuất bảng lương</button>
 </div>{% endif %}
 <div class="pr-table-scroll"><table class="pr-table"><thead><tr>
- <th>Họ tên</th><th>Phòng ban</th><th>Lương cơ<br>bản</th><th>Lương<br>theo công</th><th>Lương<br>tăng ca</th><th>Tổng tiền<br>thưởng</th><th>Khấu trừ<br>đi trễ</th><th>Khấu trừ<br>BHXH</th><th>Thuế<br>TNCN</th><th>Lương thực<br>lĩnh</th><th>Trạng thái</th>{% if director %}<th>Tác vụ</th>{% endif %}
+ <th>Họ tên</th><th>Phòng ban</th><th>Lương cơ<br>bản</th><th>Lương<br>theo công</th><th>Tổng tiền<br>thưởng</th><th>Khấu trừ<br>đi trễ</th><th>Khấu trừ<br>BHXH</th><th>Thuế<br>TNCN</th><th>Lương thực<br>lĩnh</th><th>Trạng thái</th>{% if director %}<th>Tác vụ</th>{% endif %}
 </tr></thead><tbody>
 {% for row in rows %}<tr>
  <td class="pr-name"><a href="{% url 'payroll:detail' row.pk %}">{{ row.employee_name }}</a><small>{{ row.employee_code }}</small></td>
  <td class="pr-department pr-tone-{{ row.department_name|department_tone }}">{{ row.department_name }}</td>
  <td class="pr-muted pr-money">{{ row.base_salary|money }}</td><td class="pr-money">{{ row.attendance_pay|money }}</td>
- <td class="pr-overtime pr-money">{{ row.ot_pay|money }}</td><td class="pr-bonus pr-money">{{ row.bonus_pay|money }}</td>
+ <td class="pr-bonus pr-money">{{ row.bonus_pay|money }}</td>
  <td class="pr-muted" title="Dữ liệu hiện chưa tách khoản phạt đi trễ; không tự áp dụng khoản phạt.">—</td>
  <td class="pr-deduct pr-money">{% with bhxh_amount=row|bhxh %}{% if bhxh_amount != None %}− {{ bhxh_amount|money }}{% else %}—{% endif %}{% endwith %}<small class="pr-muted">Tổng BH: {{ row.insurance|money }}</small></td>
  <td class="{% if row.tax %}pr-deduct{% else %}pr-muted{% endif %} pr-money">{% if row.tax %}− {% endif %}{{ row.tax|money }}</td>
  <td class="pr-net-cell pr-money">{{ row.net_pay|money }}</td><td class="pr-status pr-status-{{ row.status }}">{{ row.get_status_display }}</td>
  {% if director %}<td>{% if row.status == 'pending' %}<form method="post" action="{% url 'payroll:employee-approve' row.pk %}">{% csrf_token %}<button class="pr-button pr-approve-record" type="submit">Duyệt bảng lương</button></form>{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}{% else %}<span class="pr-muted">{{ row.get_status_display }}</span>{% endif %}</td>{% endif %}
-</tr>{% empty %}<tr><td colspan="{% if director %}12{% else %}11{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}
+</tr>{% empty %}<tr><td colspan="{% if director %}11{% else %}10{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}
  <h2>CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG</h2>
  {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Hãy chọn kỳ lương khác hoặc thực hiện tính lương cho kỳ này.</p>{% if form.q.value or form.department.value or form.status.value or form.employee.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
 </div></td></tr>{% endfor %}

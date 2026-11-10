@@ -20,7 +20,7 @@ from employees.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from employees.models import Employee
 from leaves.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
-from .models import Bonus, approved_bonus_records, complete_bonus_records
+from .models import Bonus, approved_bonus_records, complete_bonus_records, displayed_bonus_records
 
 
 def access_denied(request):
@@ -31,7 +31,7 @@ def bonus_rows(user, form):
     if not form.is_valid():
         return Bonus.objects.none()
     data = form.cleaned_data
-    rows = complete_bonus_records(Bonus.objects.select_related(
+    rows = displayed_bonus_records(Bonus.objects.select_related(
         'employee__department', 'proposed_by', 'approved_by').filter(
         employee__in=form.employee_scope(user))
     )
@@ -85,15 +85,8 @@ def bonus_list(request):
     form = BonusFilter(request.user, request.GET)
     if not form.is_valid() and {'employee', 'department'} & set(form.errors):
         return access_denied(request)
-    if (has_role(request.user, HR, MANAGER) and form.is_valid()
-            and form.cleaned_data.get('month') and form.cleaned_data.get('year')):
-        data = form.cleaned_data
-        employees = form.employee_scope(request.user)
-        if data.get('q'):
-            employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
-        for employee in employees:
-            ensure_automatic_bonuses(employee, data['month'], data['year'], request.user)
-    rows = grouped_bonuses(bonus_rows(request.user, form))
+    source_rows = bonus_rows(request.user, form)
+    rows = grouped_bonuses(source_rows)
     if form.is_valid() and form.cleaned_data.get('status'):
         rows = [row for row in rows if row['status'] == form.cleaned_data['status']]
     total_amount = sum((row['total'] for row in rows), Decimal(0))
@@ -115,7 +108,7 @@ def personal_list(request):
         return access_denied(request)
 
     form = PersonalBonusFilter(request.GET)
-    rows = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
+    rows = displayed_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__user=request.user)).order_by('-year', '-month', 'name')
     if form.is_valid():
         if form.cleaned_data.get('month'):
@@ -213,7 +206,7 @@ def detail(request, employee_id, year, month):
             and not visible_employees(request.user).filter(pk=employee_id).exists()):
         return access_denied(request)
     employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
-    rows = complete_bonus_records(Bonus.objects.select_related(
+    rows = displayed_bonus_records(Bonus.objects.select_related(
         'employee__department', 'proposed_by', 'approved_by').filter(
             employee=employee, year=year, month=month))
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
@@ -225,14 +218,12 @@ def detail(request, employee_id, year, month):
         from django.http import Http404
         raise Http404
     group = grouped[0]
-    existing_types = {item.bonus_type for item in group['records']}
-    missing_types = {'attendance', 'seniority'} - existing_types
     needs_auto_reason = any(
         item.bonus_type in {'attendance', 'seniority'} and not item.reason
         for item in group['records']
     )
     automatic, attendance_error = (calculate_automatic(employee, month, year)
-                                   if missing_types or needs_auto_reason else ([], None))
+                                   if needs_auto_reason else ([], None))
     automatic_reasons = {bonus_type: reason for bonus_type, _name, _amount, reason in automatic}
     if attendance_error and 'attendance' not in automatic_reasons:
         automatic_reasons['attendance'] = '; '.join(attendance_error.messages)
@@ -245,23 +236,6 @@ def detail(request, employee_id, year, month):
         'is_uncomputed': False,
     } for item in group['records']]
     group['total_complete'] = True
-    if missing_types:
-        computed_types = {item[0] for item in automatic}
-        for bonus_type, name, amount, reason in automatic:
-            if bonus_type in missing_types:
-                group[bonus_type] = amount
-                group['total'] += amount
-                display_records.append({'type_label': name, 'name': name, 'bonus_type': bonus_type,
-                    'amount': amount, 'reason': reason, 'proposed_at': None, 'is_uncomputed': False})
-        unavailable_types = missing_types - computed_types
-        if unavailable_types:
-            group['total_complete'] = False
-            unavailable_reason = '; '.join(attendance_error.messages) if attendance_error else 'Chưa đủ dữ liệu chấm công.'
-            labels = {'seniority': 'Thưởng thâm niên', 'attendance': 'Thưởng chuyên cần'}
-            for bonus_type in unavailable_types:
-                display_records.append({'type_label': labels[bonus_type], 'name': labels[bonus_type],
-                    'bonus_type': bonus_type, 'amount': None, 'reason': unavailable_reason,
-                    'proposed_at': None, 'is_uncomputed': True})
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
     group['can_submit'] = has_role(request.user, HR) and group['has_draft']

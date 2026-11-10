@@ -1,9 +1,13 @@
 import json
 from datetime import date, time
 from decimal import Decimal
+from io import StringIO
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User, Group
+from django.core.management import call_command
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.test import TestCase, Client
+from django.urls import reverse
 from django.utils import timezone
 from employees.models import Employee, Department
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
@@ -11,7 +15,12 @@ from attendance.services.workflow import change_period
 from bonuses.models import Bonus
 from .models import PayrollPeriod, PayrollInput, PayrollRecord, PayrollExportLog, PayrollAdjustment, PayrollAuditLog
 from .services.calculations import calculate_payroll
-from .services.workflow import change_payroll, approve_record
+from .services.workflow import change_payroll, approve_record, bonus_source_error
+
+
+def historical_overtime(**values):
+    """Nạp dữ liệu lịch sử cho kiểm thử; API/model save không cho ghi OT mới."""
+    return OvertimeApproval.objects.bulk_create([OvertimeApproval(**values)])[0]
 
 
 class PayrollTests(TestCase):
@@ -48,9 +57,10 @@ class PayrollTests(TestCase):
         change_payroll(self.director, self.period.pk, 'approve', 'Đã kiểm tra')
 
     def test_exact_net_and_approved_sources(self):
-        OvertimeApproval.objects.create(employee=self.emp, date=date(2026, 1, 5), hours=2,
+        AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(19))
+        historical_overtime(employee=self.emp, date=date(2026, 1, 5), hours=2,
             multiplier=Decimal('1.5'), approved=True, approved_by=self.director, approved_at=timezone.now())
-        OvertimeApproval.objects.create(employee=self.other, date=date(2026, 1, 5), hours=2,
+        historical_overtime(employee=self.other, date=date(2026, 1, 5), hours=2,
             multiplier=Decimal('1.5'), approved=False)
         for approved in [False, True]:
             Bonus.objects.create(employee=self.emp, month=1, year=2026, name='Thưởng', amount=200000,
@@ -62,9 +72,9 @@ class PayrollTests(TestCase):
         PayrollAdjustment.objects.create(employee=self.emp, period=self.period, name='Chưa duyệt',
                                          kind='deduction', amount=900000, basis='Test', approved=False)
         row = self.calculate()
-        self.assertEqual(row.net_pay, Decimal('10600000'))
+        self.assertEqual(row.net_pay, Decimal('7600000'))
         self.assertEqual(row.bonus_pay, 200000)
-        self.assertEqual(row.ot_hours, 2)
+        self.assertEqual(row.ot_hours, 0)
         self.assertEqual(PayrollRecord.objects.get(employee=self.other).ot_pay, 0)
 
     def test_no_payroll_before_attendance_approval(self):
@@ -143,11 +153,12 @@ class PayrollTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(f'/payroll/{own.pk}/').status_code, 200)
         self.assertEqual(self.client.get(f'/payroll/{other.pk}/').status_code, 404)
-        response = self.client.get('/payroll/?month=1&year=2026')
+        response = self.client.get('/payroll/?month=1&year=2026', follow=True)
         self.assertContains(response, 'NV01')
         self.assertNotContains(response, 'NV02')
-        response = self.client.get(f'/payroll/?month=1&year=2026&employee={self.other.pk}')
-        self.assertTrue(response.context['form'].errors)
+        response = self.client.get(f'/payroll/?month=1&year=2026&employee={self.other.pk}', follow=True)
+        self.assertEqual(response.context['row'].employee, self.emp)
+        self.assertNotContains(response, 'NV02')
 
     def test_manager_payroll_scope(self):
         self.calculate()
@@ -275,7 +286,7 @@ class PayrollTests(TestCase):
         own = self.calculate()
         self.approve()
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/', {'month': 1, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
         for text in ['PHIẾU LƯƠNG CÁ NHÂN', 'PHIẾU THANH TOÁN LƯƠNG', 'KHOẢN THU NHẬP',
                      'KHOẢN KHẤU TRỪ', '7,100,000 VNĐ', 'In phiếu lương']:
             self.assertContains(response, text)
@@ -288,13 +299,13 @@ class PayrollTests(TestCase):
 
     def test_personal_empty_and_invalid_filter_do_not_write(self):
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/', {'month': 10, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 10, 'year': 2026})
         self.assertContains(response, 'CHƯA CÓ DỮ LIỆU PHIẾU LƯƠNG')
         self.assertContains(response, 'Tháng 10/2026')
         self.assertNotContains(response, 'data-print-payslip')
         self.assertEqual(PayrollRecord.objects.count(), 0)
         self.assertEqual(PayrollAuditLog.objects.count(), 0)
-        response = self.client.get('/payroll/', {'month': 13, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 13, 'year': 2026})
         self.assertTrue(response.context['form'].errors)
         self.assertIsNone(response.context['row'])
 
@@ -311,7 +322,7 @@ class PayrollTests(TestCase):
         row = self.calculate()
         self.approve()
         self.client.force_login(self.user)
-        self.client.get('/payroll/', {'month': 1, 'year': 2026})
+        self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
         self.period.refresh_from_db()
         self.assertEqual(self.period.status, 'approved')
         self.assertIsNone(self.period.paid_at)
@@ -333,7 +344,7 @@ class PayrollTests(TestCase):
         self.calculate()
         self.approve()
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/', {'month': 1, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
         self.assertContains(response, 'aria-label="Điều hướng chính"', count=1)
         self.assertContains(response, 'payroll/payroll.css')
         self.assertContains(response, 'payroll/payroll.js')
@@ -354,7 +365,7 @@ class PayrollTests(TestCase):
         self.emp.base_salary = 99000000
         self.emp.save()
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/', {'month': 1, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
         self.assertEqual(response.context['row'].base_salary, row.base_salary)
         self.assertContains(response, '6,950,000 VNĐ')
         self.assertContains(response, 'Chưa có khoản phạt tách riêng')
@@ -364,7 +375,7 @@ class PayrollTests(TestCase):
         # Chờ nhóm xác nhận mâu thuẫn UC-7.1/ảnh: không tự thay quyền xem bản chờ duyệt.
         row = self.calculate()
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/', {'month': 1, 'year': 2026})
+        response = self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
         self.assertEqual(response.context['row'].pk, row.pk)
         self.assertContains(response, 'Bản chờ duyệt')
         self.assertContains(response, 'Chờ duyệt · Chưa chi trả')
@@ -405,7 +416,7 @@ class PayrollTests(TestCase):
         for user in [self.hr, self.user]:
             self.client.force_login(user)
             self.assertEqual(self.client.post(url).status_code, 403)
-            response = self.client.get('/payroll/?month=1&year=2026')
+            response = self.client.get('/payroll/?month=1&year=2026', follow=True)
             self.assertNotContains(response, f'action="{url}"')
         self.client.force_login(self.director)
         self.assertEqual(self.client.get(url).status_code, 405)
@@ -454,7 +465,7 @@ class PayrollTests(TestCase):
         self.assertEqual(len(payload), 1)
         self.assertEqual(payload[0]['employee_code'], self.emp.code)
         self.client.force_login(self.user)
-        response = self.client.get('/payroll/?month=1&year=2026')
+        response = self.client.get('/payroll/personal/?month=1&year=2026')
         self.assertContains(response, 'Đã duyệt · Chưa chi trả')
         self.assertNotContains(response, 'Bản chờ duyệt')
 
@@ -551,19 +562,20 @@ class PayrollTests(TestCase):
         with self.assertRaises(ValidationError):
             approve_record(self.director, row.pk)
         bonus.delete()
-        OvertimeApproval.objects.create(employee=self.emp, date=date(2026, 1, 5), hours=1,
+        AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(18))
+        historical_overtime(employee=self.emp, date=date(2026, 1, 5), hours=1,
             multiplier=Decimal('1.5'), approved=True, approved_by=self.director, approved_at=timezone.now())
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError):  # Giờ check-out nguồn đã đổi, phải tính lại.
             approve_record(self.director, row.pk)
 
-    def test_incomplete_legacy_bonus_is_not_added_to_payroll(self):
+    def test_incomplete_approved_legacy_bonus_blocks_calculation(self):
         Bonus.objects.create(employee=self.emp, month=1, year=2026, name='', amount=300000,
             status='approved', approved_by=self.director, approved_at=timezone.now())
 
-        row = self.calculate()
-
-        self.assertEqual(row.bonus_pay, 0)
-        self.assertEqual(row.breakdown['bonuses'], [])
+        with self.assertRaisesMessage(ValidationError, 'Có khoản thưởng đã duyệt thiếu thông tin'):
+            self.calculate()
+        self.assertFalse(PayrollRecord.objects.exists())
+        self.assertFalse(PayrollAuditLog.objects.exists())
 
     def test_note_or_other_employee_changes_do_not_block_approval(self):
         row = self.calculate()
@@ -666,3 +678,279 @@ class PayrollTests(TestCase):
         self.assertEqual(response.status_code, 200)
         obj.refresh_from_db()
         self.assertEqual(obj.insurance_rates, {'BH': '0.1'})
+
+
+class NoOvertimePayrollTests(TestCase):
+    setUp = PayrollTests.setUp
+    calculate = PayrollTests.calculate
+    approve = PayrollTests.approve
+
+    def history(self):
+        return historical_overtime(employee=self.emp,date=date(2026,1,5),hours=2,
+            multiplier=Decimal('1.5'),approved=True,approved_by=self.director,approved_at=timezone.now())
+
+    def test_new_payroll_ignores_even_inconsistent_legacy_ot(self):
+        history = self.history()  # Check-out 17:00 nhưng OT cũ 2 giờ; không được dùng tính lương.
+        before = list(OvertimeApproval.objects.values())
+        salary = self.calculate()
+        self.assertEqual(salary.ot_hours,0)
+        self.assertEqual(salary.ot_pay,0)
+        self.assertEqual(salary.net_pay,Decimal('7100000'))
+        self.assertEqual(salary.breakdown['ot'],[])
+        self.assertEqual(salary.breakdown['source_data']['overtime'],[])
+        self.assertEqual(salary.breakdown['source_data']['overtime_policy'],'disabled')
+        self.assertEqual(list(OvertimeApproval.objects.values()),before)
+        self.assertEqual(history.pk,OvertimeApproval.objects.get().pk)
+
+    def test_legacy_ot_changes_do_not_change_new_payroll_or_block_payment(self):
+        salary = self.calculate()
+        self.history()
+        self.approve()
+        change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        salary.refresh_from_db()
+        self.assertEqual(salary.status,'paid')
+        self.assertEqual(salary.ot_pay,0)
+
+    def test_unpaid_legacy_ot_blocks_approval_payment_export_until_recalculated(self):
+        from .services.exports import export_records
+        salary = self.calculate()
+        salary.ot_hours,salary.ot_pay = Decimal(2),Decimal('3000000')
+        salary.net_pay += Decimal('3000000')
+        salary.save()
+        with self.assertRaisesMessage(ValidationError,'Công ty không cho phép tăng ca'):
+            approve_record(self.director,salary.pk)
+        with self.assertRaises(ValidationError):
+            self.approve()
+        self.period.status='approved'
+        self.period.save()
+        salary.status='approved'
+        salary.save()
+        before = list(PayrollRecord.objects.values())
+        with self.assertRaises(ValidationError):
+            change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        with self.assertRaises(ValidationError):
+            export_records(self.hr,PayrollRecord.objects.filter(pk=salary.pk),'csv',1,2026,{})
+        self.assertEqual(list(PayrollRecord.objects.values()),before)
+        change_payroll(self.director,self.period.pk,'reopen','Mở lại theo quy định không OT')
+        salary = self.calculate()
+        self.assertEqual(salary.ot_pay,0)
+        self.approve()
+        change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        salary.refresh_from_db()
+        self.assertEqual(salary.status,'paid')
+
+    def test_current_payslip_and_exports_have_no_ot_component(self):
+        from .services.exports import export_records
+        salary = self.calculate()
+        self.approve()
+        self.client.force_login(self.user)
+        response=self.client.get('/payroll/personal/?month=1&year=2026')
+        self.assertNotContains(response,'Lương tăng ca')
+        self.assertNotContains(response,'Khoản tăng ca lịch sử')
+        for fmt in ['csv','txt','json']:
+            response=export_records(self.hr,PayrollRecord.objects.filter(pk=salary.pk),fmt,1,2026,{})
+            text=response.content.decode('utf-8-sig')
+            self.assertNotIn('ot_hours',text)
+            self.assertNotIn('ot_pay',text)
+            self.assertNotIn('historical_ot_',text)
+
+    def test_paid_historical_snapshot_is_preserved_and_clearly_identified(self):
+        from .services.exports import export_records
+        salary=self.calculate()
+        self.approve()
+        change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        salary.refresh_from_db()
+        salary.ot_hours,salary.ot_pay=Decimal(2),Decimal('3000000')
+        salary.net_pay+=Decimal('3000000')
+        salary.save()
+        before=list(PayrollRecord.objects.values())
+        self.client.force_login(self.user)
+        response=self.client.get('/payroll/personal/?month=1&year=2026')
+        self.assertContains(response,'Khoản tăng ca lịch sử đã lưu')
+        self.assertEqual(response.context['income_total'],Decimal('11000000'))
+        for fmt in ['csv','txt','json']:
+            response=export_records(self.hr,PayrollRecord.objects.filter(pk=salary.pk),fmt,1,2026,{})
+            self.assertIn('historical_ot_pay',response.content.decode('utf-8-sig'))
+        self.assertEqual(list(PayrollRecord.objects.values()),before)
+
+
+class PayrollBonusSourceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.hr = get_user_model().objects.create_user('bonus-source-hr')
+        cls.hr.groups.add(Group.objects.get_or_create(name='Nhân sự')[0])
+        cls.director = get_user_model().objects.create_user('bonus-source-director')
+        cls.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
+        cls.user = get_user_model().objects.create_user('bonus-source-employee')
+        other_user = get_user_model().objects.create_user('bonus-source-other')
+        department = Department.objects.create(code='SOURCE', name='Phòng kiểm thử')
+        cls.employee = Employee.objects.create(code='SOURCE-1', full_name='Nhân viên nguồn thưởng',
+            user=cls.user, department=department, hire_date=date(2020, 1, 1), base_salary=8000000)
+        cls.other = Employee.objects.create(code='SOURCE-2', full_name='Nhân viên khác',
+            user=other_user, department=department, hire_date=date(2020, 1, 1), base_salary=8000000)
+        cls.attendance = AttendancePeriod.objects.create(month=9, year=2026, start_time=time(8),
+            lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8,
+            policy_confirmed=True, status='approved', employee_ids=[cls.employee.pk])
+        WorkCalendarDay.objects.create(date=date(2026, 9, 3), kind='work', expected_units=1)
+        AttendanceRecord.objects.create(employee=cls.employee, date=date(2026, 9, 3),
+            status='present', check_in=time(8), check_out=time(17),
+            work_hours=8, actual_units=1, paid_units=1)
+        cls.period = PayrollPeriod.objects.create(attendance_period=cls.attendance)
+        PayrollInput.objects.create(period=cls.period, employee=cls.employee,
+            insurance_base=8000000, insurance_rates={'BH': '0.1'}, tax_amount=0,
+            tax_basis='Căn cứ thuế kiểm thử', insurance_basis='Căn cứ bảo hiểm kiểm thử', verified=True)
+
+    def bonus(self, **changes):
+        values = dict(employee=self.employee, month=9, year=2026, name='Thưởng kết quả công việc',
+            bonus_type='other', amount=300000, reason='Hoàn thành công việc theo đánh giá',
+            proposed_by=self.hr, proposed_at=timezone.now(), status='approved',
+            approved_by=self.director, approved_at=timezone.now())
+        values.update(changes)
+        return Bonus.objects.create(**values)
+
+    def calculate(self):
+        calculate_payroll(self.hr, self.period.pk, 'Đối chiếu nguồn thưởng')
+        return PayrollRecord.objects.get(period=self.period, employee=self.employee)
+
+    def approve(self):
+        change_payroll(self.director, self.period.pk, 'approve', 'Đã đối chiếu dữ liệu')
+
+    def pay(self):
+        change_payroll(self.director, self.period.pk, 'paid', 'Xác nhận chi trả kiểm thử', 'UNC-TEST')
+
+    def test_payroll_matches_approved_bonus_view_for_same_employee_and_period(self):
+        approved = self.bonus()
+        self.bonus(status='pending', amount=2000000, approved_by=None, approved_at=None)
+        self.bonus(employee=self.other, amount=999999)
+        self.bonus(month=10, amount=999999)
+        row = self.calculate()
+        self.assertEqual(row.bonus_pay, Decimal(300000))
+        self.assertEqual([item['id'] for item in row.breakdown['bonuses']], [approved.pk])
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('bonuses:personal'), {'month': 9, 'year': 2026, 'status': 'approved'})
+        self.assertEqual(response.context['total_amount'], row.bonus_pay)
+        response = self.client.get(reverse('bonuses:personal'), {'month': 9, 'year': 2026, 'status': 'pending'})
+        self.assertEqual(response.context['total_amount'], Decimal(2000000))
+
+    def test_legacy_approved_bonus_is_visible_without_changing_data(self):
+        bonus = self.bonus()
+        row = self.calculate()
+        self.approve()
+        Bonus.objects.filter(pk=bonus.pk).update(reason='', proposed_at=None)
+        before_bonus = list(Bonus.objects.values())
+        before_salary = list(PayrollRecord.objects.values())
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('bonuses:personal'), {'month': 9, 'year': 2026})
+        self.assertEqual(response.context['total_amount'], Decimal(300000))
+        self.assertNotContains(response, 'dữ liệu cũ còn thiếu thông tin')
+        self.assertEqual(response.context['rows'][0]['records'][0].pk, bonus.pk)
+        response = self.client.get(reverse('payroll:detail', args=[row.pk]))
+        self.assertEqual(response.context['row'].bonus_pay, Decimal(300000))
+        self.assertNotContains(response, 'Có khoản thưởng đã duyệt thiếu thông tin')
+        response = self.client.get(reverse('payroll:personal'), {'month': 9, 'year': 2026})
+        self.assertNotContains(response, 'Có khoản thưởng đã duyệt thiếu thông tin')
+        self.assertEqual(list(Bonus.objects.values()), before_bonus)
+        self.assertEqual(list(PayrollRecord.objects.values()), before_salary)
+
+    def test_management_and_detail_show_same_saved_total_without_unsaved_previews(self):
+        bonus = self.bonus(reason='', proposed_at=None)
+        for user in [self.hr, self.director]:
+            self.client.force_login(user)
+            response = self.client.get(reverse('bonuses:list'), {'month': 9, 'year': 2026})
+            self.assertEqual(response.context['total_amount'], Decimal(300000))
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('bonuses:detail', args=[self.employee.pk, 2026, 9]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['row']['total'], Decimal(300000))
+        self.assertEqual(len(response.context['row']['records']), 1)
+        self.assertContains(response, 'Chưa có ngày gửi đề xuất')
+        bonus.refresh_from_db()
+        self.assertIsNone(bonus.proposed_at)
+        self.assertEqual(bonus.reason, '')
+
+    def test_each_invalid_approved_source_blocks_calculation_without_partial_results(self):
+        bonus = self.bonus()
+        original = Bonus.objects.filter(pk=bonus.pk).values(
+            'name', 'reason', 'proposed_at', 'approved_by_id', 'approved_at').get()
+        for missing in [{'name': ''}, {'reason': ''}, {'proposed_at': None},
+                        {'approved_by_id': None}, {'approved_at': None}]:
+            with self.subTest(missing=missing):
+                Bonus.objects.filter(pk=bonus.pk).update(**original)
+                Bonus.objects.filter(pk=bonus.pk).update(**missing)
+                with self.assertRaisesMessage(ValidationError, 'Có khoản thưởng đã duyệt thiếu thông tin'):
+                    self.calculate()
+                self.assertFalse(PayrollRecord.objects.exists())
+                self.assertFalse(PayrollAuditLog.objects.exists())
+
+    def test_new_invalid_approved_bonus_blocks_approval_of_an_old_calculation(self):
+        row = self.calculate()
+        self.bonus(reason='', proposed_at=None)
+        with self.assertRaisesMessage(ValidationError, 'Có khoản thưởng đã duyệt thiếu thông tin'):
+            approve_record(self.director, row.pk)
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'pending')
+
+    def test_pending_rejected_and_draft_bonuses_are_not_payroll_income(self):
+        for status in ['pending', 'rejected', 'draft']:
+            self.bonus(status=status, reason='', proposed_at=None, approved_by=None, approved_at=None)
+        row = self.calculate()
+        self.assertEqual(row.bonus_pay, 0)
+        self.assertEqual(row.breakdown['bonuses'], [])
+
+    def test_other_employee_or_period_invalid_bonus_does_not_block_own_payroll(self):
+        self.bonus(employee=self.other, reason='', proposed_at=None)
+        self.bonus(month=10, reason='', proposed_at=None)
+        self.assertEqual(self.calculate().bonus_pay, 0)
+
+    def test_valid_approved_bonus_allows_payment(self):
+        self.bonus()
+        row = self.calculate()
+        self.approve()
+        self.assertEqual(bonus_source_error(row), '')
+        self.pay()
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.status, 'paid')
+
+    def test_changed_bonus_blocks_payment_without_rewriting_locked_salary(self):
+        bonus = self.bonus()
+        row = self.calculate()
+        self.approve()
+        before = list(PayrollRecord.objects.values())
+        Bonus.objects.filter(pk=bonus.pk).update(amount=500000)
+        with self.assertRaisesMessage(ValidationError, 'Bảng thưởng đã thay đổi'):
+            self.pay()
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.status, 'approved')
+        self.assertEqual(list(PayrollRecord.objects.values()), before)
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('payroll:detail', args=[row.pk]))
+        self.assertNotContains(response, 'Bảng thưởng đã thay đổi')
+        self.assertEqual(response.context['row'].bonus_pay, Decimal(300000))
+
+    def test_replacing_bonus_with_same_amount_still_requires_recalculation(self):
+        bonus = self.bonus()
+        self.calculate()
+        self.approve()
+        bonus.delete()
+        self.bonus()
+        with self.assertRaisesMessage(ValidationError, 'Bảng thưởng đã thay đổi'):
+            self.pay()
+
+    def test_invalid_legacy_source_blocks_payment_without_fabricating_metadata(self):
+        bonus = self.bonus()
+        self.calculate()
+        self.approve()
+        Bonus.objects.filter(pk=bonus.pk).update(reason='', proposed_at=None)
+        with self.assertRaisesMessage(ValidationError, 'Có khoản thưởng đã duyệt thiếu thông tin'):
+            self.pay()
+        bonus.refresh_from_db()
+        self.assertEqual(bonus.reason, '')
+        self.assertIsNone(bonus.proposed_at)
+
+    def test_other_employee_cannot_view_legacy_bonus_by_direct_url(self):
+        self.bonus(reason='', proposed_at=None)
+        self.client.force_login(self.other.user)
+        response = self.client.get(reverse('bonuses:personal'), {'month': 9, 'year': 2026})
+        self.assertEqual(response.context['total_amount'], 0)
+        self.assertEqual(self.client.get(reverse('bonuses:detail',
+            args=[self.employee.pk, 2026, 9])).status_code, 403)

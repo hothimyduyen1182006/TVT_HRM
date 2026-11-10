@@ -73,6 +73,42 @@ class ManagementPersonalRecordsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'class="record-scope')
 
+    def test_employee_management_payroll_redirects_with_denied_message(self):
+        employee = self.people[3]
+        self.client.force_login(employee.user)
+        response = self.client.get('/payroll/', {'month': 1, 'year': 2026,
+            'employee': self.people[0].pk, 'department': self.team.pk, 'q': 'Người 0'}, follow=True)
+        self.assertEqual(response.redirect_chain, [('/payroll/personal/?month=1&year=2026', 302)])
+        self.assertContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
+        self.assertEqual(response.context['row'].employee, employee)
+        self.assertTrue(response.context['personal'])
+        self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
+
+    def test_direct_personal_payroll_does_not_show_denied_message(self):
+        self.client.force_login(self.people[3].user)
+        response = self.client.get('/payroll/personal/', {'month': 1, 'year': 2026})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
+        self.assertEqual(response.context['row'].employee, self.people[3])
+
+    def test_payroll_navigation_points_to_allowed_page_for_each_role(self):
+        for employee in self.people:
+            with self.subTest(user=employee.user.username):
+                self.client.force_login(employee.user)
+                response = self.client.get('/attendance/personal/', {'month': 1, 'year': 2026})
+                path = '/payroll/personal/' if employee == self.people[3] else '/payroll/'
+                self.assertContains(response, f'<a href="{path}" >BẢNG LƯƠNG</a>', html=True)
+                destination = self.client.get(path, {'month': 1, 'year': 2026})
+                self.assertEqual(destination.status_code, 200)
+                self.assertNotContains(destination, 'Bạn không có quyền truy cập chức năng quản lý lương.')
+
+    def test_employee_redirect_without_period_and_anonymous_login_redirect(self):
+        self.client.force_login(self.people[3].user)
+        self.assertRedirects(self.client.get('/payroll/'), '/payroll/personal/', fetch_redirect_response=False)
+        self.client.logout()
+        self.assertRedirects(self.client.get('/payroll/'), '/accounts/login/?next=/payroll/',
+                             fetch_redirect_response=False)
+
     def test_dashboard_is_only_available_to_management(self):
         self.client.force_login(self.people[3].user)
         self.assertRedirects(self.client.get('/'), '/attendance/', fetch_redirect_response=False)

@@ -35,3 +35,46 @@ def calculate_record(record, period):
     for field in ['work_hours', 'actual_units', 'paid_leave_units', 'paid_units']:
         setattr(record, field, getattr(record, field).quantize(Decimal('0.0001')))
     return record
+
+
+def available_overtime(record, period, day):
+    if not record or record.status != 'present' or not record.check_in or not record.check_out:
+        return Decimal(0)
+    at = lambda value: datetime.combine(record.date, value)
+    start, end = at(record.check_in), at(record.check_out)
+    if end <= start:
+        return Decimal(0)
+    if day.kind == 'work':
+        seconds = max(0, int((min(end, at(period.start_time)) - start).total_seconds()))
+        seconds += max(0, int((end - max(start, at(period.end_time))).total_seconds()))
+    else:
+        seconds = int((end - start).total_seconds())
+        seconds -= max(0, int((min(end, at(period.lunch_end)) - max(start, at(period.lunch_start))).total_seconds()))
+    return Decimal(seconds) / Decimal(3600)
+
+
+def validate_overtime(overtime, record=None, period=None):
+    if not overtime.approved:
+        return
+    if overtime.status not in ['approved', 'legacy']:
+        raise ValidationError('Chỉ OT đã duyệt mới được tính lương.')
+    from attendance.models import AttendanceRecord, AttendancePeriod, WorkCalendarDay
+    if not overtime.employee_id or not overtime.date or overtime.hours is None:
+        raise ValidationError('OT cần có nhân viên, ngày và số giờ.')
+    period = period or AttendancePeriod.objects.filter(year=overtime.date.year, month=overtime.date.month).first()
+    day = WorkCalendarDay.objects.filter(date=overtime.date).first()
+    record = record or AttendanceRecord.objects.filter(employee_id=overtime.employee_id, date=overtime.date).first()
+    if not period or not day:
+        raise ValidationError('Chưa có kỳ công hoặc lịch làm việc để đối chiếu OT.')
+    if not record or record.status != 'present' or not record.check_in or not record.check_out:
+        raise ValidationError('Chỉ duyệt OT khi có chấm công đủ giờ vào / ra và trạng thái Có mặt.')
+    maximum = available_overtime(record, period, day)
+    if overtime.hours > maximum:
+        raise ValidationError(f'OT {overtime.hours} giờ vượt thời gian ngoài ca thực tế ({maximum:.2f} giờ).')
+
+
+def validated_overtime(rows):
+    rows = list(rows)
+    for row in rows:
+        row.full_clean()
+    return rows

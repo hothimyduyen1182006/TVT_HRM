@@ -101,6 +101,18 @@ class AttendanceRecord(models.Model):
 
 
 class OvertimeApproval(models.Model):
+    status = models.CharField('Trạng thái yêu cầu', max_length=10, default='legacy', choices=[
+        ('legacy', 'Dữ liệu cũ'), ('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')])
+    requested_hours = models.DecimalField('Giờ OT đề nghị', max_digits=6, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(24)])
+    request_reason = models.TextField('Lý do tăng ca', blank=True)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='submitted_overtime')
+    requested_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='reviewed_overtime')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField('Lý do từ chối', blank=True)
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     date = models.DateField('Ngày OT')
     hours = models.DecimalField('Giờ được duyệt', max_digits=6, decimal_places=2,
@@ -113,6 +125,34 @@ class OvertimeApproval(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['employee', 'date'], name='unique_employee_ot_date')]
+
+    def clean(self):
+        from .services.calculations import validate_overtime
+        if self.status != 'legacy':
+            if (not self.requested_by_id or not self.requested_at or not self.request_reason.strip()
+                    or not self.requested_hours):
+                raise ValidationError('Yêu cầu OT thiếu thông tin gửi của nhân viên.')
+            if self.employee_id and self.requested_by_id != self.employee.user_id:
+                raise ValidationError('Nhân viên chỉ được gửi yêu cầu OT của bản thân.')
+            if self.approved != (self.status == 'approved'):
+                raise ValidationError('Trạng thái duyệt OT không nhất quán.')
+            if self.status in ['approved', 'rejected'] and (not self.reviewed_by_id or not self.reviewed_at):
+                raise ValidationError('Thiếu người hoặc thời điểm xử lý OT.')
+            if self.status == 'approved' and self.hours and self.hours > self.requested_hours:
+                raise ValidationError('Không được duyệt quá số giờ nhân viên đề nghị.')
+            if self.status == 'approved' and (not self.approved_by_id or not self.approved_at):
+                raise ValidationError('Thiếu người hoặc thời điểm phê duyệt OT.')
+            if self.status == 'rejected' and not self.rejection_reason.strip():
+                raise ValidationError('Cần ghi lý do từ chối OT.')
+        validate_overtime(self)
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied('Công ty không cho phép tăng ca. Dữ liệu OT cũ chỉ được lưu trữ.')
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import PermissionDenied
+        raise PermissionDenied('Không được xóa lịch sử OT.')
 
 
 class AttendanceAuditLog(models.Model):

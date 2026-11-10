@@ -3,7 +3,7 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from attendance.models import AttendancePeriod, AttendanceRecord, EmployeeAttendanceApproval, OvertimeApproval, AttendanceAuditLog
+from attendance.models import AttendancePeriod, AttendanceRecord, EmployeeAttendanceApproval, AttendanceAuditLog
 from leaves.models import LeaveDay
 from payroll.models import PayrollPeriod, PayrollRecord, PayrollAuditLog
 
@@ -62,5 +62,4 @@ class Command(BaseCommand):
         # Các khoản nghỉ/OT tạo bởi bộ demo cho ngày tương lai cũng cần gỡ.
         LeaveDay.objects.filter(employee__code__startswith='DEMO-', date__gte=cutoff,
                                 reason__startswith='DEMO:').delete()
-        OvertimeApproval.objects.filter(employee__code__startswith='DEMO-', date__gte=cutoff).delete()
         self.stdout.write(self.style.SUCCESS(f'Removed {count} demo attendance records from {cutoff}.'))

@@ -1,3 +1,5 @@
+> Quy định hiện hành: công ty không cho phép tăng ca. Không đăng ký, duyệt hoặc tính lương OT. Các mô tả OT bên dưới chỉ phản ánh thiết kế/dữ liệu lịch sử, không áp dụng cho nghiệp vụ hiện tại.
+
 # Lấy code và bộ dữ liệu tháng 10/2026
 
 ```powershell

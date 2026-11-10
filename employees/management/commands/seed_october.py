@@ -44,6 +44,8 @@ class Command(BaseCommand):
         existing_roles = {u.pk: set(u.groups.values_list('pk', flat=True)) for u in User.objects.all()}
         new_names = [person[0] for person in PEOPLE if not User.objects.filter(username=person[0]).exists()]
         password = secrets.token_urlsafe(16)
+        if apps.get_model('attendance', 'OvertimeApproval').objects.exists():
+            raise CommandError('Không thể đặt lại dữ liệu vì cần bảo toàn lịch sử OT.')
         with transaction.atomic():
             order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.PayrollRecord',
                 'payroll.PayrollAdjustment', 'payroll.PayrollInput', 'payroll.PayrollPeriod',

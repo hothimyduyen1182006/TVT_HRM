@@ -1,3 +1,5 @@
+> Quy định hiện hành: công ty không cho phép tăng ca. Không đăng ký, duyệt hoặc tính lương OT. Các mô tả OT bên dưới chỉ phản ánh thiết kế/dữ liệu lịch sử, không áp dụng cho nghiệp vụ hiện tại.
+
 # Giao diện Bảng lương theo vai trò
 
 ## Kế thừa và phạm vi

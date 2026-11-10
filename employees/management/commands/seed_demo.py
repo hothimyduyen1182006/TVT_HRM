@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from employees.models import Department, Employee
-from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
+from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
 from attendance.services.workflow import save_record, change_period
 from leaves.models import LeaveDay
 from bonuses.models import Bonus
@@ -124,11 +124,6 @@ class Command(BaseCommand):
                     if index == 2 and number == 0:
                         row.check_in = time(8, 10)
                         save_record(hr, row, 'DEMO: sửa giờ vào sau khi đối chiếu; xem giá trị trước/sau trong lịch sử')
-                for day in [workdays[7], workdays[10]]:
-                    self.overtime(employee, day, Decimal(1) + Decimal(index) / 4, Decimal('1.5'), director, True)
-                if index in [0, 5]:
-                    self.overtime(employee, restdays[0], Decimal(2), Decimal(2), director, True)
-                self.overtime(employee, workdays[8], Decimal(3), Decimal('1.5'), director, False)
                 for approved in [True, False]:
                     bonus = Bonus(employee=employee, month=month, year=year,
                         name='DEMO: thưởng đã duyệt' if approved else 'DEMO: thưởng chưa duyệt - không tính lương',
@@ -151,7 +146,7 @@ class Command(BaseCommand):
                 inputs.full_clean()
                 inputs.save()
                 PayrollAdjustment.objects.create(period=payroll, employee=employee, kind='allowance',
-                    name='DEMO: phụ cấp ăn trưa', amount=Decimal(200000), basis='DEMO: phụ cấp minh họa đã duyệt', approved=True)
+                    name='DEMO: phụ cấp ăn trưa', amount=Decimal(450000), basis='DEMO: phụ cấp minh họa đã duyệt', approved=True)
                 if index == 6:
                     PayrollAdjustment.objects.create(period=payroll, employee=employee, kind='deduction',
                         name='DEMO: hoàn ứng', amount=Decimal(100000), basis='DEMO: khấu trừ minh họa, không phải phạt đi trễ', approved=True)
@@ -178,10 +173,3 @@ class Command(BaseCommand):
                          reason='DEMO: nghỉ phép minh họa đã duyệt', approved=True)
         leave.full_clean()
         leave.save()
-
-    def overtime(self, employee, day, hours, multiplier, director, approved):
-        overtime = OvertimeApproval(employee=employee, date=day, hours=hours, multiplier=multiplier,
-            approved=approved, approved_by=director if approved else None,
-            approved_at=timezone.now() if approved else None)
-        overtime.full_clean()
-        overtime.save()

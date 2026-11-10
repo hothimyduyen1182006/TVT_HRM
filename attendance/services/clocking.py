@@ -4,6 +4,7 @@ from django.utils import timezone
 from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
 from .calculations import calculate_record
+from .workflow import period_is_locked
 
 
 @transaction.atomic
@@ -16,7 +17,7 @@ def punch(actor, action, note=''):
     period = AttendancePeriod.objects.select_for_update().filter(year=today.year, month=today.month).first()
     if not period or not period.policy_confirmed:
         raise ValidationError('Nhân sự cần cấu hình và xác nhận kỳ công hiện tại trước.')
-    if period.status == 'approved' or period.employee_approvals.filter(employee=employee).exists():
+    if period_is_locked(period, employee.pk):
         raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
     day = WorkCalendarDay.objects.filter(date=today).first()
     if not day or day.kind != 'work':
