@@ -65,3 +65,58 @@
     font-size: 28px;
   }
 }
+
+/* Compact summary cards matching the dashboard reference. */
+.db-cards > a {
+  min-height: 80px;
+  padding: 12px 16px;
+  gap: 14px;
+  border-radius: 10px;
+}
+
+.db-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 24px;
+}
+
+.db-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.db-cards h2 {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.db-cards strong {
+  font-size: 28px;
+}
+
+@media (max-width: 700px) {
+  .db-cards > a {
+    min-height: 72px;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .db-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+  }
+
+  .db-cards h2 {
+    font-size: 11px;
+  }
+
+  .db-cards strong {
+    font-size: 25px;
+  }
+}

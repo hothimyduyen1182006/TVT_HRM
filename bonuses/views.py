@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -110,16 +110,40 @@ def personal_list(request):
     form = PersonalBonusFilter(request.GET)
     rows = displayed_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__user=request.user)).order_by('-year', '-month', 'name')
+    month = year = status = None
     if form.is_valid():
-        if form.cleaned_data.get('month'):
-            rows = rows.filter(month=form.cleaned_data['month'])
-        if form.cleaned_data.get('year'):
-            rows = rows.filter(year=form.cleaned_data['year'])
-        if form.cleaned_data.get('status'):
-            rows = rows.filter(status=form.cleaned_data['status'])
+        month = form.cleaned_data.get('month')
+        year = form.cleaned_data.get('year')
+        status = form.cleaned_data.get('status')
+        if month:
+            rows = rows.filter(month=month)
+        if year:
+            rows = rows.filter(year=year)
+        if status:
+            rows = rows.filter(status=status)
+    all_rows = displayed_bonus_records(Bonus.objects.filter(employee__user=request.user))
+    received_rows = all_rows.filter(status='approved')
+    if year:
+        received_rows = received_rows.filter(year=year)
+    pending_rows = all_rows.filter(status='pending')
+    total_received = received_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
+    pending_total = pending_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
+    summary_total = rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
+    received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
+    if month and year:
+        summary_label = f'Thưởng tháng {month}/{year}'
+    elif year:
+        summary_label = f'Thưởng năm {year}'
+    elif month:
+        summary_label = f'Thưởng tháng {month}'
+    else:
+        summary_label = 'Tổng thưởng theo bộ lọc'
     grouped = grouped_bonuses(rows)
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
         'total_amount': sum((row['total'] for row in grouped), Decimal(0)),
+        'total_received': total_received, 'pending_total': pending_total,
+        'summary_total': summary_total, 'received_label': received_label,
+        'summary_label': summary_label,
         'employee': employee,
         'personal': True})
 
@@ -209,9 +233,10 @@ def detail(request, employee_id, year, month):
     rows = displayed_bonus_records(Bonus.objects.select_related(
         'employee__department', 'proposed_by', 'approved_by').filter(
             employee=employee, year=year, month=month))
-    if not has_role(request.user, HR, DIRECTOR, MANAGER):
+    is_own_profile = employee.user_id == request.user.id
+    if not is_own_profile and not has_role(request.user, HR, DIRECTOR, MANAGER):
         rows = rows.filter(status='approved')
-    elif has_role(request.user, DIRECTOR) and not has_role(request.user, HR):
+    elif not is_own_profile and has_role(request.user, DIRECTOR) and not has_role(request.user, HR):
         rows = rows.exclude(status='draft')
     grouped = grouped_bonuses(rows)
     if not grouped:
