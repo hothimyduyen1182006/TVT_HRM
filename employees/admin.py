@@ -11,7 +11,7 @@ class EmployeeAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'manager')
+    list_display = ('code', 'name', 'manager', 'allows_overtime')
 
 
 @admin.register(Position)

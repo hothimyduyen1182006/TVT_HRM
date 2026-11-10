@@ -12,9 +12,60 @@
     <div><dt>Công hưởng lương</dt><dd>{{ row.paid_units }}</dd></div>
     <div class="at-day-wide"><dt>Ghi chú</dt><dd class="at-day-note">{{ row.note|default:'—' }}</dd></div>
   </dl>
+  {% if outside_policy_extra %}<p class="at-muted">Giờ ra ngoài ca được giữ nguyên. Phòng này không đăng ký OT theo quy trình Sản xuất. Nếu công ty yêu cầu hoặc chấp thuận làm thêm, HR cần đối soát hồ sơ và xử lý quyền lợi theo quy trình ngoại lệ riêng.</p>{% endif %}
+  {% if is_production or overtime_requests %}
+  <section class="at-day-ot" aria-labelledby="ot-title">
+    <h2 id="ot-title">Tăng ca Phòng Sản xuất</h2>
+    {% if can_submit_ot %}
+    <details><summary class="at-button secondary">Gửi yêu cầu duyệt OT</summary>
+      <form class="at-filter" method="post" action="{% url 'attendance:overtime-submit' row.pk %}" data-ot-request>
+        {% csrf_token %}
+        <p>Ngày tăng ca: <strong>{{ row.date|date:'d/m/Y' }}</strong> · Giờ vào/ra thực tế: {{ row.check_in }} – {{ row.check_out }}</p>
+        <div class="at-field">{{ ot_request_form.start_time.label_tag }}{{ ot_request_form.start_time }}</div>
+        <div class="at-field">{{ ot_request_form.end_time.label_tag }}{{ ot_request_form.end_time }}</div>
+        <p>Tổng số giờ đề nghị: <output data-ot-hours>{{ ot_candidate_hours|floatformat:'-2' }}</output> giờ</p>
+        <div class="at-field">{{ ot_request_form.reason.label_tag }}{{ ot_request_form.reason }}</div>
+        <p>{{ ot_request_form.confirm }} {{ ot_request_form.confirm.label_tag }}</p>
+        <button class="at-button" type="submit">Xác nhận gửi</button>
+      </form>
+    </details>
+    {% endif %}
+    <p class="at-muted">Không tự gửi khi check-out muộn. Hiện hỗ trợ OT ban ngày 06:00–22:00, cùng ngày; ban đêm và qua ngày cần quy trình riêng.</p>
+    {% if ot_locked %}<p class="at-muted">Kỳ công hoặc phiếu lương đã khóa; không gửi hoặc xử lý OT.</p>{% endif %}
+    {% for ot in overtime_requests %}
+    <div class="at-day-grid">
+      <div class="at-day-wide"><strong>{{ ot.get_status_display }}</strong> · {{ ot.start_time|time:'H:i'|default:'—' }} – {{ ot.end_time|time:'H:i'|default:'—' }}
+        {% if ot.status == 'legacy' %}<p>Dữ liệu cũ chỉ xem, không tự dùng làm nguồn tiền OT mới.</p>{% else %}
+        <p>Đề nghị {{ ot.requested_hours|floatformat:'-2' }} giờ · {{ ot.request_reason }}<br>Gửi bởi {{ ot.requested_by }} · {{ ot.requested_at|date:'H:i d/m/Y' }}</p>
+        {% if ot.reviewed_at %}<p>Xử lý bởi {{ ot.reviewed_by }} · {{ ot.reviewed_at|date:'H:i d/m/Y' }}</p>{% endif %}
+        {% if ot.approved %}<p>Đã duyệt {{ ot.hours|floatformat:'-2' }} giờ · Hệ số {{ ot.multiplier|floatformat:'-2' }}</p>{% endif %}
+        {% if ot.status == 'rejected' %}<p>Lý do từ chối: {{ ot.rejection_reason }}. Không được gửi lại cùng khoảng giờ.</p>{% endif %}
+        {% if can_manage_ot and not ot_locked and ot.status == 'pending' %}
+        <form class="at-filter" method="post" action="{% url 'attendance:overtime-approve' ot.pk %}">{% csrf_token %}
+          <div class="at-field">{{ ot.approval_form.hours.label_tag }}{{ ot.approval_form.hours }}</div><button class="at-button" type="submit">Duyệt OT</button>
+        </form>
+        <form class="at-filter" method="post" action="{% url 'attendance:overtime-reject' ot.pk %}">{% csrf_token %}
+          <div class="at-field">{{ ot_rejection_form.reason.label_tag }}{{ ot_rejection_form.reason }}</div><button class="at-button secondary" type="submit">Từ chối OT</button>
+        </form>
+        {% endif %}{% endif %}
+      </div>
+    </div>
+    {% empty %}<p>Chưa có yêu cầu OT được gửi cho ngày này.</p>{% endfor %}
+  </section>
+  {% endif %}
   <footer class="at-day-footer">
     <p>Cập nhật bởi <strong>{{ row.updated_by|default:'—' }}</strong><span>{{ row.updated_at|date:'H:i · d/m/Y' }}</span></p>
     {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'attendance:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
   </footer>
 </article>
+<script>
+document.querySelectorAll('[data-ot-request]').forEach(function(form){
+  function update(){
+    const start=form.elements.start_time.value.split(':').map(Number), end=form.elements.end_time.value.split(':').map(Number);
+    const minutes=(end[0]*60+end[1])-(start[0]*60+start[1]);
+    form.querySelector('[data-ot-hours]').textContent=Number.isFinite(minutes)&&minutes>0?(Math.floor(minutes*100/60)/100).toLocaleString('vi-VN'):'—';
+  }
+  form.addEventListener('input',update);update();
+});
+</script>
 {% endblock %}

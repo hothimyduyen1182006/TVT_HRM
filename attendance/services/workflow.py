@@ -5,27 +5,84 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from employees.access import require_role, HR, DIRECTOR
+from employees.access import require_role, HR, DIRECTOR, MANAGER
 from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, AttendanceAuditLog, WorkCalendarDay
 from attendance.models import EmployeeAttendanceApproval
-from .calculations import calculate_record
+from .calculations import calculate_record, interval_hours, overtime_multiplier
+from decimal import Decimal
 
 
 def can_approve_overtime(user, employee):
-    return False
+    return bool(user.is_authenticated and user.is_active and employee.user_id != user.pk
+        and user.groups.filter(name=MANAGER).exists()
+        and Employee.objects.filter(pk=employee.pk,is_active=True,department__allows_overtime=True,
+                                    department__manager__user=user).exists())
 
 
-def submit_overtime(*args, **kwargs):
-    raise PermissionDenied('Công ty không cho phép tăng ca.')
+@transaction.atomic
+def submit_overtime(actor, record_id, start, end, reason):
+    from attendance.models import OvertimeApproval
+    link=AttendanceRecord.objects.get(pk=record_id)
+    employee=Employee.objects.select_for_update().select_related('department').get(pk=link.employee_id)
+    if employee.user_id != actor.pk or not actor.is_active or not employee.is_active or not employee.department.allows_overtime:
+        raise PermissionDenied('Chỉ nhân viên Phòng Sản xuất được gửi yêu cầu của bản thân.')
+    period=AttendancePeriod.objects.select_for_update().get(year=link.date.year,month=link.date.month)
+    record=AttendanceRecord.objects.select_for_update().get(pk=record_id)
+    if not period.policy_confirmed:
+        raise ValidationError('Chưa xác nhận cấu hình ca làm việc.')
+    if not reason.strip() or len(reason.strip())>2000:
+        raise ValidationError('Cần lý do tăng ca, tối đa 2000 ký tự.')
+    day=WorkCalendarDay.objects.get(date=record.date)
+    hours=interval_hours(record.date,start,end)
+    row=OvertimeApproval(employee=employee,department=employee.department,date=record.date,
+        start_time=start,end_time=end,requested_hours=hours,hours=hours,multiplier=overtime_multiplier(day),
+        status='pending',approved=False,request_reason=reason.strip(),requested_by=actor,requested_at=timezone.now())
+    row.save()
+    _log_overtime(row,actor,'submit_ot',reason.strip(),'','pending')
+    return row
 
 
-def approve_overtime(*args, **kwargs):
-    raise PermissionDenied('Công ty không cho phép tăng ca.')
+@transaction.atomic
+def approve_overtime(actor, overtime_id, hours):
+    return _review_overtime(actor,overtime_id,'approved',hours=hours)
 
 
-def reject_overtime(*args, **kwargs):
-    raise PermissionDenied('Công ty không triển khai nghiệp vụ OT.')
+@transaction.atomic
+def reject_overtime(actor, overtime_id, reason):
+    return _review_overtime(actor,overtime_id,'rejected',reason=reason)
+
+
+def _review_overtime(actor, overtime_id, status, hours=None, reason=''):
+    from attendance.models import OvertimeApproval
+    link=OvertimeApproval.objects.get(pk=overtime_id)
+    employee=Employee.objects.select_for_update().select_related('department').get(pk=link.employee_id)
+    if not can_approve_overtime(actor,employee) or link.department_id != employee.department_id:
+        raise PermissionDenied('Chỉ Trưởng phòng Sản xuất phụ trách được xử lý, không tự duyệt hoặc duyệt khác phòng.')
+    AttendancePeriod.objects.select_for_update().get(year=link.date.year,month=link.date.month)
+    row=OvertimeApproval.objects.select_for_update().get(pk=overtime_id)
+    if row.status != 'pending' or row.approved:
+        raise ValidationError('Chỉ xử lý yêu cầu đang Chờ duyệt; không được duyệt lại.')
+    if status=='rejected' and (not reason.strip() or len(reason.strip())>2000):
+        raise ValidationError('Cần lý do từ chối, tối đa 2000 ký tự.')
+    row.status=status
+    row.reviewed_by,row.reviewed_at=actor,timezone.now()
+    row.approved=(status=='approved')
+    if row.approved:
+        row.hours=hours
+        row.approved_by,row.approved_at=actor,row.reviewed_at
+    else:
+        row.rejection_reason=reason.strip()
+        row.approved_by=row.approved_at=None
+    row.save()
+    _log_overtime(row,actor,'approve_ot' if row.approved else 'reject_ot',reason.strip() or 'Duyệt OT','pending',status)
+    return row
+
+
+def _log_overtime(row, actor, action, reason, before, after):
+    AttendanceAuditLog.objects.create(actor=actor,action=action,reason=reason,before={'status':before},
+        after={'status':after,'ot_id':str(row.pk),'employee_id':str(row.employee_id),'date':str(row.date),
+               'start':str(row.start_time),'end':str(row.end_time),'hours':str(row.hours)})
 
 
 def period_is_locked(period, employee_id):
@@ -72,6 +129,10 @@ def save_record(actor, record, reason):
         before = record_values(old)
     record.updated_by = actor
     calculate_record(record, period)
+    from attendance.models import OvertimeApproval
+    from .calculations import validate_overtime
+    for overtime in OvertimeApproval.objects.filter(employee=record.employee,date=record.date,status='approved'):
+        validate_overtime(overtime,record=record,period=period)
     record.full_clean()
     record.save()
     after = record_values(record)
@@ -90,6 +151,9 @@ def change_period(actor, period_id, action, reason):
         raise ValidationError('Cần ghi lý do.')
     before = {'period': period.pk, 'status': period.status, 'revision': period.revision}
     if action == 'approve':
+        from attendance.models import OvertimeApproval
+        if OvertimeApproval.objects.filter(date__year=period.year,date__month=period.month,status='pending').exists():
+            raise ValidationError('Còn OT chờ duyệt; Trưởng phòng cần xử lý trước khi khóa kỳ công.')
         if period.status != 'pending' or not period.policy_confirmed:
             raise ValidationError('Cần xác nhận chính sách và kỳ đang chờ duyệt.')
         days = calendar.monthrange(period.year, period.month)[1]
@@ -133,6 +197,9 @@ def change_period(actor, period_id, action, reason):
 def approve_employee(actor, employee, period_id):
     require_role(actor, HR, DIRECTOR)
     period = AttendancePeriod.objects.select_for_update().get(pk=period_id)
+    from attendance.models import OvertimeApproval
+    if OvertimeApproval.objects.filter(employee=employee,date__year=period.year,date__month=period.month,status='pending').exists():
+        raise ValidationError('Còn OT chờ duyệt; Trưởng phòng cần xử lý trước khi duyệt công.')
     if period_is_locked(period, employee.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
     if not period.policy_confirmed:

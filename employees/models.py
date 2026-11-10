@@ -6,11 +6,14 @@ from django.db import models
 class Department(models.Model):
     code = models.CharField('Mã phòng', max_length=30, unique=True)
     name = models.CharField('Tên phòng', max_length=150)
+    allows_overtime = models.BooleanField('Phòng Sản xuất được phép OT', default=False)
     manager = models.ForeignKey('Employee', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name='managed_departments', verbose_name='Trưởng phòng')
 
     class Meta:
         db_table = 'Phong_ban'
+        constraints = [models.UniqueConstraint(fields=['allows_overtime'], condition=models.Q(allows_overtime=True),
+                                               name='one_production_overtime_department')]
 
     def __str__(self):
         return self.name

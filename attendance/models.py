@@ -101,6 +101,10 @@ class AttendanceRecord(models.Model):
 
 
 class OvertimeApproval(models.Model):
+    start_time = models.TimeField('Bắt đầu OT', null=True, blank=True)
+    end_time = models.TimeField('Kết thúc OT', null=True, blank=True)
+    department = models.ForeignKey('employees.Department', null=True, blank=True,
+        on_delete=models.PROTECT, related_name='overtime_requests', verbose_name='Phòng ban khi gửi')
     status = models.CharField('Trạng thái yêu cầu', max_length=10, default='legacy', choices=[
         ('legacy', 'Dữ liệu cũ'), ('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')])
     requested_hours = models.DecimalField('Giờ OT đề nghị', max_digits=6, decimal_places=2, null=True, blank=True,
@@ -124,7 +128,8 @@ class OvertimeApproval(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['employee', 'date'], name='unique_employee_ot_date')]
+        constraints = [models.UniqueConstraint(fields=['employee', 'date', 'start_time', 'end_time'],
+                                               name='unique_employee_ot_interval')]
 
     def clean(self):
         from .services.calculations import validate_overtime
@@ -142,13 +147,43 @@ class OvertimeApproval(models.Model):
                 raise ValidationError('Không được duyệt quá số giờ nhân viên đề nghị.')
             if self.status == 'approved' and (not self.approved_by_id or not self.approved_at):
                 raise ValidationError('Thiếu người hoặc thời điểm phê duyệt OT.')
+            if self.status == 'approved' and (self.approved_by_id != self.reviewed_by_id or self.approved_at != self.reviewed_at):
+                raise ValidationError('Thông tin người và thời điểm duyệt OT không nhất quán.')
             if self.status == 'rejected' and not self.rejection_reason.strip():
                 raise ValidationError('Cần ghi lý do từ chối OT.')
         validate_overtime(self)
 
     def save(self, *args, **kwargs):
         from django.core.exceptions import PermissionDenied
-        raise PermissionDenied('Công ty không cho phép tăng ca. Dữ liệu OT cũ chỉ được lưu trữ.')
+        from django.db import transaction
+        from employees.models import Employee
+        with transaction.atomic():
+            if self.status == 'legacy':
+                raise PermissionDenied('Dữ liệu OT cũ chỉ được xem, không tự chuyển thành yêu cầu mới.')
+            Employee.objects.select_for_update().get(pk=self.employee_id)
+            from .services.workflow import period_is_locked, can_approve_overtime
+            period=AttendancePeriod.objects.select_for_update().filter(year=self.date.year,month=self.date.month).first()
+            if not period or period_is_locked(period,self.employee_id):
+                raise ValidationError('Kỳ công đã khóa hoặc chưa được cấu hình.')
+            from payroll.models import PayrollPeriod
+            if PayrollPeriod.objects.filter(attendance_period=period).filter(
+                    models.Q(status__in=['approved','paid']) |
+                    models.Q(records__employee_id=self.employee_id,records__status__in=['approved','paid'])).exists():
+                raise ValidationError('Phiếu lương đã khóa; không được thay đổi OT.')
+            if not self.pk and self.status != 'pending':
+                raise PermissionDenied('Phải gửi yêu cầu chờ duyệt trước khi xử lý OT.')
+            if self.pk:
+                old = type(self).objects.select_for_update().get(pk=self.pk)
+                if old.status != 'pending':
+                    raise PermissionDenied('Yêu cầu đã xử lý không được sửa hoặc duyệt lại.')
+                fields = ['employee_id','department_id','date','start_time','end_time','requested_hours',
+                          'request_reason','requested_by_id','requested_at']
+                if any(getattr(old, field) != getattr(self, field) for field in fields):
+                    raise PermissionDenied('Không được thay đổi nội dung yêu cầu đã gửi.')
+                if self.status not in ['approved','rejected'] or not self.reviewed_by_id or not can_approve_overtime(self.reviewed_by,self.employee):
+                    raise PermissionDenied('Chỉ Trưởng phòng Sản xuất phụ trách được xử lý yêu cầu.')
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         from django.core.exceptions import PermissionDenied

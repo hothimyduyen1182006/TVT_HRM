@@ -28,6 +28,9 @@
  <section class="pr-edit-section"><h2>2. Thuế thu nhập cá nhân</h2>
  {% include 'payroll/input_field.html' with field=form.tax_amount %}{% include 'payroll/input_field.html' with field=form.tax_basis %}
  </section>
+ <section class="pr-edit-section"><h2>3. Căn cứ tính lương OT</h2>
+ {% include 'payroll/input_field.html' with field=form.overtime_hourly_rate %}{% include 'payroll/input_field.html' with field=form.overtime_basis %}
+ <p>Chỉ bắt buộc khi có OT đã duyệt của Phòng Sản xuất. Không tự lấy thưởng hoặc tiền ăn làm căn cứ.</p></section>
  <div class="pr-confirm-input">{{ form.verified }}{{ form.verified.label_tag }}{{ form.verified.errors }}<p>Chỉ dữ liệu đã kiểm tra mới được sử dụng khi tính lương.</p></div>
  {% else %}
  <section class="pr-edit-section"><h2>Thông tin khoản áp dụng</h2><div class="pr-edit-grid">{% include 'payroll/input_field.html' with field=form.name %}{% include 'payroll/input_field.html' with field=form.kind %}</div>

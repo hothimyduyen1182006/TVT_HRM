@@ -29,8 +29,19 @@ def bonus_source_error(record):
 
 
 def overtime_source_error(record):
-    if record.ot_hours or record.ot_pay or record.breakdown.get('ot'):
-        return 'Công ty không cho phép tăng ca. Cần mở lại và tính lại phiếu lương còn OT trước khi duyệt hoặc chi trả.'
+    from attendance.services.calculations import payroll_overtime
+    attendance=record.period.attendance_period
+    try:
+        rows=payroll_overtime(record.employee,attendance.year,attendance.month)
+        current={row.pk:(str(row.date),str(row.start_time),str(row.end_time),row.hours,row.multiplier,row.department_id) for row in rows}
+        saved={int(item['id']):(item['date'],item['start'],item['end'],Decimal(item['hours']),Decimal(item['multiplier']),item['department_id']) for item in record.breakdown.get('ot',[])}
+        amount=sum((Decimal(item['amount']) for item in record.breakdown.get('ot',[])),Decimal(0))
+    except ValidationError as error:
+        return '; '.join(error.messages)
+    except (KeyError,TypeError,ValueError,InvalidOperation):
+        return 'Thiếu nguồn OT để đối chiếu. Cần mở lại và tính lại lương.'
+    if current!=saved or sum((row.hours for row in rows),Decimal(0))!=record.ot_hours or amount.quantize(Decimal('0.00000001'))!=record.ot_pay:
+        return 'Nguồn OT đã thay đổi hoặc không đủ căn cứ. Cần mở lại và tính lại lương trước khi duyệt hoặc chi trả.'
     return ''
 
 def record_approval_error(record, period=None, attendance=None):

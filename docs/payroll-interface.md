@@ -1,4 +1,4 @@
-> Quy định hiện hành: công ty không cho phép tăng ca. Không đăng ký, duyệt hoặc tính lương OT. Các mô tả OT bên dưới chỉ phản ánh thiết kế/dữ liệu lịch sử, không áp dụng cho nghiệp vụ hiện tại.
+> Quy định hiện hành: chỉ Phòng Sản xuất được gửi OT theo cấu hình database; Trưởng phòng phụ trách duyệt. Hỗ trợ ban ngày cùng ngày, hạn mức 200 giờ/năm; xem README.md để biết phạm vi và giới hạn. Những mô tả lịch sử bên dưới cần đối chiếu với chính sách này.
 
 # Giao diện Bảng lương theo vai trò
 

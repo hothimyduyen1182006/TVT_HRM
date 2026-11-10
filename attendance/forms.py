@@ -3,6 +3,29 @@ from employees.access import visible_employees
 from .models import AttendanceRecord
 from employees.filters import PeriodFilter
 from django.contrib.auth import get_user_model
+from decimal import Decimal
+
+
+class OvertimeRequestForm(forms.Form):
+    start_time=forms.TimeField(label='Giờ bắt đầu OT',widget=forms.TimeInput(attrs={'type':'time'},format='%H:%M'))
+    end_time=forms.TimeField(label='Giờ kết thúc OT',widget=forms.TimeInput(attrs={'type':'time'},format='%H:%M'))
+    reason=forms.CharField(label='Lý do tăng ca',max_length=2000,widget=forms.Textarea(attrs={'rows':3}))
+    confirm=forms.BooleanField(label='Tôi xác nhận khoảng giờ và tự nguyện gửi yêu cầu OT')
+
+    def clean(self):
+        data=super().clean()
+        if data.get('start_time') and data.get('end_time') and data['start_time']>=data['end_time']:
+            raise forms.ValidationError('Giờ bắt đầu phải trước giờ kết thúc; chưa hỗ trợ OT qua ngày.')
+        return data
+
+
+class OvertimeApprovalForm(forms.Form):
+    hours=forms.DecimalField(label='Số giờ OT duyệt',min_value=Decimal('0.01'),max_digits=6,decimal_places=2,
+        widget=forms.NumberInput(attrs={'step':'0.01'}))
+
+
+class OvertimeRejectionForm(forms.Form):
+    reason=forms.CharField(label='Lý do từ chối',max_length=2000,widget=forms.Textarea(attrs={'rows':2}))
 
 
 class AttendanceFilter(PeriodFilter):

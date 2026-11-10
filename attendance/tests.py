@@ -15,7 +15,7 @@ from .services.workflow import approve_overtime, submit_overtime, reject_overtim
 from django.core.management.base import CommandError
 
 
-class NoOvertimePolicyTests(TestCase):
+class NonProductionOvertimePolicyTests(TestCase):
     def setUp(self):
         AttendanceTests.setUp(self)
         self.other_user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
@@ -37,11 +37,14 @@ class NoOvertimePolicyTests(TestCase):
                 for action in ['submit', 'approve', 'reject']:
                     url = f'/attendance/{self.row.pk}/overtime/{action}/'
                     self.assertEqual(client.get(url).status_code, 405)
+                    expected=404 if action=='submit' and actor.pk!=self.user.pk else 403
                     self.assertEqual(client.post(url, {'hours': '2', 'multiplier': '1.5',
-                        'reason': 'Kiểm thử', 'csrfmiddlewaretoken': client.cookies['csrftoken'].value}).status_code, 403)
-                for service in [submit_overtime, approve_overtime, reject_overtime]:
+                        'reason': 'Kiểm thử', 'csrfmiddlewaretoken': client.cookies['csrftoken'].value}).status_code, expected)
+                for service,args in [(submit_overtime,(actor,self.row.pk,time(17),time(19),'Kiểm thử')),
+                                     (approve_overtime,(actor,self.history.pk,Decimal(2))),
+                                     (reject_overtime,(actor,self.history.pk,'Kiểm thử'))]:
                     with self.assertRaises(PermissionDenied):
-                        service(actor, self.row.pk, 2, 'Kiểm thử')
+                        service(*args)
         self.assertEqual(list(OvertimeApproval.objects.values()), before)
         self.assertFalse(AttendanceAuditLog.objects.filter(action__in=['submit_ot','approve_ot','reject_ot']).exists())
 
@@ -110,6 +113,206 @@ class NoOvertimePolicyTests(TestCase):
         self.period.refresh_from_db()
         self.assertEqual(self.period.status,'approved')
         self.assertEqual(list(OvertimeApproval.objects.values()),before)
+
+
+class ProductionOvertimeTests(TestCase):
+    def setUp(self):
+        AttendanceTests.setUp(self)
+        self.dep.allows_overtime=True
+        self.dep.manager=self.other
+        self.dep.save()
+        self.manager=self.other_user
+        self.manager.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
+        self.row=save_record(self.hr,AttendanceTests.record(self,check_out=time(19)),'Giờ ra thực tế')
+        self.url=f'/attendance/{self.row.pk}/overtime/submit/'
+        self.detail=f'/attendance/{self.row.pk}/'
+        self.data={'start_time':'17:00','end_time':'19:00','reason':'Hoàn thành đơn hàng','confirm':'on'}
+
+    def send(self,start=time(17),end=time(19)):
+        return submit_overtime(self.user,self.row.pk,start,end,'Hoàn thành đơn hàng')
+
+    def test_explicit_submission_requires_confirmation_and_csrf(self):
+        client=Client(enforce_csrf_checks=True)
+        client.force_login(self.user)
+        self.assertContains(client.get(self.detail),'Gửi yêu cầu duyệt OT')
+        self.assertFalse(OvertimeApproval.objects.exists())
+        self.assertEqual(client.get(self.url).status_code,405)
+        self.assertEqual(client.post(self.url,self.data).status_code,403)
+        data={**self.data,'csrfmiddlewaretoken':client.cookies['csrftoken'].value}
+        client.post(self.url,{**data,'confirm':''})
+        self.assertFalse(OvertimeApproval.objects.exists())
+        self.assertEqual(client.post(self.url,data).status_code,302)
+        row=OvertimeApproval.objects.get()
+        self.assertEqual(row.status,'pending')
+        self.assertFalse(row.approved)
+        self.assertEqual(row.requested_by,self.user)
+        self.assertEqual(row.department,self.dep)
+        self.assertEqual(row.requested_hours,2)
+        self.assertIsNone(row.approved_at)
+        self.assertEqual(AttendanceAuditLog.objects.filter(action='submit_ot').count(),1)
+
+    def test_department_policy_uses_database_and_updates_after_transfer(self):
+        self.user.username='unrelated-account-name'
+        self.user.save()
+        self.dep.name='Đơn vị sản xuất đổi tên'
+        self.dep.save()
+        self.send()
+        self.emp.department=self.other_dep
+        self.emp.save()
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(self.detail),'Gửi yêu cầu duyệt OT')
+        self.assertEqual(self.client.post(self.url,self.data).status_code,403)
+        with self.assertRaises(PermissionDenied):
+            approve_overtime(self.manager,OvertimeApproval.objects.get().pk,Decimal(2))
+
+    def test_manager_approves_own_department_only_and_not_self(self):
+        row=self.send()
+        for actor in [self.user,self.hr,self.director]:
+            with self.assertRaises(PermissionDenied):
+                approve_overtime(actor,row.pk,Decimal(2))
+        self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
+        self.dep.manager=self.emp
+        self.dep.save()
+        with self.assertRaises(PermissionDenied):
+            approve_overtime(self.user,row.pk,Decimal(2))
+        self.dep.manager=self.other
+        self.dep.save()
+        approve_overtime(self.manager,row.pk,Decimal('1.5'))
+        row.refresh_from_db()
+        self.assertEqual(row.status,'approved')
+        self.assertEqual(row.hours,Decimal('1.5'))
+        self.assertEqual(row.approved_by,self.manager)
+        self.assertIsNotNone(row.reviewed_at)
+        with self.assertRaises(ValidationError):
+            approve_overtime(self.manager,row.pk,Decimal(2))
+        self.assertEqual(AttendanceAuditLog.objects.filter(action='approve_ot').count(),1)
+
+    def test_approval_and_rejection_post_csrf_and_backend_permissions(self):
+        row=self.send()
+        url=f'/attendance/overtime/{row.pk}/approve/'
+        client=Client(enforce_csrf_checks=True)
+        client.force_login(self.manager)
+        client.get(self.detail)
+        self.assertEqual(client.get(url).status_code,405)
+        self.assertEqual(client.post(url,{'hours':'2'}).status_code,403)
+        self.assertEqual(client.post(url,{'hours':'2','csrfmiddlewaretoken':client.cookies['csrftoken'].value}).status_code,302)
+        row.refresh_from_db()
+        self.assertTrue(row.approved)
+        self.client.force_login(self.hr)
+        self.assertEqual(self.client.post(url,{'hours':'2'}).status_code,403)
+        self.assertEqual(self.client.post(f'/attendance/{self.row.pk}/overtime/approve/',{'hours':'2'}).status_code,403)
+
+    def test_cannot_submit_for_someone_else_even_hr_or_superuser(self):
+        admin=User.objects.create_superuser('ot-superuser',password='OnlyForTests')
+        for actor in [self.manager,self.hr,self.director,admin]:
+            self.client.force_login(actor)
+            self.assertEqual(self.client.post(self.url,self.data).status_code,404)
+            with self.assertRaises(PermissionDenied):
+                submit_overtime(actor,self.row.pk,time(17),time(19),'Gửi thay')
+        self.assertFalse(OvertimeApproval.objects.exists())
+
+    def test_invalid_intervals_normal_shift_night_and_excess_actual_are_rejected(self):
+        for start,end in [(time(19),time(18)),(time(23),time(2)),(time(16),time(18)),
+                          (time(17),time(20)),(time(5),time(7))]:
+            with self.subTest(start=start,end=end),self.assertRaises(ValidationError):
+                self.send(start,end)
+        AttendanceRecord.objects.filter(pk=self.row.pk).update(check_out=time(23))
+        with self.assertRaisesMessage(ValidationError,'ban đêm'):
+            self.send(time(21),time(23))
+        self.assertFalse(OvertimeApproval.objects.exists())
+
+    def test_normal_checkout_or_missing_checkout_has_no_button_or_request(self):
+        self.client.force_login(self.user)
+        for end,status in [(time(17),'present'),(None,'incomplete')]:
+            AttendanceRecord.objects.filter(pk=self.row.pk).update(check_out=end,status=status)
+            self.assertNotContains(self.client.get(self.detail),'Gửi yêu cầu duyệt OT')
+            with self.assertRaises(ValidationError):self.send()
+
+    def test_duplicate_and_overlap_rejected_but_adjacent_intervals_allowed(self):
+        self.send(time(17),time(18))
+        for start,end in [(time(17),time(18)),(time(17,30),time(19))]:
+            with self.assertRaises(ValidationError):self.send(start,end)
+        self.send(time(18),time(19))
+        self.assertEqual(OvertimeApproval.objects.count(),2)
+
+    def test_rejection_requires_reason_and_is_never_paid_or_resubmitted(self):
+        row=self.send()
+        with self.assertRaises(ValidationError):reject_overtime(self.manager,row.pk,' ')
+        reject_overtime(self.manager,row.pk,'Không đủ căn cứ')
+        row.refresh_from_db()
+        self.assertEqual(row.status,'rejected')
+        self.assertFalse(row.approved)
+        self.assertEqual(row.rejection_reason,'Không đủ căn cứ')
+        self.assertIsNotNone(row.reviewed_at)
+        with self.assertRaises(ValidationError):self.send()
+        self.assertEqual(AttendanceAuditLog.objects.filter(action='reject_ot').count(),1)
+
+    def test_cannot_approve_more_than_requested_and_cannot_invalidate_approved_attendance(self):
+        row=self.send()
+        with self.assertRaises(ValidationError):approve_overtime(self.manager,row.pk,Decimal('2.01'))
+        approve_overtime(self.manager,row.pk,Decimal(2))
+        self.row.check_out=time(17)
+        with self.assertRaises(ValidationError):save_record(self.hr,self.row,'Sửa giờ ra')
+        self.row.refresh_from_db()
+        self.assertEqual(self.row.check_out,time(19))
+
+    def test_daily_monthly_annual_limits_include_pending_requests(self):
+        AttendanceRecord.objects.filter(pk=self.row.pk).update(check_out=time(22))
+        with self.assertRaisesMessage(ValidationError,'giới hạn OT ngày'):
+            self.send(time(17),time(22))
+        history=OvertimeApproval.objects.bulk_create([OvertimeApproval(employee=self.emp,date=date(2026,1,3),
+            hours=40,multiplier=2,approved=True)])[0]
+        with self.assertRaisesMessage(ValidationError,'40 giờ'):
+            self.send()
+        OvertimeApproval.objects.filter(pk=history.pk).update(date=date(2026,2,1),hours=199)
+        with self.assertRaisesMessage(ValidationError,'200 giờ'):
+            self.send()
+
+    def test_day_type_rates_rest_day_lunch_and_holiday(self):
+        for day,kind,rate in [(date(2026,1,10),'rest',Decimal(2)),(date(2026,1,6),'holiday',Decimal(3))]:
+            WorkCalendarDay.objects.filter(date=day).update(kind=kind,expected_units=0)
+            record=save_record(self.hr,AttendanceTests.record(self,date=day,check_out=time(10)),'Làm ngoài ca')
+            row=submit_overtime(self.user,record.pk,time(8),time(10),'Đơn hàng')
+            self.assertEqual(row.multiplier,rate)
+        record=save_record(self.hr,AttendanceTests.record(self,date=date(2026,1,11),check_out=time(14)),'Ngày nghỉ')
+        with self.assertRaisesMessage(ValidationError,'nghỉ trưa'):
+            submit_overtime(self.user,record.pk,time(8),time(14),'Ngày nghỉ')
+
+    def test_locked_period_and_payroll_block_submission_and_reviews(self):
+        from payroll.models import PayrollPeriod
+        row=self.send()
+        self.period.status='approved';self.period.save()
+        with self.assertRaises(ValidationError):approve_overtime(self.manager,row.pk,Decimal(2))
+        with self.assertRaises(ValidationError):reject_overtime(self.manager,row.pk,'Lý do')
+        self.period.status='pending';self.period.save()
+        PayrollPeriod.objects.create(attendance_period=self.period,status='paid')
+        with self.assertRaises(ValidationError):approve_overtime(self.manager,row.pk,Decimal(2))
+        with self.assertRaises(ValidationError):self.send(time(17),time(18))
+
+    def test_pending_ot_must_be_resolved_before_approving_attendance(self):
+        from .services.workflow import approve_employee
+        self.send()
+        with self.assertRaisesMessage(ValidationError,'OT chờ duyệt'):
+            approve_employee(self.hr,self.emp,self.period.pk)
+        with self.assertRaisesMessage(ValidationError,'OT chờ duyệt'):
+            change_period(self.director,self.period.pk,'approve','Khóa kỳ')
+
+    def test_personal_month_has_link_only_when_eligible_and_hr_sees_approved_total(self):
+        self.client.force_login(self.user)
+        url='/attendance/personal/?month=1&year=2026'
+        self.assertContains(self.client.get(url),'Gửi yêu cầu duyệt OT')
+        row=self.send()
+        self.assertNotContains(self.client.get(self.detail),'Gửi yêu cầu duyệt OT')
+        approve_overtime(self.manager,row.pk,Decimal(2))
+        self.client.force_login(self.hr)
+        response=self.client.get(f'/attendance/employee/{self.emp.pk}/?month=1&year=2026')
+        self.assertEqual(response.context['summary']['ot'],2)
+        self.assertContains(response,'OT đã duyệt:')
+
+    def test_cannot_enable_a_second_overtime_department(self):
+        self.other_dep.allows_overtime=True
+        with self.assertRaises(IntegrityError),transaction.atomic():
+            self.other_dep.save()
 
 
 class AttendanceTests(TestCase):

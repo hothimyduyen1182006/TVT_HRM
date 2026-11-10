@@ -27,8 +27,7 @@ Làm theo README.md để tạo môi trường Python 3.12, cài requirements.tx
 setup_roles, createsuperuser và runserver. Mỗi máy tự tạo database và tài khoản của mình.
 Không có database, tài liệu nhân sự hoặc mật khẩu tài khoản cá nhân trong repository.
 
-Công ty không cho phép tăng ca. Giờ check-out thực tế được giữ nguyên nhưng chỉ tính công trong ca;
-lương mới không có khoản OT. Các bảng/trường OT còn lại phục vụ dữ liệu lịch sử và migration.
+Bản OT Phòng Sản xuất đang được phát triển trên nhánh feature/production-overtime. Nhánh feature/tvt-hrm-no-overtime bên trên là bản đã chia sẻ trước đó; không nhầm hai chính sách. Chỉ clone nhánh production-overtime sau khi nhánh đã được push. Xem README.md để biết cấu hình và giới hạn mới.
 
 ## Kiểm thử và lưu ý
 

@@ -698,7 +698,7 @@ class NoOvertimePayrollTests(TestCase):
         self.assertEqual(salary.net_pay,Decimal('7100000'))
         self.assertEqual(salary.breakdown['ot'],[])
         self.assertEqual(salary.breakdown['source_data']['overtime'],[])
-        self.assertEqual(salary.breakdown['source_data']['overtime_policy'],'disabled')
+        self.assertEqual(salary.breakdown['source_data']['overtime_policy'],'production-daytime-200-v1')
         self.assertEqual(list(OvertimeApproval.objects.values()),before)
         self.assertEqual(history.pk,OvertimeApproval.objects.get().pk)
 
@@ -717,7 +717,7 @@ class NoOvertimePayrollTests(TestCase):
         salary.ot_hours,salary.ot_pay = Decimal(2),Decimal('3000000')
         salary.net_pay += Decimal('3000000')
         salary.save()
-        with self.assertRaisesMessage(ValidationError,'Công ty không cho phép tăng ca'):
+        with self.assertRaisesMessage(ValidationError,'Nguồn OT'):
             approve_record(self.director,salary.pk)
         with self.assertRaises(ValidationError):
             self.approve()
@@ -761,6 +761,7 @@ class NoOvertimePayrollTests(TestCase):
         change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
         salary.refresh_from_db()
         salary.ot_hours,salary.ot_pay=Decimal(2),Decimal('3000000')
+        salary.breakdown['source_data']['overtime_policy']='disabled'
         salary.net_pay+=Decimal('3000000')
         salary.save()
         before=list(PayrollRecord.objects.values())
@@ -772,6 +773,94 @@ class NoOvertimePayrollTests(TestCase):
             response=export_records(self.hr,PayrollRecord.objects.filter(pk=salary.pk),fmt,1,2026,{})
             self.assertIn('historical_ot_pay',response.content.decode('utf-8-sig'))
         self.assertEqual(list(PayrollRecord.objects.values()),before)
+
+
+class ProductionOvertimePayrollTests(TestCase):
+    calculate=PayrollTests.calculate
+    approve=PayrollTests.approve
+
+    def setUp(self):
+        from attendance.services.workflow import submit_overtime
+        PayrollTests.setUp(self)
+        self.attendance.status='pending';self.attendance.save()
+        self.dep.allows_overtime=True;self.dep.manager=self.other;self.dep.save()
+        self.other_user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
+        AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(19))
+        record=AttendanceRecord.objects.get(employee=self.emp)
+        self.ot=submit_overtime(self.user,record.pk,time(17),time(19),'Hoàn thành đơn hàng')
+        PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=100000,
+            overtime_basis='Lương giờ thực trả của công việc, không gồm thưởng và tiền ăn')
+
+    def approve_ot(self,hours=Decimal(2)):
+        from attendance.services.workflow import approve_overtime
+        approve_overtime(self.other_user,self.ot.pk,hours)
+
+    def unlock_calculation(self):
+        self.attendance.status='approved';self.attendance.save()
+
+    def test_pending_and_rejected_ot_never_enter_payroll(self):
+        from attendance.services.workflow import reject_overtime
+        self.unlock_calculation()
+        self.assertEqual(self.calculate().ot_pay,0)
+        self.attendance.status='pending';self.attendance.save()
+        reject_overtime(self.other_user,self.ot.pk,'Không đủ căn cứ')
+        self.unlock_calculation()
+        self.assertEqual(self.calculate().ot_pay,0)
+
+    def test_approved_ot_uses_hr_hourly_basis_and_recalculation_does_not_duplicate(self):
+        self.approve_ot(Decimal('1.5'))
+        self.unlock_calculation()
+        first=self.calculate()
+        self.assertEqual(first.ot_hours,Decimal('1.5'))
+        self.assertEqual(first.ot_pay,225000)
+        self.assertEqual(first.net_pay,7325000)
+        self.assertEqual(first.breakdown['ot'][0]['id'],self.ot.pk)
+        second=self.calculate()
+        self.assertEqual(second.ot_pay,first.ot_pay)
+        self.assertEqual(len(second.breakdown['ot']),1)
+        self.approve()
+        change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        second.refresh_from_db()
+        self.assertEqual(second.status,'paid')
+
+    def test_missing_overtime_wage_basis_blocks_calculation(self):
+        self.approve_ot();self.unlock_calculation()
+        PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=None,overtime_basis='')
+        with self.assertRaisesMessage(ValidationError,'lương giờ căn cứ OT'):
+            self.calculate()
+        self.assertFalse(PayrollRecord.objects.exists())
+
+    def test_transfer_after_approval_keeps_earned_ot(self):
+        self.approve_ot();self.unlock_calculation()
+        self.emp.department=self.other_dep;self.emp.save()
+        salary=self.calculate()
+        self.assertEqual(salary.ot_pay,300000)
+        self.assertEqual(salary.breakdown['ot'][0]['department_id'],self.dep.pk)
+
+    def test_source_changes_after_approval_block_payment(self):
+        self.approve_ot();self.unlock_calculation()
+        salary=self.calculate();self.approve()
+        OvertimeApproval.objects.filter(pk=self.ot.pk).update(hours=1)
+        with self.assertRaisesMessage(ValidationError,'Nguồn OT'):
+            change_payroll(self.director,self.period.pk,'paid','Chi lương','Chứng từ')
+        salary.refresh_from_db()
+        self.assertEqual(salary.status,'approved')
+
+    def test_hourly_basis_change_requires_recalculation(self):
+        self.approve_ot();self.unlock_calculation()
+        salary=self.calculate()
+        PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=110000)
+        with self.assertRaises(ValidationError):approve_record(self.director,salary.pk)
+
+    def test_exports_use_approved_snapshot_with_ot(self):
+        from .services.exports import export_records
+        self.approve_ot();self.unlock_calculation()
+        salary=self.calculate();self.approve()
+        for fmt in ['csv','txt','json']:
+            response=export_records(self.hr,PayrollRecord.objects.filter(pk=salary.pk),fmt,1,2026,{})
+            self.assertIn('ot_pay',response.content.decode('utf-8-sig'))
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get('/payroll/personal/?month=1&year=2026'),'Lương OT đã duyệt')
 
 
 class PayrollBonusSourceTests(TestCase):

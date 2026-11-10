@@ -114,6 +114,8 @@ class PayrollInputForm(ScopedInputForm):
         self.fields['verified'].label = 'Tôi đã kiểm tra dữ liệu và căn cứ áp dụng trong kỳ'
         self.fields['insurance_basis'].widget = forms.Textarea(attrs={'rows': 3})
         self.fields['tax_basis'].widget = forms.Textarea(attrs={'rows': 3})
+        self.fields['overtime_basis'].widget = forms.Textarea(attrs={'rows':3})
+        self.fields['overtime_hourly_rate'].help_text='Chỉ bắt buộc khi có OT đã duyệt. HR xác định lương giờ thực trả hợp lệ; không bao gồm thưởng, tiền ăn và khoản không thuộc căn cứ OT.'
         self.fields['insurance_basis'].help_text = 'Ghi đối tượng, kỳ và chính sách áp dụng; nếu không tham gia phải ghi rõ căn cứ.'
         self.fields['tax_basis'].help_text = 'Ghi căn cứ số thuế, kể cả trường hợp không phát sinh. Hệ thống không tự áp dụng biểu thuế.'
 
@@ -132,7 +134,7 @@ class PayrollInputForm(ScopedInputForm):
     class Meta:
         model = PayrollInput
         fields = ['period', 'employee', 'insurance_base', 'insurance_basis',
-                  'tax_amount', 'tax_basis', 'verified']
+                  'tax_amount', 'tax_basis', 'overtime_hourly_rate', 'overtime_basis', 'verified']
 
 
 class AdjustmentForm(ScopedInputForm):

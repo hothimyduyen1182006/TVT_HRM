@@ -20,11 +20,12 @@
   </div>
  </header>
  {% if row.status == 'pending' %}<p class="pr-draft">Bản chờ duyệt — số liệu chưa được phê duyệt, chưa chi trả.</p>{% endif %}
- {% if historical_overtime %}<p class="pr-draft">Phiếu cũ còn khoản OT đã lưu. Công ty không cho phép tăng ca; khoản lịch sử này không được tự sửa. Phiếu chưa chi trả phải mở lại và tính lại.</p>{% endif %}<div class="pr-slip-columns">
+ {% if historical_overtime %}<p class="pr-draft">Phiếu cũ có khoản OT lịch sử đã lưu, chưa có đủ nguồn theo quy trình hiện tại. Không tự sửa phiếu đã chi trả; phiếu chưa chi trả cần đối soát và tính lại.</p>{% endif %}<div class="pr-slip-columns">
   <section class="pr-income"><h3>↗ &nbsp;KHOẢN THU NHẬP</h3>
    <dl class="pr-line"><dt>Lương cơ bản (Hợp đồng)</dt><dd>{{ row.base_salary|money }}</dd></dl>
    <dl class="pr-line"><dt>Lương theo ngày công <span>({{ row.paid_units|units }}/{{ row.standard_units|units }} công)</span></dt><dd>{{ row.attendance_pay|money }}</dd></dl>
    {% if historical_overtime %}<dl class="pr-line"><dt>Khoản tăng ca lịch sử đã lưu <span>({{ row.ot_hours|units }} giờ)</span></dt><dd>{{ row.ot_pay|money }}</dd></dl>{% endif %}
+   {% if row.ot_pay and not historical_overtime %}<dl class="pr-line"><dt>Lương OT đã duyệt <span>({{ row.ot_hours|units }} giờ)</span></dt><dd>{{ row.ot_pay|money }}</dd></dl>{% endif %}
    <dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.bonus_pay|money }}</dd></dl>
    {% if row.allowance %}<dl class="pr-line"><dt>Phụ cấp được hưởng</dt><dd>{{ row.allowance|money }}</dd></dl>{% endif %}
    <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ income_total|money }} đ</dd></dl>

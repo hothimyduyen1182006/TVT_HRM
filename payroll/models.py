@@ -34,11 +34,16 @@ class PayrollInput(models.Model):
     tax_basis = models.TextField('Căn cứ thuế: chính sách kỳ, thu nhập, giảm trừ, người phụ thuộc')
     insurance_basis = models.TextField('Căn cứ BH: đối tượng, chính sách và kỳ áp dụng')
     verified = models.BooleanField('Đã kiểm tra đủ dữ liệu', default=False)
+    overtime_hourly_rate = models.DecimalField('Lương giờ căn cứ OT (VNĐ)', max_digits=18, decimal_places=4,
+        null=True, blank=True, validators=[MinValueValidator(Decimal('0.0001'))])
+    overtime_basis = models.TextField('Căn cứ lương giờ OT', blank=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['period', 'employee'], name='unique_payroll_input')]
 
     def clean(self):
+        if self.overtime_hourly_rate is not None and not self.overtime_basis.strip():
+            raise ValidationError('Cần ghi căn cứ xác định lương giờ OT.')
         if self.period_id and self.employee_id and self.is_locked:
             raise ValidationError('Phiếu lương nhân viên đã duyệt, cần mở lại trước khi chỉnh đầu vào.')
         if not isinstance(self.insurance_rates, dict):

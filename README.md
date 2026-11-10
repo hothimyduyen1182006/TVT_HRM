@@ -1,8 +1,21 @@
+## Phạm vi OT Phòng Sản xuất
+
+- Áp dụng 06:00–22:00, cùng ngày; chặn ban đêm/qua ngày để không tính thiếu các khoản cộng thêm. Chưa mở trường hợp 300 giờ/năm.
+- Kiểm tra tối đa 50% giờ làm bình thường trong ngày, tổng giờ làm tối đa 12; 40 giờ/tháng và 200 giờ/năm. Yêu cầu chờ duyệt giữ chỗ hạn mức. Lịch làm việc và loại ngày phải được HR kiểm tra trước.
+- Giờ đề nghị được tính từ khoảng giờ, làm tròn xuống 2 chữ số thập phân; người dùng không gửi một số giờ tùy ý thay cho khoảng thực tế.
+- Không cho gửi trùng/chồng lấn, gửi thay hoặc tự duyệt. Yêu cầu bị từ chối không gửi lại cùng khoảng. Mọi lần gửi/duyệt/từ chối có nhật ký.
+- Quyền gửi theo phòng hiện tại; phòng ban khi gửi được lưu trên yêu cầu. Sau chuyển phòng, yêu cầu chờ của phòng cũ không được duyệt bằng quyền phòng mới; HR cần đối soát. OT đã duyệt hợp lệ không tự mất khi chuyển phòng.
+- HR nhập lương giờ căn cứ OT và lý do áp dụng ở /payroll/inputs/ khi có OT đã duyệt. Không tự lấy thưởng, tiền ăn hoặc khoản hỗ trợ làm căn cứ.
+- Các phòng khác vẫn giữ check-out thực tế. Hồ sơ làm thêm được công ty yêu cầu/chấp nhận ngoài Sản xuất cần HR đối soát theo quy trình ngoại lệ riêng; không được sửa giờ về cuối ca hoặc tự gộp khoản này thành OT Sản xuất.
+- Không tự chuyển OT cũ thành yêu cầu mới, không tự tính lại/duyệt/chi trả phiếu lương lịch sử.
+- Ba migration mới bổ sung cấu hình phòng, khoảng OT và căn cứ lương giờ. Sao lưu trước khi migrate; không xóa migration cũ.
+- Căn cứ tham khảo: Điều 98, 106, 107 Bộ luật Lao động (bản hợp nhất 18/VBHN-VPQH năm 2026); Điều 55 Nghị định 145/2020/NĐ-CP. Phạm vi hiện tại không thay thế quy trình riêng cho lao động đặc thù hoặc làm thêm ban đêm.
+
 # TVT HRM — Django 4.2.8
 
 Bản tích hợp đồ án: nhân viên/phòng ban/tài khoản dùng Django Admin; bảng công và
 bảng lương có giao diện Bootstrap, phân quyền backend, service, migration và kiểm thử.
-Công ty không cho phép tăng ca: không gửi/duyệt yêu cầu OT và không tính tiền OT vào lương mới.
+Chỉ Phòng Sản xuất được đăng ký OT theo cấu hình Department.allows_overtime trong database. Nhân viên tự gửi; Trưởng phòng Sản xuất duyệt/từ chối; HR tổng hợp và nhập căn cứ lương giờ.
 Giữ dữ liệu OT cũ chỉ để đối chiếu lịch sử. Không tạo sẵn nhân viên
 hoặc mật khẩu mẫu trong database thật.
 
@@ -67,8 +80,8 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 7. Nhân sự ghi công tại /attendance/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.
-8. Không nhập OT. Check-out sau giờ kết thúc vẫn lưu giờ ra thực tế, chỉ tính công trong ca.
-   Mọi URL gửi/duyệt/từ chối OT cũ đều bị chặn; lịch sử OT chỉ được xem.
+8. Quản trị bật allows_overtime cho đúng Phòng Sản xuất (database chỉ cho một phòng được bật). Check-out muộn giữ giờ thực tế, công thường chỉ tính trong ca; không tự gửi yêu cầu OT.
+   Nhân viên mở chi tiết ngày công, chọn khoảng OT và lý do, xác nhận gửi. Trưởng phòng xử lý trước khi HR khóa công. URL duyệt cũ theo ID chấm công vẫn bị chặn để tránh nhầm yêu cầu.
 9. Nhân sự/Giám đốc chọn tháng/năm tại /attendance/, mở chi tiết từng nhân viên và bấm
    Duyệt bảng công cạnh Lịch sử điều chỉnh công. Hệ thống kiểm tra đủ ngày của riêng người đó,
    tính lại chỉ số, lưu người/thời gian duyệt và chuyển dòng đó sang Đã duyệt. Khi đủ nhân viên
@@ -85,18 +98,18 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 ## Công thức và ranh giới chính sách
 
 - Giờ làm thường là giao giữa giờ vào/ra với khung làm việc, trừ giao với nghỉ trưa.
-  Ngày nghỉ/lễ không sinh công thường hoặc tiền OT.
+  Ngày nghỉ/lễ không sinh công thường; OT hợp lệ của Sản xuất được tính riêng theo loại ngày.
 - Công thực tế = giờ hợp lệ / giờ mỗi công, tối đa công chuẩn ngày; cộng công nghỉ hưởng
   lương đã duyệt, kiểm tra trùng với công thực tế. Chỉ số công/giờ lưu 4 chữ số thập phân.
 - Lương theo công = lương cơ bản / công chuẩn tháng × công hưởng lương.
-- Lương mới có giờ OT và tiền OT bằng 0; OT lịch sử không được dùng làm đầu vào.
+- Tiền OT = lương giờ thực trả do HR xác nhận × giờ được duyệt × hệ số theo lịch (1,5 ngày thường; 2 nghỉ tuần; 3 lễ). Chỉ yêu cầu đã gửi và duyệt hợp lệ tham gia tính; dữ liệu OT legacy không tự trở thành nguồn mới.
 - BH = tổng lương đóng BH × từng tỷ lệ trong JSON; ví dụ cú pháp {"BHXH": "0.08"}.
   Đây là ví dụ định dạng, không phải tỷ lệ mặc định. Không tham gia BH thì nhập {}, căn cứ
   miễn/không áp dụng và xác nhận. Tỷ lệ phải ở [0,1], tổng không vượt 1.
 - Thuế: bản hiện tại nhận số thuế đã xác định và căn cứ chính sách, thu nhập tính thuế,
   giảm trừ/người phụ thuộc từ người có trách nhiệm. Chưa tự tính biểu thuế lũy tiến vì nhóm
   chưa thống nhất quy tắc và dữ liệu. Nhập 0 chỉ khi có căn cứ; thiếu đầu vào thì chặn tính.
-- Thực nhận = lương theo công + thưởng duyệt + phụ cấp duyệt - BH - thuế - khấu trừ duyệt.
+- Thực nhận = lương theo công + OT hợp lệ + thưởng duyệt + phụ cấp duyệt - BH - thuế - khấu trừ duyệt.
   Dùng Decimal; tính thực nhận từ giá trị trung gian chưa làm tròn, ROUND_HALF_UP tới đồng
   ở cuối. Thành phần lưu 8 số thập phân, breakdown giữ công thức/giá trị chính xác dạng chuỗi.
 - Số công nghỉ là tổng nghỉ phép đã duyệt, không suy diễn ngày thiếu chấm công thành ngày nghỉ.
