@@ -36,7 +36,7 @@
           {% if can_check_in %}<form method="post" action="{% url 'attendance:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
           <div class="tvt-shift-caption">Ca làm việc: {% if period %}{{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
         {% endif %}
-        {% if not period %}<div class="tvt-period-note">Kỳ công tháng này chưa được thiết lập. Vui lòng liên hệ nhân sự để mở chấm công.</div>{% elif locked and page_state != 'done' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
+        {% if schedule_error %}<div class="tvt-period-note">{{ schedule_error }}</div>{% elif locked and page_state != 'done' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
       </section>
       <aside class="tvt-checkin-stats">
         <h2>{% if page_state == 'done' %}TỔNG KẾT HÔM NAY{% else %}THỐNG KÊ CA LÀM VIỆC{% endif %}</h2>

@@ -76,6 +76,14 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
 6. Kiểm tra từng ngày, kể cả nghỉ/lễ, trong Admin > Work calendar days. expected_units là
    công chuẩn ngày; ngày nghỉ/lễ bằng 0. Sửa ngày nghỉ bù/làm bù nếu có. Chỉ sau khi kiểm tra
    mới bật policy_confirmed của kỳ. Số ngày công chuẩn tháng lấy từ lịch này.
+
+   Với UC-3, sau cấu hình ban đầu, tháng mới tự kế thừa ca và lịch tuần của kỳ trước gần nhất
+   đã xác nhận. Mở trang chấm công chỉ xem trước; lần check-in thành công đầu tiên mới lưu
+   kỳ mới và lịch đủ tháng. Không sao chép trạng thái duyệt, không ghi đè ngày lễ/nghỉ/làm bù
+   đã cấu hình ở tháng đích. HR vẫn cần khai báo các ngoại lệ lễ/nghỉ bù theo lịch thực tế;
+   hệ thống không tự suy đoán ngày lễ. Nếu lịch nguồn thiếu ngày, chưa xác nhận hoặc có
+   nhiều quy tắc khác nhau cho cùng thứ trong tuần, hệ thống báo cần HR xác định lịch.
+   Tạo kỳ tháng mới không tự tạo dữ liệu chấm công, duyệt công hoặc tính lương.
 7. Nhân sự ghi công tại /attendance/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.

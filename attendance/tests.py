@@ -270,13 +270,20 @@ class AttendanceTests(TestCase):
                     self.assertEqual(row.check_in, time(8))
                     self.assertEqual(row.note, '')
                     self.assertEqual(AttendanceAuditLog.objects.count(), audits)
+                    new_day = 6 if actor == self.hr else 7
                     response = self.client.post('/attendance/new/', {
-                        'employee': self.emp.pk, 'date': '2026-01-06', 'check_in': '08:00',
+                        'employee': self.emp.pk, 'date': f'2026-01-{new_day:02}', 'check_in': '08:00',
                         'check_out': '17:00', 'status': 'present', 'reason': 'Tạo thêm'})
-                    self.assertEqual(response.status_code, 200)
-                    self.assertContains(response, 'Kỳ công đã duyệt, cần mở lại trước.')
-                    self.assertFalse(AttendanceRecord.objects.filter(employee=self.emp,
-                                                                    date=date(2026, 1, 6)).exists())
+                    if lock == 'period':
+                        self.assertEqual(response.status_code, 200)
+                        self.assertContains(response, 'Kỳ công đã duyệt, cần mở lại trước.')
+                        self.assertFalse(AttendanceRecord.objects.filter(employee=self.emp,
+                                                                        date=date(2026, 1, new_day)).exists())
+                    else:
+                        # Quy tắc của bản 616e798: chỉ khóa bản ghi đã có khi duyệt nhân viên.
+                        self.assertEqual(response.status_code, 302)
+                        self.assertTrue(AttendanceRecord.objects.filter(employee=self.emp,
+                                                                       date=date(2026, 1, new_day)).exists())
 
     def test_pending_attendance_keeps_edit_link_and_allows_update(self):
         row = save_record(self.hr, self.record(), 'Tạo công')

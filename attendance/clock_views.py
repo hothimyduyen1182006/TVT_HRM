@@ -7,9 +7,10 @@ from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from employees.models import Employee
-from .models import AttendanceRecord, AttendancePeriod, WorkCalendarDay
+from .models import AttendanceRecord
 from .services.clocking import punch
 from .services.workflow import period_is_locked
+from .services.scheduling import clock_schedule
 
 
 @login_required
@@ -27,10 +28,11 @@ def today(request):
             messages.error(request, ' '.join(error.messages))
         return redirect('attendance:clock')
     record = AttendanceRecord.objects.filter(employee=employee, date=now.date()).first()
-    period = AttendancePeriod.objects.filter(year=now.year, month=now.month).first()
-    locked = period_is_locked(period, employee.pk, now.date())
-    workday = WorkCalendarDay.objects.filter(date=now.date(), kind='work').exists()
-    can_punch = bool(period and period.policy_confirmed and not locked and workday and
+    schedule = clock_schedule(now.date())
+    period, day = schedule['period'], schedule['day']
+    locked = period_is_locked(period, employee.pk, now.date()) if period and period.pk else False
+    workday = day and day.kind == 'work'
+    can_punch = bool(not schedule['error'] and period and period.policy_confirmed and not locked and workday and
                      employee.hire_date <= now.date())
     page_state = 'done' if record and record.check_out else (
         'checkout' if record and record.check_in else 'checkin')
@@ -57,6 +59,7 @@ def today(request):
         'can_check_in': can_punch and record is None,
         'can_check_out': can_punch and bool(record and record.check_in and not record.check_out),
         'locked': locked, 'is_late': bool(record and record.late_minutes),
+        'schedule_error': schedule['error'],
         'elapsed_hours': elapsed_hours,
         'duration': f'{minutes // 60:02}:{minutes % 60:02}',
     })

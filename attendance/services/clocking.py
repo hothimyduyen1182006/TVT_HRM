@@ -2,28 +2,30 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 from employees.models import Employee
-from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
+from attendance.models import AttendanceRecord
 from .calculations import calculate_record
 from .workflow import period_is_locked
+from .scheduling import ensure_clock_schedule
 
 
 @transaction.atomic
 def punch(actor, action, note=''):
+    if not actor.is_authenticated:
+        raise PermissionDenied('Cần đăng nhập trước khi chấm công.')
+    if action not in ['in', 'out']:
+        raise ValidationError('Thao tác không hợp lệ.')
     now = timezone.localtime().replace(microsecond=0)
     today = now.date()
     employee = Employee.objects.select_for_update().filter(user=actor, is_active=True).first()
     if not employee:
         raise PermissionDenied('Tài khoản chưa liên kết nhân viên đang làm việc.')
-    period = AttendancePeriod.objects.select_for_update().filter(year=today.year, month=today.month).first()
-    if not period or not period.policy_confirmed:
-        raise ValidationError('Nhân sự cần cấu hình và xác nhận kỳ công hiện tại trước.')
-    if period_is_locked(period, employee.pk, today):
-        raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
-    day = WorkCalendarDay.objects.filter(date=today).first()
-    if not day or day.kind != 'work':
-        raise ValidationError('Hôm nay chưa có lịch làm việc thông thường được cấu hình.')
     if today < employee.hire_date:
         raise ValidationError('Chưa đến ngày vào làm.')
+    period, day = ensure_clock_schedule(today, actor)
+    if period_is_locked(period, employee.pk, today):
+        raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
+    if not day or day.kind != 'work':
+        raise ValidationError('Hôm nay chưa có lịch làm việc thông thường được cấu hình.')
     record = AttendanceRecord.objects.select_for_update().filter(employee=employee, date=today).first()
     if action == 'in':
         if record:
