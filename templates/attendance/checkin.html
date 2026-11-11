@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{% if page_state == 'checkout' %}Check-out{% else %}Check-in{% endif %} · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'attendance/checkin.css' %}?v=20261110-clock-size-112">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'attendance/checkin.css' %}?v=20261111-all-accounts">{% endblock %}
 {% block content %}
 <section class="tvt-checkin-page">
   {% if not employee %}
