@@ -390,6 +390,10 @@ def decision(request, employee_id, year, month):
         return redirect('bonuses:list')
     rows.update(status='approved' if action == 'approve' else 'rejected', approved_by=request.user,
                 approved_at=timezone.now(), rejection_reason=reason if action == 'reject' else '')
+    from payroll.services.calculations import refresh_employee_payroll
+    payroll_error = refresh_employee_payroll(request.user, employee_id, year, month)
+    if payroll_error:
+        messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + payroll_error)
     messages.success(request, 'Đã cập nhật kết quả duyệt thưởng.')
     return redirect('bonuses:list')
 

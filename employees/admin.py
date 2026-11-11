@@ -8,6 +8,18 @@ class EmployeeAdmin(admin.ModelAdmin):
     list_filter = ('department', 'is_active')
     search_fields = ('code', 'full_name')
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if change and set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
+            from payroll.models import PayrollPeriod
+            from payroll.services.calculations import refresh_employee_payroll
+            for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
+                attendance = period.attendance_period
+                error = refresh_employee_payroll(request.user, obj.pk, attendance.year, attendance.month)
+                if error:
+                    from django.contrib import messages
+                    self.message_user(request, error, level=messages.WARNING)
+
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):

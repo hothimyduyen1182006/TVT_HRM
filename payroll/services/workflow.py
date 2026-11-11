@@ -96,7 +96,7 @@ def record_approval_error(record, period=None, attendance=None):
             except (KeyError, TypeError, ValueError, InvalidOperation):
                 return 'Phiếu cũ thiếu dữ liệu đối chiếu. Hãy tính lại lương trước khi duyệt.'
     if changed:
-        return 'Dữ liệu dùng tính lương đã thay đổi so với phiếu đã lưu. Hãy bấm Tính lương trước khi duyệt.'
+        return 'Dữ liệu nguồn đã thay đổi và lương chưa cập nhật được. Cần kiểm tra căn cứ tính lương trước khi duyệt.'
     return ''
 
 
@@ -149,6 +149,10 @@ def change_payroll(actor, period_id, action, reason, evidence=''):
         raise ValidationError('Thao tác không hợp lệ.')
     period.save()
     PayrollAuditLog.objects.create(period=period, actor=actor, action=action, reason=reason, snapshot=snapshot(period))
+    if action == 'reopen':
+        from .calculations import refresh_employee_payroll
+        for employee_id in period.records.filter(status='pending').values_list('employee_id', flat=True):
+            refresh_employee_payroll(actor, employee_id, attendance.year, attendance.month)
 
 
 @transaction.atomic

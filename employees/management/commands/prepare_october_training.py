@@ -106,7 +106,7 @@ class Command(BaseCommand):
                 for code in ['NV02','NV03','NV06']:
                     approve_employee(hr,people[code],period.pk)
                 self._bonuses(people,hr,director)
-                payroll = PayrollPeriod.objects.create(attendance_period=period)
+                payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
                 self._inputs(people,period,payroll,hr)
                 calculate_payroll(hr,payroll.pk,'Chuẩn bị phiếu lương tháng 10 từ công đã duyệt và thưởng hợp lệ')
                 approve_record(director,PayrollRecord.objects.get(period=payroll,employee=people['NV02']).pk)

@@ -84,12 +84,13 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
    Duyệt bảng công cạnh Lịch sử điều chỉnh công. Hệ thống kiểm tra đủ ngày của riêng người đó,
    tính lại chỉ số, lưu người/thời gian duyệt và chuyển dòng đó sang Đã duyệt. Khi đủ nhân viên
    được duyệt, kỳ công hoàn tất và có thể tính lương toàn kỳ.
-10. Admin > Payroll periods: tạo kỳ lương liên kết kỳ công. Nhân sự nhập riêng dữ liệu
-    thuế/BH cho từng nhân viên tại /payroll/inputs/, gồm căn cứ và đánh dấu đã kiểm tra.
+10. Kỳ lương tự được tạo khi duyệt công. Nhân sự mở **Thiết lập tính lương** tại /payroll/,
+    xác nhận căn cứ thuế/BH của từng nhân viên và đánh dấu đã kiểm tra.
     Nhập phụ cấp/khấu trừ có căn cứ; không nhập phạt đi muộn trùng phần công đã giảm.
 11. Admin > Bonuses: nhập thưởng đúng tháng/năm; chỉ thưởng đã duyệt mới cộng vào lương.
     Không tự sinh thưởng chuyên cần/thâm niên; nhóm quản lý thưởng quyết định và duyệt.
-12. Nhân sự chọn kỳ tại /payroll/, ghi lý do rồi tính lương. Giám đốc kiểm tra phiếu lương,
+12. Lương chưa duyệt tự cập nhật sau khi lưu đầu vào, duyệt công, duyệt thưởng hoặc đổi lương cơ bản;
+    không có nút tính lương. Thiếu công/căn cứ hợp lệ thì phải bổ sung. Giám đốc kiểm tra phiếu lương,
     duyệt; sau đó Nhân sự/Giám đốc có thể xuất CSV/JSON/TXT theo bộ lọc.
 13. Giám đốc chỉ xác nhận chi trả khi đã duyệt và có mã giao dịch/đường dẫn chứng từ.
 

@@ -133,6 +133,8 @@
     box-shadow: 0 20px 70px #142f5544;
 }
 .payroll-module .pr-dialog::backdrop { background: #142f5566; }
+.payroll-module .pr-inputs-dialog { width: min(1200px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.payroll-module .pr-inputs-dialog [hidden] { display: none !important; }
 .payroll-module .pr-dialog-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
 .payroll-module .pr-dialog-heading h2 { font-size: 22px; font-weight: 700; }
 .payroll-module .pr-dialog-heading button { background: white; border: 0; font-size: 30px; cursor: pointer; }

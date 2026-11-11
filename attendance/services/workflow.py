@@ -111,6 +111,10 @@ def change_period(actor, period_id, action, reason):
     period.save()
     AttendanceAuditLog.objects.create(actor=actor, action=action, reason=reason, before=before,
                                       after={'period': period.pk, 'status': period.status, 'revision': period.revision})
+    if action == 'approve':
+        from payroll.services.calculations import refresh_employee_payroll
+        for employee_id in period.employee_ids:
+            refresh_employee_payroll(actor, employee_id, period.year, period.month)
 
 
 @transaction.atomic
@@ -145,4 +149,6 @@ def approve_employee(actor, employee, period_id):
         period.save()
         AttendanceAuditLog.objects.create(actor=actor, action='approve', reason='Tất cả nhân viên trong kỳ đã được duyệt riêng',
             before={'period': period.pk, 'status': 'pending'}, after={'period': period.pk, 'status': 'approved', 'revision': period.revision})
+    from payroll.services.calculations import refresh_employee_payroll
+    approval.payroll_error = refresh_employee_payroll(actor, employee.pk, period.year, period.month)
     return approval

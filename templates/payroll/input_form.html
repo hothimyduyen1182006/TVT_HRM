@@ -1,8 +1,8 @@
 {% extends 'payroll/base.html' %}{% load payroll_display %}
 {% block title %}{{ title }} · TVT{% endblock %}
 {% block payroll_content %}
-<p><a class="pr-back" href="{% url 'payroll:inputs' %}?{{ back_query }}">‹ Quay lại dữ liệu theo kỳ lương</a></p>
 <div class="pr-input-editor"><h1>{{ title }}</h1>
+<p><a class="pr-back" href="{% url 'payroll:list' %}?{{ back_query }}&amp;settings=1" data-input-back>‹ Quay lại thiết lập tính lương</a></p>
 {% if locked %}<div class="pr-input-notice">Phiếu lương đã duyệt hoặc đã chi trả. Dữ liệu được khóa; cần mở lại theo quy trình để điều chỉnh.</div>
 <div class="pr-edit-section"><p><strong>Kỳ:</strong> {{ input_object.period }} · <strong>Nhân viên:</strong> {{ input_object.employee }}</p>
 {% if kind == 'tax' %}<p><strong>Lương đóng bảo hiểm:</strong> {{ input_object.insurance_base|money }} VNĐ</p>
@@ -42,6 +42,6 @@
  {% include 'payroll/input_field.html' with field=form.amount %}{% include 'payroll/input_field.html' with field=form.tax_category %}{% include 'payroll/input_field.html' with field=form.basis %}
  <div class="pr-confirm-input">{{ form.approved }}{{ form.approved.label_tag }}{{ form.approved.errors }}<p>Khoản chưa duyệt được lưu để theo dõi, chưa cộng hoặc trừ vào lương.</p></div></section>
  {% endif %}
- <div class="pr-actions"><button class="pr-button" type="submit">Lưu dữ liệu</button><a class="pr-button pr-secondary" href="{% url 'payroll:inputs' %}?{{ back_query }}">Hủy</a></div>
+ <div class="pr-actions"><button class="pr-button" type="submit">Lưu dữ liệu</button><a class="pr-button pr-secondary" href="{% url 'payroll:list' %}?{{ back_query }}&amp;settings=1" data-input-back>Hủy</a></div>
 </form>{% endif %}</div>
 {% endblock %}

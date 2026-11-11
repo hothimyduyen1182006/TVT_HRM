@@ -130,6 +130,15 @@ def employee_edit(request, employee_id):
     form = EmployeeForm(request.POST or None, request.FILES or None, instance=employee)
     if request.method == 'POST' and form.is_valid():
         form.save()
+        if set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
+            from payroll.models import PayrollPeriod
+            from payroll.services.calculations import refresh_employee_payroll
+            periods = PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id')
+            for period in periods:
+                attendance = period.attendance_period
+                error = refresh_employee_payroll(request.user, employee.pk, attendance.year, attendance.month)
+                if error:
+                    messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
     return render(request, 'employees/employee_form.html', {'form': form, 'employee': employee})

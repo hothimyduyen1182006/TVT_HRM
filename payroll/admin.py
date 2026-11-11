@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import transaction
 from employees.admin_utils import ReadOnlyAdmin
 from .models import (PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord,
                      PayrollAuditLog, PayrollExportLog)
@@ -21,12 +22,34 @@ class PeriodAdmin(admin.ModelAdmin):
 class InputAdmin(admin.ModelAdmin):
     actions = None
 
+    @transaction.atomic
     def save_model(self, request, obj, form, change):
+        from attendance.models import AttendancePeriod
+        AttendancePeriod.objects.select_for_update().get(pk=obj.period.attendance_period_id)
         super().save_model(request, obj, form, change)
         obj.period.attendance_revision = 0
         obj.period.save(update_fields=['attendance_revision'])
         PayrollAuditLog.objects.create(period=obj.period, actor=request.user, action='admin_input',
                                       reason='Cập nhật đầu vào; cần tính lại lương', snapshot=[])
+        from .services.calculations import refresh_employee_payroll
+        attendance = obj.period.attendance_period
+        error = refresh_employee_payroll(request.user, obj.employee_id, attendance.year, attendance.month)
+        if error:
+            from django.contrib import messages
+            self.message_user(request, error, level=messages.WARNING)
+
+    @transaction.atomic
+    def delete_model(self, request, obj):
+        from attendance.models import AttendancePeriod
+        AttendancePeriod.objects.select_for_update().get(pk=obj.period.attendance_period_id)
+        attendance = obj.period.attendance_period
+        employee_id = obj.employee_id
+        super().delete_model(request, obj)
+        from .services.calculations import refresh_employee_payroll
+        error = refresh_employee_payroll(request.user, employee_id, attendance.year, attendance.month)
+        if error:
+            from django.contrib import messages
+            self.message_user(request, error, level=messages.WARNING)
 
     def has_change_permission(self, request, obj=None):
         return (obj is None or not obj.is_locked) and super().has_change_permission(request, obj)

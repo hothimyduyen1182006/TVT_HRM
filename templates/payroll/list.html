@@ -3,7 +3,7 @@
 {% block title %}Bảng lương chính · TVT{% endblock %}
 {% block payroll_content %}
 
-<h1 class="pr-title">BẢNG LƯƠNG CHÍNH</h1>
+<h1 class="pr-title">BẢNG LƯƠNG CHÍNH</h1><p class="pr-muted">Lương tự cập nhật sau khi lưu các căn cứ hợp lệ. Công phải được duyệt; phiếu lương đã duyệt và đã chi trả được giữ nguyên.</p>
 <form class="pr-filter" method="get">
  <div class="pr-field pr-keyword">{{ form.q.label_tag }}{{ form.q }}</div>
  <div class="pr-field">{{ form.department.label_tag }}{{ form.department }}</div>
@@ -15,8 +15,7 @@
  {% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}
 </form>
 {% if can_manage %}<div class="pr-actions">
- <button class="pr-button" type="button" data-open-dialog="pr-calculate">Tính lương</button>
- <a class="pr-button pr-secondary" href="{% url 'payroll:inputs' %}?month={{ form.month.value }}&year={{ form.year.value }}">Điều chỉnh</a>
+ <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-inputs">Thiết lập tính lương</button>
  <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-export">Xuất bảng lương</button>
 </div>{% endif %}
 <div class="pr-table-scroll"><table class="pr-table"><thead><tr>
@@ -31,21 +30,21 @@
  <td class="pr-muted" title="Dữ liệu hiện chưa tách khoản phạt đi trễ; không tự áp dụng khoản phạt.">—</td>
  <td class="pr-deduct pr-money">{% with bhxh_amount=row|bhxh %}{% if bhxh_amount != None %}− {{ bhxh_amount|money }}{% else %}—{% endif %}{% endwith %}<small class="pr-muted">Tổng BH: {{ row.insurance|money }}</small></td>
  <td class="{% if row.tax %}pr-deduct{% else %}pr-muted{% endif %} pr-money">{% if row.tax %}− {% endif %}{{ row.tax|money }}</td>
- <td class="pr-net-cell pr-money">{{ row.net_pay|money }}</td><td class="pr-status pr-status-{{ row.status }}">{{ row.get_status_display }}</td>
+ <td class="pr-net-cell pr-money">{{ row.net_pay|money }}</td><td class="pr-status pr-status-{{ row.status }}">{{ row.get_status_display }}{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}</td>
  {% if director %}<td>{% if row.status == 'pending' %}<form method="post" action="{% url 'payroll:employee-approve' row.pk %}">{% csrf_token %}<button class="pr-button pr-approve-record" type="submit">Duyệt bảng lương</button></form>{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}{% else %}<span class="pr-muted">{{ row.get_status_display }}</span>{% endif %}</td>{% endif %}
 </tr>{% empty %}<tr><td colspan="{% if director %}12{% else %}11{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}
  <h2>CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG</h2>
- {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Hãy chọn kỳ lương khác hoặc thực hiện tính lương cho kỳ này.</p>{% if form.q.value or form.department.value or form.status.value or form.employee.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
+ {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Chọn kỳ lương khác hoặc hoàn thiện công đã duyệt và căn cứ tính lương để hệ thống tự cập nhật.</p>{% if form.q.value or form.department.value or form.status.value or form.employee.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
 </div></td></tr>{% endfor %}
 </tbody></table></div>
-{% if rows %}<p class="pr-table-note">Các khoản phụ cấp và khấu trừ khác được trình bày trong phiếu chi tiết. BHXH chỉ hiển thị riêng khi nguồn dữ liệu có mã BHXH; không tự tính tiền phạt từ thời gian đi trễ.</p>{% endif %}
+{% if rows %}<p class="pr-table-note">Bảo hiểm và thuế TNCN đã được trừ khi tính lương thực lĩnh. Các khoản thành phần được trình bày trong phiếu chi tiết; không tự tính tiền phạt từ thời gian đi trễ.</p>{% endif %}
 {% if can_manage %}
-<dialog id="pr-calculate" class="pr-dialog"><div class="pr-dialog-heading"><h2>Tính lương · {{ month_label }}/{{ year_label }}</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div>
- {% if not form.is_valid %}<p>Bộ lọc không hợp lệ. Vui lòng sửa tháng và năm trước.</p>
- {% elif not period %}<p>Chưa tạo kỳ lương cho tháng đã chọn. Cần tạo kỳ lương liên kết bảng công trước khi tính.</p>{% if user.is_superuser %}<a class="pr-button" href="{% url 'admin:payroll_payrollperiod_add' %}">Tạo kỳ lương trong quản trị</a>{% else %}<p>Vui lòng liên hệ quản trị viên để tạo kỳ lương.</p>{% endif %}
- {% elif period.status != 'pending' %}<p>Kỳ đã duyệt hoặc đã chi trả, không được tính lại trực tiếp. Sử dụng quy trình mở lại nếu có quyền.</p>
- {% else %}<p>Hệ thống tính lương cho các nhân viên đã được duyệt công, không cần chờ toàn bộ kỳ công. Chỉ tính lại các phiếu chờ duyệt của những người này, giữ nguyên phiếu đã duyệt và lưu lịch sử.</p>
- <form method="post" action="{% url 'payroll:transition' period.pk %}">{% csrf_token %}<input type="hidden" name="action" value="calculate"><label for="pr-calc-reason">Lý do tính / tính lại</label><textarea id="pr-calc-reason" name="reason" required></textarea><button class="pr-button">Thực hiện tính lương</button></form>{% endif %}
+<dialog id="pr-inputs" class="pr-dialog pr-inputs-dialog" aria-labelledby="pr-inputs-title"{% if open_inputs %} data-auto-open{% endif %}>
+ <div class="pr-dialog-heading"><h2 id="pr-inputs-title">Thiết lập tính lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div>
+ <p class="pr-muted">Bảo hiểm và thuế tự áp dụng khi tính lương theo căn cứ đã xác nhận của từng nhân viên.</p>
+ <p class="pr-errors" data-input-error role="alert" hidden></p>
+ <div data-input-overview>{% include 'payroll/inputs.html' with form=input_settings.form period=input_settings.period employee_rows=input_settings.employee_rows adjustments=input_settings.adjustments month_label=input_settings.month_label year_label=input_settings.year_label %}</div>
+ <div data-input-editor hidden></div>
 </dialog>
 <dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng lương đã duyệt hoặc đã chi trả.</p>
  <form method="post" action="{% url 'payroll:export' 'csv' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<div class="pr-actions"><button class="pr-button">CSV</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'json' %}">JSON</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'txt' %}">TXT</button></div></form>

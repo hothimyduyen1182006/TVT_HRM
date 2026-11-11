@@ -4,7 +4,7 @@
 
 Tạm tính theo tháng cho cá nhân cư trú có hợp đồng lao động từ 03 tháng, kỳ 07–12/2026. Đây không phải quyết toán năm. Kỳ khác, hợp đồng ngắn hạn, cá nhân không cư trú hoặc hồ sơ chưa xác định bị chặn để đối soát riêng, không mặc định thuế bằng 0.
 
-HR vào **Bảng lương → Đầu vào lương → Chỉnh sửa**, chọn phương pháp thuế, xác nhận đăng ký giảm trừ bản thân tại TVT và số người phụ thuộc đủ điều kiện trong tháng. Không tự suy ra người phụ thuộc từ số con. Ghi căn cứ cư trú, hợp đồng và hồ sơ giảm trừ, rồi xác nhận đã kiểm tra. Phân loại từng phụ cấp và lưu căn cứ miễn thuế trước khi tính lương.
+HR vào **Bảng lương → Thiết lập tính lương → Chỉnh sửa**, chọn phương pháp thuế, xác nhận đăng ký giảm trừ bản thân tại TVT và số người phụ thuộc đủ điều kiện trong tháng. Không tự suy ra người phụ thuộc từ số con. Ghi căn cứ cư trú, hợp đồng và hồ sơ giảm trừ, rồi xác nhận đã kiểm tra. Phân loại từng phụ cấp và lưu căn cứ miễn thuế trước khi tính lương.
 
 ## Công thức
 
@@ -32,7 +32,7 @@ Tính lũy tiến theo từng phần, dùng Decimal và làm tròn tổng thuế
 
 Migration 0006 chỉ thêm căn cứ/phân loại thuế; đầu vào cũ được đánh dấu `legacy`, giữ nguyên số thuế và phiếu đã duyệt/chi trả. Chuyển đầu vào chưa khóa sang phương pháp tự tính và tính lại qua luồng HR. Không chỉnh phiếu đã duyệt bằng migration; cần mở lại đúng quy trình nếu muốn tính lại. Trường `tax_amount` chỉ giữ lịch sử, không nhận số thuế nhập đè trong biểu mẫu mới.
 
-Phiếu mới lưu chi tiết tính thuế và nguồn đầu vào. Thay đổi căn cứ/thu nhập phải tính lại trước khi duyệt, xuất hoặc chi trả. Tính lại thay thế phiếu chờ duyệt, không cộng dồn thuế.
+Phiếu mới lưu chi tiết tính thuế và nguồn đầu vào. Thay đổi căn cứ/thu nhập phải tính lại trước khi duyệt, xuất hoặc chi trả. Tự cập nhật tại chỗ phiếu chờ duyệt, không cộng dồn thuế.
 
 ## Căn cứ đã đối chiếu
 

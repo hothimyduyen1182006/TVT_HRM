@@ -94,11 +94,13 @@ def approve_employee_view(request, employee_id, period_id):
     employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
     period = get_object_or_404(AttendancePeriod, pk=period_id)
     try:
-        approve_employee(request.user, employee, period.pk)
+        approval = approve_employee(request.user, employee, period.pk)
     except ValidationError as exc:
         messages.error(request, '; '.join(exc.messages))
     else:
         messages.success(request, f'Đã duyệt bảng công của {employee.full_name} tháng {period}.')
+        if getattr(approval, 'payroll_error', ''):
+            messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + approval.payroll_error)
     return redirect(reverse('attendance:employee-month', args=[employee.pk]) + '?' +
                     urlencode({'month': period.month, 'year': period.year}))
 

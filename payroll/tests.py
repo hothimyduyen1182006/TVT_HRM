@@ -56,6 +56,140 @@ class PayrollTests(TestCase):
     def approve(self):
         change_payroll(self.director, self.period.pk, 'approve', 'Đã kiểm tra')
 
+    def test_source_save_creates_payslip_without_calculate_button_and_logs_actor(self):
+        from .services.inputs import save_input
+        self.client.force_login(self.hr)
+        response = self.client.get('/payroll/?month=1&year=2026')
+        self.assertNotContains(response, 'id="pr-calc-reason"')
+        self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
+        self.assertFalse(PayrollRecord.objects.exists())  # GET không tạo lương.
+        inputs = PayrollInput.objects.get(employee=self.emp)
+        inputs.insurance_basis = 'Xác nhận căn cứ bảo hiểm'
+        save_input(self.hr, inputs)
+        self.assertEqual(PayrollRecord.objects.count(), 1)
+        logs = PayrollAuditLog.objects.filter(action='auto_calculate')
+        self.assertEqual(logs.count(), 1)
+        for log in logs:
+            self.assertEqual(log.actor, self.hr)
+            self.assertTrue(log.created_at)
+            self.assertIn(self.emp.code, log.reason)
+
+    def test_source_changes_update_existing_payslip_once_without_manual_calculation(self):
+        from .services.inputs import save_input
+        row = self.calculate()
+        other = PayrollRecord.objects.filter(employee=self.other).values().get()
+        inputs = PayrollInput.objects.get(employee=self.emp)
+        inputs.insurance_base = 7000000
+        save_input(self.hr, inputs)
+        row.refresh_from_db()
+        self.assertEqual(row.net_pay, 7200000)
+        self.assertEqual(PayrollRecord.objects.count(), 2)
+        self.assertEqual(other, PayrollRecord.objects.filter(employee=self.other).values().get())
+        audit_count = PayrollAuditLog.objects.count()
+        save_input(self.hr, inputs)
+        self.assertEqual(audit_count, PayrollAuditLog.objects.count())
+
+    def test_bonus_approval_updates_only_its_employee_payslip(self):
+        row = self.calculate()
+        other = PayrollRecord.objects.filter(employee=self.other).values().get()
+        Bonus.objects.create(employee=self.emp, month=1, year=2026, name='Thưởng kết quả',
+            amount=500000, reason='Hoàn thành công việc', proposed_by=self.hr,
+            proposed_at=timezone.now(), status='pending')
+        self.client.force_login(self.director)
+        url = f'/bonuses/{self.emp.pk}/2026/1/decision/'
+        self.assertEqual(self.client.post(url, {'action': 'approve'}).status_code, 302)
+        row.refresh_from_db()
+        self.assertEqual(row.bonus_pay, 500000)
+        self.assertEqual(row.net_pay, 7600000)
+        self.assertEqual(other, PayrollRecord.objects.filter(employee=self.other).values().get())
+        count = PayrollAuditLog.objects.filter(action='auto_calculate').count()
+        self.assertEqual(self.client.post(url, {'action': 'approve'}).status_code, 404)
+        self.assertEqual(count, PayrollAuditLog.objects.filter(action='auto_calculate').count())
+
+    def test_adjustment_save_updates_draft_without_double_counting(self):
+        from .services.inputs import save_input
+        row = self.calculate()
+        adjustment = PayrollAdjustment(employee=self.emp, period=self.period, kind='allowance',
+            name='Ăn trưa', amount=450000, basis='Quy chế đã xác nhận', approved=True)
+        save_input(self.hr, adjustment)
+        row.refresh_from_db()
+        self.assertEqual(row.allowance, 450000)
+        self.assertEqual(row.net_pay, 7550000)
+        save_input(self.hr, adjustment)
+        row.refresh_from_db()
+        self.assertEqual(row.allowance, 450000)
+        self.assertEqual(PayrollRecord.objects.count(), 2)
+
+    def test_invalid_input_keeps_snapshot_and_blocks_approval(self):
+        from .services.inputs import save_input
+        from .services.calculations import refresh_employee_payroll
+        inputs = PayrollInput.objects.get(employee=self.emp)
+        inputs.verified = False
+        save_input(self.hr, inputs)
+        self.assertTrue(inputs.payroll_error)
+        self.assertFalse(PayrollRecord.objects.filter(employee=self.emp).exists())
+        inputs.verified = True
+        save_input(self.hr, inputs)
+        before = PayrollRecord.objects.filter(employee=self.emp).values().get()
+        inputs.verified = False
+        save_input(self.hr, inputs)
+        self.assertTrue(inputs.payroll_error)
+        self.assertEqual(before, PayrollRecord.objects.filter(employee=self.emp).values().get())
+        with self.assertRaises(ValidationError): approve_record(self.director, before['id'])
+        with self.assertRaises(PermissionDenied): refresh_employee_payroll(self.user, self.emp.pk, 2026, 1)
+
+    def test_attendance_approval_creates_payslip_automatically(self):
+        from attendance.services.workflow import approve_employee
+        self.attendance.status = 'pending'
+        self.attendance.employee_ids = []
+        self.attendance.save()
+        AttendanceRecord.objects.filter(employee=self.emp).update(updated_by=self.hr)
+        for day in range(1, 32):
+            if day != 5:
+                WorkCalendarDay.objects.create(date=date(2026, 1, day), kind='rest', expected_units=0)
+        approval = approve_employee(self.hr, self.emp, self.attendance.pk)
+        self.assertEqual(approval.payroll_error, '')
+        self.assertEqual(PayrollRecord.objects.get(employee=self.emp).net_pay, 7100000)
+        self.assertFalse(PayrollRecord.objects.filter(employee=self.other).exists())
+
+    def test_approved_pay_stays_frozen_until_reopen_then_refreshes(self):
+        row = self.calculate()
+        approve_record(self.director, row.pk)
+        before = PayrollRecord.objects.filter(pk=row.pk).values().get()
+        Bonus.objects.create(employee=self.emp, month=1, year=2026, name='Thưởng bổ sung',
+            amount=500000, reason='Hoàn thành công việc', proposed_by=self.hr,
+            proposed_at=timezone.now(), status='pending')
+        self.client.force_login(self.director)
+        self.client.post(f'/bonuses/{self.emp.pk}/2026/1/decision/', {'action': 'approve'})
+        self.assertEqual(before, PayrollRecord.objects.filter(pk=row.pk).values().get())
+        change_payroll(self.director, self.period.pk, 'reopen', 'Điều chỉnh thưởng theo quyết định mới')
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'pending')
+        self.assertEqual(row.bonus_pay, 500000)
+        self.assertEqual(row.net_pay, 7600000)
+
+    def test_new_employee_calculation_keeps_approved_payslip_without_reason(self):
+        calculate_payroll(self.hr, self.period.pk, '')
+        # Kỳ còn một nhân viên chưa có phiếu, nên chưa được duyệt toàn kỳ.
+        PayrollRecord.objects.filter(employee=self.other).delete()
+        row = PayrollRecord.objects.get(employee=self.emp)
+        approve_record(self.director, row.pk)
+        before = PayrollRecord.objects.filter(pk=row.pk).values().get()
+        calculate_payroll(self.hr, self.period.pk, '')
+        self.assertEqual(before, PayrollRecord.objects.filter(pk=row.pk).values().get())
+        self.assertEqual(PayrollRecord.objects.get(employee=self.other).status, 'pending')
+
+    def test_pending_payslip_outside_eligible_scope_does_not_require_reason(self):
+        self.attendance.employee_ids = [self.other.pk]
+        self.attendance.save()
+        calculate_payroll(self.hr, self.period.pk, '')
+        before = PayrollRecord.objects.filter(employee=self.other).values().get()
+        self.attendance.employee_ids = [self.emp.pk]
+        self.attendance.save()
+        calculate_payroll(self.hr, self.period.pk, '')
+        self.assertEqual(before, PayrollRecord.objects.filter(employee=self.other).values().get())
+        self.assertEqual(PayrollRecord.objects.count(), 2)
+
     def test_exact_net_and_approved_sources(self):
         AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(19))
         historical_overtime(employee=self.emp, date=date(2026, 1, 5), hours=2,
@@ -215,16 +349,14 @@ class PayrollTests(TestCase):
         AttendanceRecord.objects.update(date=date(2026, 10, 5))
         self.calculate()
         self.client.force_login(self.hr)
-        self.assertEqual(self.client.get('/payroll/inputs/').status_code, 200)
+        self.assertEqual(self.client.get('/payroll/inputs/', follow=True).status_code, 200)
         obj = PayrollInput.objects.get(employee=self.emp)
         response = self.client.post(f'/payroll/inputs/tax/{obj.pk}/', {
             'insurance_base': '8000000', 'insurance_rates': '{"BH": "0.1"}', 'insurance_basis': 'Đã kiểm tra',
             'tax_amount': '200000', 'tax_method': 'resident_2026', 'claim_personal_deduction': 'on',
             'tax_basis': 'Căn cứ điều chỉnh', 'verified': 'on'})
         self.assertEqual(response.status_code, 302)
-        with self.assertRaises(ValidationError):
-            self.approve()
-        self.assertEqual(self.calculate().net_pay, Decimal('7200000'))
+        self.assertEqual(PayrollRecord.objects.get(employee=self.emp).net_pay, Decimal('7200000'))
         self.approve()
         self.assertEqual(self.client.post(f'/payroll/inputs/tax/{obj.pk}/', {}).status_code, 200)
         obj.refresh_from_db()
@@ -271,7 +403,7 @@ class PayrollTests(TestCase):
         self.assertContains(response, 'BẢNG LƯƠNG CHÍNH')
         self.assertContains(response, 'CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG')
         self.assertContains(response, 'Tháng 10/2026')
-        for label in ['Tính lương', 'Điều chỉnh', 'Xuất bảng lương', 'Lương thực']:
+        for label in ['Thiết lập tính lương', 'Xuất bảng lương', 'Lương thực']:
             self.assertContains(response, label)
         self.assertEqual(before, (PayrollRecord.objects.count(), PayrollPeriod.objects.count(), PayrollAuditLog.objects.count()))
 
@@ -389,9 +521,9 @@ class PayrollTests(TestCase):
 
     def test_adjustment_page_respects_selected_period(self):
         self.client.force_login(self.hr)
-        response = self.client.get('/payroll/inputs/', {'month': 1, 'year': 2026})
+        response = self.client.get('/payroll/inputs/', {'month': 1, 'year': 2026}, follow=True)
         self.assertEqual(response.context['inputs'].count(), 2)
-        response = self.client.get('/payroll/inputs/', {'month': 10, 'year': 2026})
+        response = self.client.get('/payroll/inputs/', {'month': 10, 'year': 2026}, follow=True)
         self.assertEqual(response.context['inputs'].count(), 0)
 
     def test_director_approves_only_one_employee(self):
@@ -510,7 +642,7 @@ class PayrollTests(TestCase):
         changed = AttendanceRecord.objects.get(employee=self.emp)
         changed.paid_units = Decimal('.5')
         changed.save()
-        with self.assertRaisesMessage(ValidationError, 'Dữ liệu dùng tính lương đã thay đổi'):
+        with self.assertRaisesMessage(ValidationError, 'Dữ liệu nguồn đã thay đổi'):
             approve_record(self.director, old.pk)
         fresh = self.calculate()
         self.assertEqual(fresh.breakdown['attendance_revision'], self.attendance.revision)
@@ -614,15 +746,20 @@ class PayrollTests(TestCase):
     def test_input_dashboard_shows_missing_and_selected_month(self):
         PayrollInput.objects.filter(employee=self.other).delete()
         self.client.force_login(self.hr)
-        response = self.client.get('/payroll/inputs/?month=1&year=2026')
+        response = self.client.get('/payroll/inputs/?month=1&year=2026', follow=True)
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.redirect_chain, [('/payroll/?month=1&year=2026&settings=1', 302)])
+        self.assertTemplateUsed(response, 'payroll/list.html')
+        self.assertContains(response, 'id="pr-inputs"')
+        self.assertContains(response, 'data-auto-open')
+        self.assertNotContains(response, 'DỮ LIỆU ĐẦU VÀO THEO KỲ LƯƠNG')
         self.assertEqual(response.context['counts']['missing'], 1)
         self.assertContains(response, 'Bổ sung dữ liệu')
         self.assertContains(response, f'period={self.period.pk}&amp;employee={self.other.pk}')
-        response = self.client.get('/payroll/inputs/?month=1&year=2026&readiness=missing')
+        response = self.client.get('/payroll/inputs/?month=1&year=2026&readiness=missing', follow=True)
         self.assertEqual(len(response.context['employee_rows']), 1)
         self.assertEqual(response.context['employee_rows'][0]['employee'], self.other)
-        response = self.client.get('/payroll/inputs/?month=10&year=2026')
+        response = self.client.get('/payroll/inputs/?month=10&year=2026', follow=True)
         self.assertContains(response, 'CHƯA CÓ KỲ LƯƠNG 10/2026')
 
     def test_insurance_percentage_form_stores_decimal_rates(self):
@@ -630,6 +767,8 @@ class PayrollTests(TestCase):
         self.client.force_login(self.hr)
         response = self.client.post(f'/payroll/inputs/tax/{obj.pk}/', self.insurance_form_data())
         self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.url.startswith('/payroll/?'))
+        self.assertIn('settings=1', response.url)
         self.assertIn('month=1', response.url)
         obj.refresh_from_db()
         self.assertEqual(obj.insurance_rates, {'BHXH': '0.08', 'BHYT': '0.015'})
@@ -685,6 +824,26 @@ class PayrollTests(TestCase):
         self.assertEqual(response.status_code, 200)
         obj.refresh_from_db()
         self.assertEqual(obj.insurance_rates, {'BH': '0.1'})
+
+
+    def test_settings_are_hidden_from_manager_and_employee(self):
+        for manager in [False, True]:
+            if manager:
+                self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
+            self.client.force_login(self.user)
+            response = self.client.get('/payroll/?month=1&year=2026&settings=1', follow=True)
+            self.assertNotContains(response, 'id="pr-inputs"')
+            self.assertEqual(self.client.get('/payroll/inputs/').status_code, 403)
+
+    def test_settings_save_still_requires_csrf(self):
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.hr)
+        obj = PayrollInput.objects.get(employee=self.emp)
+        before = (obj.insurance_rates, PayrollAuditLog.objects.count())
+        response = client.post(f'/payroll/inputs/tax/{obj.pk}/', self.insurance_form_data())
+        self.assertEqual(response.status_code, 403)
+        obj.refresh_from_db()
+        self.assertEqual(before, (obj.insurance_rates, PayrollAuditLog.objects.count()))
 
 
 class AutomaticOvertimePayrollTests(TestCase):

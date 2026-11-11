@@ -136,7 +136,7 @@ class Command(BaseCommand):
                     bonus.full_clean()
                     bonus.save()
             change_period(director, period.pk, 'approve', 'DEMO: duyệt kỳ công minh họa; không phải dữ liệu thực tế')
-            payroll = PayrollPeriod.objects.create(attendance_period=period)
+            payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
             for index, employee in enumerate(employees):
                 inputs = PayrollInput(period=payroll, employee=employee, insurance_base=employee.base_salary,
                     insurance_rates={'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'},

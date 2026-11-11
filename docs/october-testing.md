@@ -39,15 +39,16 @@ Tất cả nhân viên có phụ cấp ăn trưa **450.000đ/tháng**. NV03 thê
 5. Vào Nghỉ phép, duyệt đơn NV04 ngày 30/10. Sau đó vào công NV04 ngày 30/10, chọn **Nghỉ phép**, để trống giờ vào/ra và lưu. Việc duyệt phép tạo ngày phép, không tự thay trạng thái bản ghi chấm công chưa đủ dữ liệu.
 6. Công NV05 ngày 21/10: chọn **Có mặt**, giữ giờ vào 08:00, bổ sung giờ ra 17:00 và lý do. Ngày 14/10 vẫn giữ Nghỉ không phép, không tự bổ sung công giả.
 7. Bảng thưởng: thử Tính thưởng tự động, xem nháp, gửi duyệt. Có thể lập lại đề xuất NV07 bị từ chối. Đăng nhập `giamdoc` để duyệt/từ chối; từ chối phải có lý do. Nhân viên chỉ hưởng khoản đã duyệt, có đủ thông tin.
-8. Đăng nhập HR: sau khi Giám đốc duyệt thưởng NV03, bấm **Tính lương** lại. Thưởng NV03 phải chuyển từ 0 lên 1.050.000đ; OT vẫn 7,5h, không cộng đôi. Bấm nhiều lần không tăng số phiếu hoặc cộng dồn số tiền; phiếu NV02 đã duyệt được giữ nguyên.
-9. Vào **Đầu vào lương**, xem thuế/BH, phụ cấp và khấu trừ. Thử sửa khoản của NV06 đang chờ duyệt. Với NV08, đối chiếu hai mức lương; xác nhận lương đóng BH/căn cứ thuế và chọn đã kiểm tra. Bộ số liệu đang giả định lương đóng BH 20 triệu, không tự sửa hợp đồng 11,5 triệu.
-10. Duyệt công các nhân viên còn mở: NV01, NV04, NV05, NV07, NV08. Khi đã đủ dữ liệu của cả 8 người, kỳ công tự chuyển Đã duyệt. Tính lương lại để có đủ 8 phiếu.
-11. Giám đốc thử duyệt từng phiếu hoặc toàn kỳ. Nếu công, thưởng hoặc đầu vào vừa đổi, phải tính lương lại trước; không bỏ qua cảnh báo nguồn dữ liệu.
+8. Sau khi Giám đốc duyệt thưởng NV03, mở Bảng lương: phiếu chưa duyệt tự cập nhật thưởng từ 0 lên 1.050.000đ; OT vẫn 7,5h, không cộng đôi. Lưu lại dữ liệu không đổi không tạo thêm phiếu hoặc cộng dồn số tiền; phiếu NV02 đã duyệt được giữ nguyên.
+9. Mở **Thiết lập tính lương** ngay trên Bảng lương, xem thuế/BH, phụ cấp và khấu trừ. Thử sửa khoản của NV06 đang chờ duyệt. Với NV08, đối chiếu hai mức lương; xác nhận lương đóng BH/căn cứ thuế và chọn đã kiểm tra. Bộ số liệu đang giả định lương đóng BH 20 triệu, không tự sửa hợp đồng 11,5 triệu.
+10. Duyệt công các nhân viên còn mở: NV01, NV04, NV05, NV07, NV08. Khi đã đủ dữ liệu của cả 8 người, kỳ công tự chuyển Đã duyệt. Phiếu lương tự được tạo nếu có đủ đầu vào đã xác nhận.
+11. Giám đốc thử duyệt từng phiếu hoặc toàn kỳ. Nếu nguồn chưa đủ điều kiện tự cập nhật, cần bổ sung hồ sơ trước; không bỏ qua cảnh báo. Phiếu đã duyệt chỉ cập nhật sau khi được mở lại đúng quy trình.
 12. Xuất thử phiếu NV02 đã duyệt theo bộ lọc nhân viên. Xuất cả danh sách có phiếu chờ duyệt phải bị chặn. Khi tất cả phiếu đã duyệt, HR/Giám đốc mới xuất cả kỳ CSV/JSON/TXT.
 13. Giám đốc thử xác nhận chi trả: thiếu duyệt hoặc thiếu chứng từ phải bị chặn. Chỉ bấm xác nhận với mã chứng từ thử nghiệm khi đã trình bày xong, vì trạng thái đã chi trả bị khóa và không mở lại trực tiếp. Bộ chuẩn bị không bấm bước này thay bạn.
 
 ## Các kiểm tra biên
 
+- Không còn nút Tính lương. Sau mỗi thao tác lưu nguồn liên quan, chỉ phiếu chưa duyệt của đúng nhân viên/tháng được cập nhật; hệ thống lưu người thực hiện, thời gian và lịch sử. GET không tự ghi dữ liệu, phiếu đã duyệt/chi trả được giữ nguyên.
 - Check-out trước/đúng 17:00 không có OT; 17:30 là 0,5h, 18:00 là 1h. Thử trên một bản ghi chưa khóa và phục hồi giờ sau khi kiểm tra.
 - Thử check-out sớm hơn check-in: từ chối. Thiếu check-out: chưa tính OT, không duyệt công khi dữ liệu chưa đầy đủ.
 - OT ban đêm/qua ngày chưa được hỗ trợ tính lương; không có dữ liệu sai loại này trong bộ chuẩn bị. Không giả lập ngày lễ tháng 10. Vượt hạn mức giờ được cảnh báo, không tự cắt tiền đã làm.

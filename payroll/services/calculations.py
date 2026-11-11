@@ -22,11 +22,17 @@ def snapshot(period):
     return [{k: str(v) for k, v in row.items()} for row in period.records.values()]
 
 
+def recalculation_records(period, attendance=None):
+    """Phiếu chờ duyệt sẽ bị thay thế trong lần tính này."""
+    attendance = attendance or period.attendance_period
+    employee_ids = (attendance.employee_ids if attendance.status == 'approved'
+                    else attendance.employee_approvals.values_list('employee_id', flat=True))
+    return period.records.filter(status='pending', employee_id__in=employee_ids)
+
+
 @transaction.atomic
 def calculate_payroll(actor, period_id, reason):
     require_role(actor, HR, DIRECTOR)
-    if not reason.strip():
-        raise ValidationError('Cần ghi lý do tính lương.')
     # Cùng thứ tự khóa với workflow công: kỳ công trước, kỳ lương sau.
     link = PayrollPeriod.objects.get(pk=period_id)
     attendance = AttendancePeriod.objects.select_for_update().get(pk=link.attendance_period_id)
@@ -43,8 +49,13 @@ def calculate_payroll(actor, period_id, reason):
     employees = Employee.objects.filter(pk__in=employee_ids)
     if not employees.exists():
         raise ValidationError('Không có nhân viên trong kỳ.')
+    replacing = recalculation_records(period, attendance)
+    reason = reason.strip()
+    if replacing.exists() and not reason:
+        raise ValidationError('Cần ghi lý do tính lại lương.')
+    reason = reason or f'Tạo phiếu lương mới kỳ {attendance.month:02}/{attendance.year}'
     PayrollAuditLog.objects.create(period=period, actor=actor, action='before_calculate', reason=reason, snapshot=snapshot(period))
-    period.records.filter(status='pending', employee__in=employees).delete()
+    replacing.delete()
     for employee in employees.select_related('department'):
         if period.records.filter(employee=employee, status__in=['approved', 'paid']).exists():
             continue  # Giữ nguyên phiếu đã duyệt khi tính lại phần còn chờ duyệt.
@@ -53,6 +64,45 @@ def calculate_payroll(actor, period_id, reason):
     period.save()
     PayrollAuditLog.objects.create(period=period, actor=actor, action='calculate', reason=reason, snapshot=snapshot(period))
     return period
+
+
+@transaction.atomic
+def refresh_employee_payroll(actor, employee_id, year, month):
+    """Cập nhật đúng một nhân viên/kỳ sau thao tác lưu nguồn đã được phân quyền."""
+    from .workflow import record_approval_error
+    require_role(actor, HR, DIRECTOR)
+    attendance = AttendancePeriod.objects.select_for_update().filter(year=year, month=month).first()
+    if not attendance:
+        return ''
+    approved = (employee_id in attendance.employee_ids if attendance.status == 'approved' else
+                attendance.employee_approvals.filter(employee_id=employee_id).exists())
+    if not approved:
+        return ''  # Chờ duyệt công, không tự duyệt hoặc dùng công chưa xác nhận.
+    period, _ = PayrollPeriod.objects.get_or_create(attendance_period=attendance)
+    period = PayrollPeriod.objects.select_for_update().get(pk=period.pk)
+    if period.status != 'pending':
+        return ''
+    row = period.records.select_for_update().filter(employee_id=employee_id).first()
+    if row and row.status != 'pending':
+        return ''
+    employee = Employee.objects.select_related('department').get(pk=employee_id)
+    same_identity = row and (row.employee_code, row.employee_name, row.department_id_snapshot, row.department_name) == (
+        employee.code, employee.full_name, employee.department_id, employee.department.name)
+    if same_identity and not record_approval_error(row, period, attendance):
+        return ''
+    try:
+        values = payroll_values(employee, attendance, period)
+    except ValidationError as exc:
+        return f'{employee.code}: ' + '; '.join(exc.messages)
+    before = [{k: str(v) for k, v in item.items()} for item in period.records.filter(employee_id=employee_id).values()]
+    row, _ = PayrollRecord.objects.update_or_create(period=period, employee=employee, defaults=values)
+    period.attendance_revision = attendance.revision
+    period.save(update_fields=['attendance_revision'])
+    after = [{k: str(v) for k, v in item.items()} for item in period.records.filter(pk=row.pk).values()]
+    PayrollAuditLog.objects.create(period=period, actor=actor, action='auto_calculate',
+        reason=f'Tự cập nhật lương {employee.code} sau thay đổi dữ liệu nguồn',
+        snapshot=[{'before': before, 'after': after}])
+    return ''
 
 
 def payroll_values(employee, attendance, period, standard=None):

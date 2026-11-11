@@ -4,6 +4,7 @@ from django.db import transaction
 from django.forms.models import model_to_dict
 from employees.access import require_role, HR, DIRECTOR
 from payroll.models import PayrollPeriod, PayrollAuditLog
+from attendance.models import AttendancePeriod
 from .source_data import canonical
 
 
@@ -17,6 +18,8 @@ def input_snapshot(value):
 @transaction.atomic
 def save_input(actor, value):
     require_role(actor, HR, DIRECTOR)
+    link = PayrollPeriod.objects.get(pk=value.period_id)
+    AttendancePeriod.objects.select_for_update().get(pk=link.attendance_period_id)
     period = PayrollPeriod.objects.select_for_update().get(pk=value.period_id)
     value.period = period
     if value.is_locked:
@@ -33,4 +36,7 @@ def save_input(actor, value):
     value.save()
     PayrollAuditLog.objects.create(period=period, actor=actor, action='input_' + ('tax' if hasattr(value, 'tax_amount') else 'adjustment'),
         reason='Nhân sự cập nhật dữ liệu đầu vào theo kỳ lương', snapshot=[{'before': before, 'after': input_snapshot(value)}])
+    from .calculations import refresh_employee_payroll
+    attendance = period.attendance_period
+    value.payroll_error = refresh_employee_payroll(actor, value.employee_id, attendance.year, attendance.month)
     return value, True

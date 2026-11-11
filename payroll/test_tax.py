@@ -127,7 +127,7 @@ class AutomaticTaxTests(TestCase):
     def test_new_tax_pages_render_without_showing_historical_manual_amount(self):
         row=self.salary()
         self.client.force_login(self.hr)
-        response=self.client.get('/payroll/inputs/',{'month':10,'year':2026})
+        response=self.client.get('/payroll/inputs/',{'month':10,'year':2026},follow=True)
         self.assertEqual(response.status_code,200)
         self.assertContains(response,'Tự động khi tính lương')
         obj=PayrollInput.objects.get(employee=self.emp)

@@ -29,17 +29,25 @@ def record_list(request):
         return redirect(target + ('?' + period_query if period_query else ''))
     form = PayrollFilter(request.user, request.GET)
     rows = scoped_records(request.user, form)
-    if has_role(request.user, DIRECTOR):
+    if has_role(request.user, HR, DIRECTOR):
         for row in rows:
             row.approval_error = record_approval_error(row) if row.status == 'pending' else ''
     period = None
     if form.is_valid():
         period = PayrollPeriod.objects.filter(attendance_period__month=form.cleaned_data['month'],
                                                attendance_period__year=form.cleaned_data['year']).first()
-    return render(request, 'payroll/list.html', {'form': form, 'rows': rows, 'period': period,
+    context = {'form': form, 'rows': rows, 'period': period,
                   'has_approved_records': period.records.filter(status='approved').exists() if period else False,
                   'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value(),
-                  'can_manage': has_role(request.user, HR, DIRECTOR), 'director': has_role(request.user, DIRECTOR)})
+                  'can_manage': has_role(request.user, HR, DIRECTOR), 'director': has_role(request.user, DIRECTOR)}
+    if context['can_manage']:
+        settings_context = input_list_context(request.user, PayrollInputFilter(request.user, request.GET))
+        context['input_settings'] = settings_context
+        # Reuse the scoped input data without replacing the payroll table's filter.
+        context.update({key: value for key, value in settings_context.items()
+                        if key not in ['form', 'period', 'month_label', 'year_label']})
+        context['open_inputs'] = request.GET.get('settings') == '1'
+    return render(request, 'payroll/list.html', context)
 
 
 @login_required
@@ -128,8 +136,9 @@ def export(request, fmt):
 @login_required
 def inputs(request):
     require_role(request.user, HR, DIRECTOR)
-    form = PayrollInputFilter(request.user, request.GET)
-    return render(request, 'payroll/inputs.html', input_list_context(request.user, form))
+    query = request.GET.copy()
+    query['settings'] = '1'
+    return redirect(reverse('payroll:list') + '?' + query.urlencode())
 
 
 @login_required
@@ -155,9 +164,11 @@ def edit_input(request, kind, pk=None):
         except (ValidationError, IntegrityError) as exc:
             form.add_error(None, '; '.join(exc.messages) if isinstance(exc, ValidationError) else 'Dữ liệu bị trùng.')
         else:
-            messages.success(request, 'Đã lưu dữ liệu. Chỉ cần tính lại lương nếu đầu vào tính lương thay đổi.' if changed else 'Dữ liệu không thay đổi.')
+            messages.success(request, 'Đã lưu dữ liệu và tự cập nhật phiếu lương đủ điều kiện.' if changed else 'Dữ liệu không thay đổi.')
+            if getattr(value, 'payroll_error', ''):
+                messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + value.payroll_error)
             at = value.period.attendance_period
-            return redirect(reverse('payroll:inputs') + '?' + urlencode({'month': at.month, 'year': at.year}))
+            return redirect(reverse('payroll:list') + '?' + urlencode({'month': at.month, 'year': at.year, 'settings': '1'}))
     selected_period = obj.period if obj else initial.get('period')
     back_query = urlencode({'month': selected_period.attendance_period.month, 'year': selected_period.attendance_period.year}) if selected_period else ''
     return render(request, 'payroll/input_form.html', {'form': form, 'kind': kind, 'locked': obj.is_locked if obj else False,

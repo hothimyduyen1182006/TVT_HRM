@@ -461,7 +461,7 @@ class AttendanceTests(TestCase):
                  ('/admin/leaves/leaveday/', 'NGHỈ PHÉP'), ('/admin/', None)]
         for url, active in pages:
             with self.subTest(url=url):
-                response = self.client.get(url)
+                response = self.client.get(url, follow=True)
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, 'aria-label="Điều hướng chính"', count=1)
                 self.assertContains(response, 'css/navigation.css')
