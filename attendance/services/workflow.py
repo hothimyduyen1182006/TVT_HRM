@@ -12,14 +12,26 @@ from attendance.models import EmployeeAttendanceApproval
 from .calculations import calculate_record
 
 
-def period_is_locked(period, employee_id):
-    return bool(period and (period.status == 'approved' or
-        period.employee_approvals.filter(employee_id=employee_id).exists()))
+def period_is_locked(period, employee_id, record_date=None):
+    if not period:
+        return False
+    if period.status == 'approved':
+        return True
+    approval = period.employee_approvals.filter(employee_id=employee_id).only('approved_at').first()
+    if not approval:
+        return False
+    if record_date is None:
+        return not AttendanceRecord.objects.filter(employee_id=employee_id,
+            date__year=period.year, date__month=period.month,
+            updated_at__gt=approval.approved_at).exists()
+    # An employee approval locks only completed rows included in that approval.
+    return AttendanceRecord.objects.filter(employee_id=employee_id, date=record_date).exclude(
+        status='incomplete').filter(updated_at__lte=approval.approved_at).exists()
 
 
 def record_is_locked(record):
     period = AttendancePeriod.objects.filter(year=record.date.year, month=record.date.month).first()
-    return period_is_locked(period, record.employee_id)
+    return period_is_locked(period, record.employee_id, record.date)
 
 
 def _recalculate_records(records, period, actor, reason):
@@ -46,7 +58,7 @@ def save_record(actor, record, reason):
     if not reason.strip():
         raise ValidationError('Cần lý do thay đổi.')
     period = AttendancePeriod.objects.select_for_update().get(year=record.date.year, month=record.date.month)
-    if period_is_locked(period, record.employee_id):
+    if period_is_locked(period, record.employee_id, record.date):
         raise ValidationError('Kỳ công đã duyệt, cần mở lại trước.')
     before = {}
     if record.pk:
@@ -135,13 +147,25 @@ def approve_employee(actor, employee, period_id):
     if not records.exists() or not required.issubset(available) or records.filter(status='incomplete').exists():
         raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
     _recalculate_records(records, period, actor, 'Tính lại trước khi duyệt nhân viên')
-    approval = EmployeeAttendanceApproval.objects.create(period=period, employee=employee, approved_by=actor)
+    approval = period.employee_approvals.filter(employee=employee).first()
+    if approval:
+        approval.approved_by = actor
+        approval.approved_at = timezone.now()
+        approval.save(update_fields=['approved_by', 'approved_at'])
+    else:
+        approval = EmployeeAttendanceApproval.objects.create(period=period, employee=employee, approved_by=actor)
     AttendanceAuditLog.objects.create(actor=actor, action='approve_employee', reason='Duyệt công nhân viên từ trang chi tiết chấm công',
         before={'approval_status': 'pending'}, after={'employee_id': str(employee.pk),
             'date': f'{period.year:04}-{period.month:02}-01', 'approval_status': 'approved'})
     employee_ids = set(Employee.objects.filter(is_active=True,
         hire_date__lte=date(period.year, period.month, days)).values_list('pk', flat=True))
-    if employee_ids and employee_ids.issubset(set(period.employee_approvals.values_list('employee_id', flat=True))):
+    current_approval_ids = set()
+    for employee_approval in period.employee_approvals.all():
+        if not AttendanceRecord.objects.filter(employee_id=employee_approval.employee_id,
+                date__year=period.year, date__month=period.month,
+                updated_at__gt=employee_approval.approved_at).exists():
+            current_approval_ids.add(employee_approval.employee_id)
+    if employee_ids and employee_ids.issubset(current_approval_ids):
         period.status = 'approved'
         period.employee_ids = sorted(employee_ids)
         period.approved_by = actor

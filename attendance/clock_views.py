@@ -28,7 +28,7 @@ def today(request):
         return redirect('attendance:clock')
     record = AttendanceRecord.objects.filter(employee=employee, date=now.date()).first()
     period = AttendancePeriod.objects.filter(year=now.year, month=now.month).first()
-    locked = period_is_locked(period, employee.pk)
+    locked = period_is_locked(period, employee.pk, now.date())
     workday = WorkCalendarDay.objects.filter(date=now.date(), kind='work').exists()
     can_punch = bool(period and period.policy_confirmed and not locked and workday and
                      employee.hire_date <= now.date())

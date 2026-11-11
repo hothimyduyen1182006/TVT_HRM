@@ -17,7 +17,7 @@ def punch(actor, action, note=''):
     period = AttendancePeriod.objects.select_for_update().filter(year=today.year, month=today.month).first()
     if not period or not period.policy_confirmed:
         raise ValidationError('Nhân sự cần cấu hình và xác nhận kỳ công hiện tại trước.')
-    if period_is_locked(period, employee.pk):
+    if period_is_locked(period, employee.pk, today):
         raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
     day = WorkCalendarDay.objects.filter(date=today).first()
     if not day or day.kind != 'work':

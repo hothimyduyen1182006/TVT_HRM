@@ -31,6 +31,12 @@ body :where(*:not(svg, svg *, [aria-hidden="true"], [aria-hidden="true"] *, .tvt
     font-size: inherit !important;
 }
 
+body .tvt-checkin-main .tvt-clock {
+    font-size: clamp(58px, 8vw, 112px) !important;
+    line-height: 1.15 !important;
+    letter-spacing: 1px !important;
+}
+
 body :is(h1, .h1, .bm-title, .bp-title, .bd-title, .pr-title, .tvt-main-title),
 body .pr-slip-period h2 {
     font-size: var(--tvt-page-title) !important;

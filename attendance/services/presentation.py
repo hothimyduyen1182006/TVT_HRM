@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from urllib.parse import urlencode
 
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum, Count, Q, F, Exists, OuterRef
 
 from attendance.models import AttendanceRecord, WorkCalendarDay, AttendanceAuditLog
 from attendance.models import EmployeeAttendanceApproval, AttendancePeriod, OvertimeApproval
@@ -36,7 +36,11 @@ def month_summary(employees, year, month, period):
         ot_totals[record.employee_id] = ot_totals.get(record.employee_id, ZERO) + automatic_overtime(record, period, days.get(record.date))['hours']
     standard = WorkCalendarDay.objects.filter(date__year=year, date__month=month).aggregate(value=Sum('expected_units'))['value']
     result = []
-    approved_ids = set(EmployeeAttendanceApproval.objects.filter(period=period).values_list('employee_id', flat=True)) if period else set()
+    approval_updates = AttendanceRecord.objects.filter(employee_id=OuterRef('employee_id'),
+        date__year=year, date__month=month, updated_at__gt=OuterRef('approved_at'))
+    approved_ids = set(EmployeeAttendanceApproval.objects.filter(period=period).annotate(
+        changed_after_approval=Exists(approval_updates)).filter(changed_after_approval=False
+        ).values_list('employee_id', flat=True)) if period else set()
     for employee in employees:
         values = by_employee.get(employee.pk, {})
         state = 'empty' if not values else ('approved' if employee.pk in approved_ids or (period and period.status == 'approved')
