@@ -343,7 +343,19 @@ def propose(request):
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
         else:
-            messages.success(request, 'Đã thêm khoản thưởng khác vào bản nháp để QLNS rà soát.')
+            if has_role(request.user, HR):
+                messages.success(
+                    request,
+                    'Đã thêm khoản thưởng vào Bảng thưởng tổng ở trạng thái Bản nháp. '
+                    'Bạn có thể rà soát và gửi Giám đốc duyệt.',
+                )
+                return redirect(
+                    f"{reverse('thuong:list')}?month={data['month']}&year={data['year']}"
+                )
+            messages.success(
+                request,
+                'Đề xuất đã được thêm vào Bản nháp và gửi Quản lý nhân sự rà soát.',
+            )
             return redirect('thuong:detail', data['employee'].pk, data['year'], data['month'])
     history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__in=visible_employees(request.user), proposed_by=request.user,
@@ -436,7 +448,7 @@ def calculate_period(request):
     employees = form.employee_scope(request.user)
     if data.get('q'):
         employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
-    created, locked, errors = 0, 0, []
+    created, seniority_calculated, attendance_calculated, locked, errors = 0, 0, 0, 0, []
     for employee in employees:
         locked_types = set(Bonus.objects.filter(
             employee=employee, month=data['month'], year=data['year'],
@@ -446,7 +458,7 @@ def calculate_period(request):
             locked += 1
             continue
         automatic, attendance_error = calculate_automatic(employee, data['month'], data['year'])
-        saved = False
+        saved_types = set()
         with transaction.atomic():
             for bonus_type, name, amount, reason in automatic:
                 if bonus_type in locked_types:
@@ -455,17 +467,28 @@ def calculate_period(request):
                     bonus_type=bonus_type, defaults={'name': name, 'amount': amount, 'reason': reason,
                     'proposed_by': request.user, 'proposed_at': timezone.now(), 'status': 'draft',
                     'rejection_reason': ''})
-                saved = True
-        if saved:
+                saved_types.add(bonus_type)
+        if saved_types:
             created += 1
-        if attendance_error:
+        if 'seniority' in saved_types:
+            seniority_calculated += 1
+        if 'attendance' in saved_types:
+            attendance_calculated += 1
+        if attendance_error and 'attendance' not in locked_types:
             errors.append(f'{employee.code}: {"; ".join(attendance_error.messages)}')
-    if created:
-        messages.success(request, f'Đã tính thưởng tự động cho {created} nhân viên; QLNS có thể kiểm tra và gửi duyệt.')
+    if seniority_calculated or attendance_calculated:
+        messages.success(
+            request,
+            f'Đã lưu Bản nháp: thâm niên {seniority_calculated} NV; '
+            f'chuyên cần {attendance_calculated} NV đủ dữ liệu.',
+        )
     if locked:
         messages.info(request, f'Bỏ qua {locked} nhân viên đã có thưởng chờ duyệt hoặc đã duyệt.')
     if errors:
-        messages.warning(request, 'Chưa tính được: ' + ' | '.join(errors[:5]))
+        messages.warning(
+            request,
+            f'Chuyên cần chưa tính được cho {len(errors)} NV: thiếu dữ liệu chấm công/lịch làm việc.',
+        )
     if not created and not locked and not errors:
         messages.info(request, 'Không có nhân viên trong phạm vi lọc để tính thưởng.')
     return redirect('thuong:list')

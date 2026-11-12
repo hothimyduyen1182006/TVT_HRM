@@ -22,8 +22,6 @@
 .proposal-money{position:relative}
 .proposal-money input{padding-right:42px;font-variant-numeric:tabular-nums}
 .proposal-money span{position:absolute;top:50%;right:10px;transform:translateY(-50%);color:#718196;font-size:12px;font-weight:700;pointer-events:none}
-.proposal-amount-controls{display:grid;grid-template-columns:minmax(0,1fr) 142px;gap:7px;align-items:center}
-.proposal-amount-preset{width:100%;min-height:36px;padding:7px 9px;border:1px solid #bdcad7;border-radius:6px;background:#fff;color:#31445b;font:inherit;font-size:12px}
 .proposal-field-help,.proposal-field-error{display:block;margin-top:4px;color:#718196;font-size:11px;line-height:1.4}
 .proposal-field-error{color:#bd4545}
 .proposal-note{display:flex;align-items:flex-start;align-self:center;gap:10px;padding:9px 10px;border:1px solid #dce9f7;border-radius:8px;background:#eaf4ff;color:#536b85;font-size:12px;line-height:1.4}
@@ -58,7 +56,7 @@
 .history-status.approved{background:#e5f5eb;color:#24794b}.history-status.rejected{background:#fae7e8;color:#b43b48}.history-status.draft{background:#edf1f6;color:#596a7c}
 .history-count{font-size:13px}
 .history-link{display:inline-block;white-space:normal;color:#1769d2;text-decoration:none;font-size:14px;font-weight:700}.history-link:hover{text-decoration:underline}
-@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-card{width:100%}.proposal-body{padding:13px 15px}.proposal-fields{grid-template-columns:1fr;gap:10px}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:minmax(0,1fr) 130px}.proposal-actions{flex-wrap:wrap}.history-card.table-responsive{overflow:visible}.history-card table,.history-card tbody{display:block;width:100%}.history-card thead{display:none}.history-card tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 10px;border:1px solid #e3eaf1;border-radius:8px;overflow:hidden}.history-card tbody td{display:flex;min-width:0;flex-direction:column;gap:3px;padding:.6rem;border-bottom:1px solid #e9eef4}.history-card tbody td::before{content:attr(data-label);color:#718196;font-size:11px;font-weight:700;text-transform:uppercase}.history-card tbody td:nth-child(5){grid-column:1/-1}.history-card tbody td:nth-child(9){grid-column:1/-1;align-items:flex-end}.history-card tbody td[colspan]::before{display:none}.history-heading h2{font-size:20px}}
+@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-card{width:100%}.proposal-body{padding:13px 15px}.proposal-fields{grid-template-columns:1fr;gap:10px}.proposal-field-reason{grid-column:auto}.proposal-actions{flex-wrap:wrap}.history-card.table-responsive{overflow:visible}.history-card table,.history-card tbody{display:block;width:100%}.history-card thead{display:none}.history-card tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 10px;border:1px solid #e3eaf1;border-radius:8px;overflow:hidden}.history-card tbody td{display:flex;min-width:0;flex-direction:column;gap:3px;padding:.6rem;border-bottom:1px solid #e9eef4}.history-card tbody td::before{content:attr(data-label);color:#718196;font-size:11px;font-weight:700;text-transform:uppercase}.history-card tbody td:nth-child(5){grid-column:1/-1}.history-card tbody td:nth-child(9){grid-column:1/-1;align-items:flex-end}.history-card tbody td[colspan]::before{display:none}.history-heading h2{font-size:20px}}
 </style>
 {% endblock %}
 {% block content %}
@@ -81,11 +79,11 @@
           {% for field in form %}
           <div class="proposal-field proposal-field-{{ field.name }}">
             {{ field.label_tag }}
-            {% if field.name == 'amount' %}<div class="proposal-amount-controls"><div class="proposal-money">{{ field }}<span>VNĐ</span></div><select class="proposal-amount-preset" id="proposal-amount-preset" aria-label="Chọn nhanh số tiền"><option value="">Chọn mức nhanh</option><option value="100000">100.000 ₫</option><option value="200000">200.000 ₫</option><option value="500000">500.000 ₫</option><option value="1000000">1.000.000 ₫</option><option value="2000000">2.000.000 ₫</option><option value="5000000">5.000.000 ₫</option></select>{% if field.help_text %}<small class="proposal-field-help">{{ field.help_text }}</small>{% endif %}</div>{% else %}{{ field }}{% endif %}
+            {% if field.name == 'amount' %}<div class="proposal-money">{{ field }}<span>VNĐ</span></div>{% else %}{{ field }}{% endif %}
             {% for error in field.errors %}<small class="proposal-field-error text-danger">{{ error }}</small>{% endfor %}
           </div>
           {% endfor %}
-          <div class="proposal-note"><span class="proposal-note-icon" aria-hidden="true">i</span><span>Thưởng chuyên cần và thâm niên do QLNS tính từ dữ liệu chấm công và thâm niên. Khoản này được thêm vào bản nháp để QLNS rà soát trước khi gửi Giám đốc duyệt.</span></div>
+          <div class="proposal-note"><span class="proposal-note-icon" aria-hidden="true">i</span><span>Thưởng chuyên cần và thâm niên do hệ thống tính. Đề xuất thưởng khác được lưu ở Bản nháp trong Bảng thưởng tổng để QLNS rà soát trước khi gửi Giám đốc duyệt.</span></div>
         </div>
         <div class="proposal-actions">
           <a class="btn btn-light border" href="{% url 'thuong:list' %}">Hủy</a>
@@ -117,16 +115,4 @@
     </table>
   </section>
 </div>
-<script>
-  const amountInput = document.querySelector('.proposal-field-amount input');
-  const amountPreset = document.getElementById('proposal-amount-preset');
-  if (amountInput && amountPreset) {
-    amountPreset.addEventListener('change', () => {
-      if (amountPreset.value) amountInput.value = amountPreset.value;
-    });
-    amountInput.addEventListener('input', () => {
-      amountPreset.value = '';
-    });
-  }
-</script>
 {% endblock %}
