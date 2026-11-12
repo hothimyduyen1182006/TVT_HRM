@@ -2,9 +2,11 @@ import re
 
 from django import forms
 from django.utils import timezone
+
 from nhan_vien.access import visible_employees
 from nhan_vien.filters import PeriodFilter
 from nhan_vien.models import Employee
+
 from .models import Bonus
 
 
@@ -32,7 +34,9 @@ class BonusFilter(PeriodFilter):
         max_length=150,
         widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ hoặc tên...'}),
     )
-    status = forms.ChoiceField(label='Trạng thái', required=False, choices=[('', 'Tất cả'), *Bonus.STATUSES])
+    status = forms.ChoiceField(
+        label='Trạng thái', required=False, choices=[('', 'Tất cả'), *Bonus.STATUSES]
+    )
 
     def __init__(self, user, data=None, default_current_period=False):
         super().__init__(user, data)
@@ -68,8 +72,12 @@ class PersonalBonusFilter(forms.Form):
             mutable_data.setdefault('month', today.month)
             mutable_data.setdefault('year', today.year)
             super().__init__(data=mutable_data)
-        self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [(m, f'Tháng {m:02}') for m in range(1, 13)])
-        self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [(y, f'Năm {y}') for y in range(2000, today.year + 2)])
+        self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+            (month, f'Tháng {month:02}') for month in range(1, 13)
+        ])
+        self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+            (year, f'Năm {year}') for year in range(2000, today.year + 2)
+        ])
 
 
 class BonusProposalForm(forms.Form):
@@ -89,10 +97,15 @@ class BonusProposalForm(forms.Form):
     def __init__(self, user, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['employee'].queryset = visible_employees(user).filter(is_active=True)
-        self.fields['employee'].label_from_instance = lambda item: f'{item.code} · {item.full_name} · {item.department.name}'
+        self.fields['employee'].label_from_instance = (
+            lambda item: f'{item.code} · {item.full_name} · {item.department.name}'
+        )
         self.fields['employee'].empty_label = 'Chọn nhân viên'
         self.fields['name'].widget.attrs['placeholder'] = 'Ví dụ: Thưởng dự án'
-        self.fields['reason'].widget.attrs.update({'rows': 4, 'placeholder': 'Nêu ngắn gọn căn cứ và thành tích được đề xuất thưởng.'})
+        self.fields['reason'].widget.attrs.update({
+            'rows': 4,
+            'placeholder': 'Nêu ngắn gọn căn cứ và thành tích được đề xuất thưởng.',
+        })
         self.fields['amount'].widget = forms.TextInput(attrs={
             'placeholder': 'Ví dụ: 500000',
             'inputmode': 'numeric',

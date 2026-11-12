@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -31,9 +31,10 @@ def bonus_rows(user, form):
     if not form.is_valid():
         return Bonus.objects.none()
     data = form.cleaned_data
-    rows = displayed_bonus_records(Bonus.objects.select_related(
-        'employee__department', 'proposed_by', 'approved_by').filter(
-        employee__in=form.employee_scope(user))
+    rows = displayed_bonus_records(
+        Bonus.objects.select_related(
+            'employee__department', 'proposed_by', 'approved_by'
+        ).filter(employee__in=form.employee_scope(user))
     )
     if data.get('month'):
         rows = rows.filter(month=data['month'])
@@ -42,7 +43,10 @@ def bonus_rows(user, form):
     if has_role(user, DIRECTOR):
         rows = rows.exclude(status='draft')
     if data.get('q'):
-        rows = rows.filter(Q(employee__full_name__icontains=data['q']) | Q(employee__code__icontains=data['q']))
+        rows = rows.filter(
+            Q(employee__full_name__icontains=data['q'])
+            | Q(employee__code__icontains=data['q'])
+        )
     return rows.order_by('employee__code', 'bonus_type', 'name')
 
 
@@ -51,14 +55,25 @@ def grouped_bonuses(rows):
     for bonus in rows:
         key = (bonus.employee_id, bonus.year, bonus.month)
         if key not in groups:
-            groups[key] = {'employee': bonus.employee, 'year': bonus.year, 'month': bonus.month,
-                'attendance': Decimal(0), 'seniority': Decimal(0), 'other': Decimal(0),
-                'items': [], 'records': [], 'statuses': set(), 'approved_at': bonus.approved_at,
-                'rejection_reason': bonus.rejection_reason}
+            groups[key] = {
+                'employee': bonus.employee,
+                'year': bonus.year,
+                'month': bonus.month,
+                'attendance': Decimal(0),
+                'seniority': Decimal(0),
+                'other': Decimal(0),
+                'items': [],
+                'records': [],
+                'statuses': set(),
+                'approved_at': bonus.approved_at,
+                'rejection_reason': bonus.rejection_reason,
+            }
         group = groups[key]
         group['records'].append(bonus)
         group['statuses'].add(bonus.status)
-        group['approved_at'] = max(filter(None, [group['approved_at'], bonus.approved_at]), default=None)
+        group['approved_at'] = max(
+            filter(None, [group['approved_at'], bonus.approved_at]), default=None
+        )
         group['rejection_reason'] = group['rejection_reason'] or bonus.rejection_reason
         group[bonus.bonus_type] += bonus.amount
         if bonus.bonus_type == 'other':
@@ -68,8 +83,12 @@ def grouped_bonuses(rows):
         order = {'seniority': 0, 'attendance': 1, 'other': 2}
         group['records'].sort(key=lambda item: (order.get(item.bonus_type, 9), item.name))
         statuses = group['statuses']
-        group['status'] = ('pending' if 'pending' in statuses else 'draft' if 'draft' in statuses else
-                           'rejected' if 'rejected' in statuses else 'approved')
+        group['status'] = (
+            'pending' if 'pending' in statuses else
+            'draft' if 'draft' in statuses else
+            'rejected' if 'rejected' in statuses else
+            'approved'
+        )
         group['total'] = group['attendance'] + group['seniority'] + group['other']
         group['employee_id'] = employee_id
         group['has_pending'] = 'pending' in statuses
@@ -93,12 +112,17 @@ def bonus_list(request):
     page_query = request.GET.copy()
     page_query.pop('page', None)
     page_obj = Paginator(rows, 5).get_page(request.GET.get('page'))
-    return render(request, 'bonuses/list_redesign.html', {'form': form,
-        'page_obj': page_obj, 'rows': page_obj.object_list, 'page_query': page_query.urlencode(),
+    return render(request, 'bonuses/list_redesign.html', {
+        'form': form,
+        'page_obj': page_obj,
+        'rows': page_obj.object_list,
+        'page_query': page_query.urlencode(),
         'total_amount': total_amount,
         'can_propose': has_role(request.user, HR, MANAGER),
-        'can_submit': has_role(request.user, HR), 'can_review': has_role(request.user, DIRECTOR),
-        'can_export': has_role(request.user, HR, DIRECTOR)})
+        'can_submit': has_role(request.user, HR),
+        'can_review': has_role(request.user, DIRECTOR),
+        'can_export': has_role(request.user, HR, DIRECTOR),
+    })
 
 
 @login_required
@@ -240,7 +264,6 @@ def detail(request, employee_id, year, month):
         rows = rows.exclude(status='draft')
     grouped = grouped_bonuses(rows)
     if not grouped:
-        from django.http import Http404
         raise Http404
     group = grouped[0]
     needs_auto_reason = any(
@@ -379,7 +402,6 @@ def decision(request, employee_id, year, month):
     rows = complete_bonus_records(Bonus.objects.filter(
         employee_id=employee_id, year=year, month=month, status='pending'))
     if not rows.exists():
-        from django.http import Http404
         raise Http404
     action = request.POST.get('action')
     if action not in ['approve', 'reject']:

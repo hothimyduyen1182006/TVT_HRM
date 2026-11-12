@@ -1,7 +1,8 @@
 from django import forms
 from django.utils import timezone
+
 from .access import visible_employees
-from .models import Employee, Department
+from .models import Department, Employee
 
 
 class PeriodFilter(forms.Form):
@@ -16,9 +17,11 @@ class PeriodFilter(forms.Form):
         if data:
             values.update(data.dict())
         super().__init__(values)
-        self.fields['employee'].queryset = visible_employees(user)
+        employees = visible_employees(user)
+        self.fields['employee'].queryset = employees
         self.fields['department'].queryset = Department.objects.filter(
-            pk__in=visible_employees(user).values('department_id'))
+            pk__in=employees.values('department_id')
+        )
 
     def employee_scope(self, user):
         scope = visible_employees(user)

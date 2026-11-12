@@ -1,6 +1,6 @@
 from django.conf import settings
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 
@@ -38,8 +38,17 @@ def payroll_bonus_records(rows):
 
 
 class Bonus(models.Model):
-    TYPES = [('attendance', 'Thưởng chuyên cần'), ('seniority', 'Thưởng thâm niên'), ('other', 'Thưởng khác')]
-    STATUSES = [('draft', 'Bản nháp'), ('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')]
+    TYPES = [
+        ('attendance', 'Thưởng chuyên cần'),
+        ('seniority', 'Thưởng thâm niên'),
+        ('other', 'Thưởng khác'),
+    ]
+    STATUSES = [
+        ('draft', 'Bản nháp'),
+        ('pending', 'Chờ duyệt'),
+        ('approved', 'Đã duyệt'),
+        ('rejected', 'Từ chối'),
+    ]
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])

@@ -1,5 +1,15 @@
 from django.urls import path
-from .views import bonus_list, personal_list, detail, propose, calculate_period, submit, decision, export
+
+from .views import (
+    bonus_list,
+    calculate_period,
+    decision,
+    detail,
+    export,
+    personal_list,
+    propose,
+    submit,
+)
 
 app_name = 'thuong'
 urlpatterns = [

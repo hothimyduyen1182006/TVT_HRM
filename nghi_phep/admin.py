@@ -1,6 +1,7 @@
 from django.contrib import admin
-from .models import LeaveDay, LeaveRequest
+
 from nhan_vien.admin_utils import CalendarLockedAdmin
+from .models import LeaveDay, LeaveRequest
 
 
 @admin.register(LeaveDay)
