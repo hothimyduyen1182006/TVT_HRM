@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -153,30 +154,54 @@ def personal_list(request):
             rows = rows.filter(year=year)
         if status:
             rows = rows.filter(status=status)
-    # Each card follows the period named by its label: annual approved total,
-    # all pending items, and the exact filtered rows shown in the table.
     all_rows = displayed_bonus_records(Bonus.objects.filter(employee__user=request.user))
-    received_rows = all_rows.filter(status='approved')
+    approved_rows = all_rows.filter(status='approved')
+    year_rows = approved_rows
     if year:
-        received_rows = received_rows.filter(year=year)
-    total_received = received_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
-    pending_total = all_rows.filter(status='pending').aggregate(total=Sum('amount'))['total'] or Decimal(0)
-    received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
-    if month and year:
-        summary_label = f'Thưởng tháng {month}/{year}'
-    elif year:
-        summary_label = f'Thưởng năm {year}'
-    elif month:
-        summary_label = f'Thưởng tháng {month}'
+        year_rows = year_rows.filter(year=year)
+
+    total_received = year_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
+    highest_month = year_rows.values('year', 'month').annotate(
+        total=Sum('amount')
+    ).order_by('-total', '-year', '-month').first()
+    highest_month_total = highest_month['total'] if highest_month else Decimal(0)
+
+    if month:
+        latest_candidates = year_rows.filter(month=month)
+        latest_year = year or latest_candidates.order_by('-year').values_list('year', flat=True).first()
+        latest_period = latest_candidates.filter(year=latest_year).values('year', 'month').annotate(
+            total=Sum('amount')
+        ).order_by('year', 'month').first() if latest_year else None
     else:
-        summary_label = 'Tổng thưởng theo bộ lọc'
+        latest_period = year_rows.values('year', 'month').annotate(
+            total=Sum('amount')
+        ).order_by('-year', '-month').first()
+        latest_year = latest_period['year'] if latest_period else None
+
+    latest_month = latest_period['month'] if latest_period else month
+    latest_month_total = latest_period['total'] if latest_period else Decimal(0)
+    latest_month_year = latest_period['year'] if latest_period else (latest_year or year)
+    received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
     grouped = grouped_bonuses(rows)
     total_amount = sum((row['total'] for row in grouped), Decimal(0))
+    personal_url = reverse('bonuses:personal')
+    highest_month_url = (
+        f"{personal_url}?month={highest_month['month']}&year={highest_month['year']}&status=approved"
+        if highest_month else personal_url
+    )
+    latest_month_url = (
+        f'{personal_url}?month={latest_month}&year={latest_month_year}&status=approved'
+        if latest_month and latest_month_year else personal_url
+    )
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
         'total_amount': total_amount,
-        'total_received': total_received, 'pending_total': pending_total,
+        'total_received': total_received,
         'received_label': received_label,
-        'summary_label': summary_label,
+        'received_filter_url': f'{personal_url}?month=&year={year or ""}&status=approved',
+        'highest_month_total': highest_month_total,
+        'highest_month_url': highest_month_url,
+        'latest_month_total': latest_month_total,
+        'latest_month_url': latest_month_url,
         'employee': employee,
         'personal': True})
 
