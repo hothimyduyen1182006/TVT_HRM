@@ -10,21 +10,21 @@ EVIDENCE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,image/jpeg,image/png,image/we
 class LeaveRequestForm(forms.ModelForm):
     class Meta:
         model = LeaveRequest
-        fields = ['start_date', 'end_date', 'leave_type', 'reason', 'evidence']
+        fields = ['Ngay_bat_dau', 'Ngay_ket_thuc', 'leave_type', 'Ly_do', 'Tep_dinh_kem']
         widgets = {
-            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'leave-input'}),
-            'end_date': forms.DateInput(attrs={'type': 'date', 'class': 'leave-input'}),
+            'Ngay_bat_dau': forms.DateInput(attrs={'type': 'date', 'class': 'leave-input'}),
+            'Ngay_ket_thuc': forms.DateInput(attrs={'type': 'date', 'class': 'leave-input'}),
             'leave_type': forms.Select(attrs={'class': 'leave-input'}),
-            'reason': forms.Textarea(attrs={
+            'Ly_do': forms.Textarea(attrs={
                 'class': 'leave-input',
                 'rows': 3,
                 'placeholder': 'Nhập lý do xin nghỉ phép',
             }),
-            'evidence': forms.ClearableFileInput(attrs={'accept': EVIDENCE_ACCEPT, 'class': 'leave-file-input'}),
+            'Tep_dinh_kem': forms.ClearableFileInput(attrs={'accept': EVIDENCE_ACCEPT, 'class': 'leave-file-input'}),
         }
 
-    def clean_evidence(self):
-        return validate_evidence(self.cleaned_data.get('evidence'))
+    def clean_Tep_dinh_kem(self):
+        return validate_evidence(self.cleaned_data.get('Tep_dinh_kem'))
 
 
 class LeaveEvidenceForm(forms.Form):

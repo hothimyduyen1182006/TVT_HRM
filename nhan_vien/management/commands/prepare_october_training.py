@@ -91,7 +91,12 @@ class Command(BaseCommand):
                         if code=='NV06' and day.day==8:
                             values.update(gio_ra=time(18),ghi_chu='Bảo trì hệ thống sau giờ làm việc')
                         if code=='NV07' and day.day==9:
-                            values.update(gio_vao=time(8),gio_ra=time(12),ghi_chu='Làm buổi sáng, nghỉ phép hưởng lương nửa ngày buổi chiều')
+                            values.update(
+                                trang_thai='leave',
+                                gio_vao=None,
+                                gio_ra=None,
+                                ghi_chu='Nghỉ phép hưởng lương trọn ngày',
+                            )
                         if code=='NV07' and day.day==13:
                             values.update(gio_vao=time(9),ghi_chu='Đi trễ một giờ; không tạo khoản phạt tiền riêng')
                         record = save_record(hr,ChamCong(**values),'Nhập dữ liệu chấm công tháng 10/2026')
@@ -130,7 +135,7 @@ class Command(BaseCommand):
             LichSuTangCa.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             Bonus.objects.filter(year=YEAR,month=MONTH),
             LeaveDay.objects.filter(date__year=YEAR,date__month=MONTH),
-            LeaveRequest.objects.filter(start_date__lte=date(YEAR,MONTH,31),end_date__gte=date(YEAR,MONTH,1)),
+            LeaveRequest.objects.filter(Ngay_bat_dau__lte=date(YEAR,MONTH,31),Ngay_ket_thuc__gte=date(YEAR,MONTH,1)),
         ]
         if any(rows.exists() for rows in checks):
             raise CommandError('Tháng 10/2026 đã có dữ liệu. Dừng để không ghi đè; không xóa hoặc đặt lại dữ liệu.')
@@ -138,13 +143,13 @@ class Command(BaseCommand):
     def _leaves(self, people, hr):
         specs = [('NV04',12,'annual',True,Decimal(1),'approved','Việc gia đình đã sắp xếp công việc'),
                  ('NV06',15,'unpaid',False,Decimal(1),'approved','Nghỉ việc riêng không hưởng lương'),
-                 ('NV07',9,'annual',True,Decimal('.5'),'approved','Nghỉ phép buổi chiều để giải quyết việc gia đình'),
+                 ('NV07',9,'annual',True,Decimal(1),'approved','Nghỉ phép trọn ngày để giải quyết việc gia đình'),
                  ('NV04',30,'annual',True,Decimal(1),'pending','Xin nghỉ một ngày, đang chờ sắp xếp người thay thế'),
                  ('NV07',23,'personal',False,Decimal(1),'rejected','Đề nghị nghỉ việc riêng')]
         for code,number,kind,paid,units,state,reason in specs:
             day=date(YEAR,MONTH,number)
-            request=LeaveRequest(employee=people[code],start_date=day,end_date=day,leave_type=kind,
-                paid=paid,units=units,status=state,reason=reason)
+            request=LeaveRequest(employee=people[code],Ngay_bat_dau=day,Ngay_ket_thuc=day,leave_type=kind,
+                paid=paid,Trang_thai=state,Ly_do=reason)
             if state!='pending':
                 request.reviewed_by=hr
                 request.reviewed_at=timezone.now()

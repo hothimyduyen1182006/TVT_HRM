@@ -263,11 +263,11 @@ class PrivateMediaTests(TestCase):
                 start_date=date(2026, 1, 1), agreed_salary=10000000,
                 contract_file=f'employees/contracts/{name}.pdf')
             leave = LeaveRequest.objects.create(employee=employee,
-                start_date=date(2026, 1, 5), end_date=date(2026, 1, 5), reason='Khám sức khỏe',
-                evidence=f'leave_evidence/2026/01/{name}.png')
+                Ngay_bat_dau=date(2026, 1, 5), Ngay_ket_thuc=date(2026, 1, 5), Ly_do='Khám sức khỏe',
+                Tep_dinh_kem=f'leave_evidence/2026/01/{name}.png')
             cls.people[name] = employee
             cls.files[name] = [employee.avatar.name, education.certificate_file.name,
-                               contract.contract_file.name, leave.evidence.name]
+                               contract.contract_file.name, leave.Tep_dinh_kem.name]
         department.manager = cls.people['manager']
         department.save(update_fields=['manager'])
         cls.reviewers = []
@@ -411,8 +411,8 @@ class PrivateMediaTests(TestCase):
         leave = LeaveRequest.objects.get(employee=self.people['employee'])
         name = 'leave_evidence/2026/01/document.html'
         (self.media_root / name).write_bytes(b'<script>alert(1)</script>')
-        leave.evidence = name
-        leave.save(update_fields=['evidence'])
+        leave.Tep_dinh_kem = name
+        leave.save(update_fields=['Tep_dinh_kem'])
         self.client.force_login(self.people['employee'].user)
         for url in [self.url(name), reverse('nghi_phep:evidence', args=[leave.pk])]:
             response = self.client.get(url)

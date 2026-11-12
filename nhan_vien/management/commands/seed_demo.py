@@ -117,8 +117,13 @@ class Command(BaseCommand):
                     elif index in [2, 6] and number == 4:
                         values.update(trang_thai='absent', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ không phép đã xác nhận')
                     elif index == 3 and number == 6:
-                        self.leave(employee, day, Decimal('.5'), True)
-                        values.update(gio_ra=time(12), ghi_chu='DEMO: làm nửa ngày, nghỉ phép có lương nửa ngày')
+                        self.leave(employee, day, Decimal(1), True)
+                        values.update(
+                            trang_thai='leave',
+                            gio_vao=None,
+                            gio_ra=None,
+                            ghi_chu='DEMO: nghỉ phép hưởng lương trọn ngày',
+                        )
                     elif index in [1, 2, 4, 6] and number in [0, 5]:
                         values['gio_vao'] = time(8, 10 + index * 5)
                     row = save_record(hr, ChamCong(**values), 'DEMO: nhập dữ liệu chấm công minh họa')

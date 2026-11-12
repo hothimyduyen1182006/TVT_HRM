@@ -148,13 +148,13 @@ class OctoberTrainingTests(TestCase):
         self.assertEqual(export_records(hr,locked,'csv',10,2026,{}).status_code,200)
         with self.assertRaises(ValidationError): export_records(hr,PayrollRecord.objects.all(),'csv',10,2026,{})
         with self.assertRaises(ValidationError): change_payroll(director,period.pk,'paid','Chưa đủ bước','')
-        request=LeaveRequest.objects.get(status='pending')
+        request=LeaveRequest.objects.get(Trang_thai='pending')
         client=Client()
         client.force_login(hr)
         from django.urls import reverse
         self.assertEqual(client.post(reverse('nghi_phep:review',args=[request.pk,'approve'])).status_code,302)
         request.refresh_from_db()
-        self.assertEqual(request.status,'approved')
+        self.assertEqual(request.Trang_thai,'approved')
         record=ChamCong.objects.get(nhan_vien=people['NV04'],ngay=date(2026,10,30))
         record.trang_thai='leave'
         save_record(hr,record,'Cập nhật công sau khi phép đã duyệt')

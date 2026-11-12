@@ -12,17 +12,17 @@
       <p><b>Nhân viên:</b> {{ item.employee.full_name }} <span>({{ item.employee.code }})</span></p>
       <p><b>Phòng ban:</b> {{ item.employee.department.name }}</p>
       <p><b>Loại nghỉ:</b> {{ item.get_leave_type_display }}</p>
-      <p><b>Ngày bắt đầu:</b> {{ item.start_date|date:'d/m/Y' }}</p>
-      <p><b>Ngày kết thúc:</b> {{ item.end_date|date:'d/m/Y' }}</p>
+      <p><b>Ngày bắt đầu:</b> {{ item.Ngay_bat_dau|date:'d/m/Y' }}</p>
+      <p><b>Ngày kết thúc:</b> {{ item.Ngay_ket_thuc|date:'d/m/Y' }}</p>
       <p><b>Số ngày nghỉ:</b> {{ days_count }} ngày</p>
-      <p class="detail-wide detail-inline-row"><b>Lý do:</b> {{ item.reason }}</p>
+      <p class="detail-wide detail-inline-row"><b>Lý do:</b> {{ item.Ly_do }}</p>
       <div class="detail-wide leave-evidence-detail">
         <p class="detail-inline-row"><b>Minh chứng:</b>
           {% if evidence_available %}
             <a class="leave-sheet-evidence" href="{% url 'nghi_phep:evidence' item.pk %}" target="_blank" rel="noopener">
-              {{ item.evidence.name|cut:'leave_evidence/'|cut:'/' }} · Mở tệp ↗
+              {{ item.Tep_dinh_kem.name|cut:'leave_evidence/'|cut:'/' }} · Mở tệp ↗
             </a>
-          {% elif item.evidence %}
+          {% elif item.Tep_dinh_kem %}
             <span class="leave-evidence-missing">Đã có thông tin tệp nhưng không tìm thấy tệp lưu trữ. Vui lòng tải ảnh lên lại.</span>
           {% else %}
             <span class="leave-evidence-missing">Đơn này chưa có ảnh minh chứng.</span>
@@ -38,7 +38,7 @@
           <button type="submit">Lưu ảnh minh chứng</button>
         </form>
       {% endif %}
-      <p><b>Trạng thái:</b> <span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></p>
+      <p><b>Trạng thái:</b> <span class="leave-status {{ item.Trang_thai }}">{{ item.get_Trang_thai_display }}</span></p>
       <p><b>Ngày gửi:</b> {{ item.created_at|date:'d/m/Y H:i' }}</p>
       {% if item.reviewed_by %}
         <p><b>Người xử lý:</b> {{ item.reviewed_by.get_full_name|default:item.reviewed_by.username }}</p>
@@ -51,7 +51,7 @@
         </div>
       {% endif %}
     </div>
-    {% if can_review and item.status == 'pending' %}
+    {% if can_review and item.Trang_thai == 'pending' %}
       <form method="post" class="leave-sheet-actions" action="{% url 'nghi_phep:review' item.pk 'approve' %}">
         {% csrf_token %}
         <label for="review_note">Ghi chú xử lý <span>(bắt buộc nếu từ chối)</span></label>

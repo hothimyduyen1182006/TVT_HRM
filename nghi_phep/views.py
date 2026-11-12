@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 import mimetypes
 
 from django.contrib import messages
@@ -17,7 +18,7 @@ from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, require_role, visi
 from nhan_vien.models import Department, Employee
 
 from .forms import EVIDENCE_CONTENT_TYPES, LeaveEvidenceForm, LeaveFilterForm, LeaveRequestForm
-from .models import LeaveDay, LeaveRequest
+from .models import ANNUAL_LEAVE_DAYS, LeaveDay, LeaveRequest, annual_leave_days_used
 
 REVIEWER_ROLES = (HR, DIRECTOR, MANAGER)
 
@@ -63,11 +64,11 @@ def leave_list(request):
         elif not own_employee:
             messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
         elif form.is_valid():
-            uploaded_evidence = form.cleaned_data.get('evidence')
+            uploaded_evidence = form.cleaned_data.get('Tep_dinh_kem')
             item = form.save(commit=False)
             # Keep the uploaded object attached explicitly before saving the new request.
             if uploaded_evidence:
-                item.evidence = uploaded_evidence
+                item.Tep_dinh_kem = uploaded_evidence
             item.employee = own_employee
             item.paid = item.leave_type in ('annual', 'sick')
             try:
@@ -76,10 +77,10 @@ def leave_list(request):
             except ValidationError as exc:
                 form.add_error(None, exc)
             else:
-                if uploaded_evidence and item.evidence:
+                if uploaded_evidence and item.Tep_dinh_kem:
                     messages.success(
                         request,
-                        f'Đã gửi đơn nghỉ phép kèm minh chứng "{item.evidence.name.rsplit("/", 1)[-1]}".'
+                        f'Đã gửi đơn nghỉ phép kèm minh chứng "{item.Tep_dinh_kem.name.rsplit("/", 1)[-1]}".'
                     )
                 else:
                     messages.success(request, 'Đã gửi đơn nghỉ phép. Đơn này chưa có tệp minh chứng.')
@@ -104,13 +105,19 @@ def leave_list(request):
         if data['department']:
             requests = requests.filter(employee__department_id=data['department'])
         if data['status']:
-            requests = requests.filter(status=data['status'])
+            requests = requests.filter(Trang_thai=data['status'])
         if data['leave_type']:
             requests = requests.filter(leave_type=data['leave_type'])
         if data['start_date']:
-            requests = requests.filter(end_date__gte=data['start_date'])
+            requests = requests.filter(Ngay_ket_thuc__gte=data['start_date'])
         if data['end_date']:
-            requests = requests.filter(start_date__lte=data['end_date'])
+            requests = requests.filter(Ngay_bat_dau__lte=data['end_date'])
+    selected_start = form.cleaned_data.get('Ngay_bat_dau') if form.is_bound else None
+    annual_leave_year = selected_start.year if selected_start else timezone.localdate().year
+    annual_leave_used = (
+        annual_leave_days_used(own_employee, annual_leave_year)
+        if own_employee else 0
+    )
     return render(request, 'leaves/list.html', {
         'requests': requests,
         'form': form,
@@ -120,6 +127,9 @@ def leave_list(request):
         'can_review': is_reviewer,
         'active_view': active_view,
         'manage_view': manage_view,
+        'annual_leave_year': annual_leave_year,
+        'annual_leave_days': ANNUAL_LEAVE_DAYS,
+        'annual_leave_remaining': max(0, ANNUAL_LEAVE_DAYS - annual_leave_used),
     })
 
 
@@ -139,18 +149,18 @@ def leave_detail(request, pk):
     if back_view not in ('mine', 'manage'):
         back_view = 'manage' if can_review else 'mine'
     evidence_available = False
-    if item.evidence:
+    if item.Tep_dinh_kem:
         try:
-            evidence_available = item.evidence.storage.exists(item.evidence.name)
+            evidence_available = item.Tep_dinh_kem.storage.exists(item.Tep_dinh_kem.name)
         except (OSError, SuspiciousFileOperation):
             evidence_available = False
     return render(request, 'leaves/detail.html', {
         'item': item,
         'can_review': can_review,
-        'days_count': (item.end_date - item.start_date).days + 1,
+        'days_count': item.days_count,
         'back_view': back_view,
         'evidence_available': evidence_available,
-        'can_attach_evidence': bool(item.status == 'pending' and item.employee_id == linked_employee_id
+        'can_attach_evidence': bool(item.Trang_thai == 'pending' and item.employee_id == linked_employee_id
                                     and not evidence_available),
     })
 
@@ -161,16 +171,16 @@ def attach_leave_evidence(request, pk):
     own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
     if not own_employee:
         raise PermissionDenied
-    item = get_object_or_404(LeaveRequest, pk=pk, employee=own_employee, status='pending')
-    if item.evidence and item.evidence.storage.exists(item.evidence.name):
+    item = get_object_or_404(LeaveRequest, pk=pk, employee=own_employee, Trang_thai='pending')
+    if item.Tep_dinh_kem and item.Tep_dinh_kem.storage.exists(item.Tep_dinh_kem.name):
         messages.error(request, 'Đơn này đã có ảnh minh chứng.')
         return redirect('nghi_phep:detail', pk=item.pk)
 
     form = LeaveEvidenceForm(request.POST, request.FILES)
     if form.is_valid():
-        item.evidence = form.cleaned_data['evidence']
-        item.save(update_fields=['evidence'])
-        messages.success(request, f'Đã đính kèm ảnh minh chứng "{item.evidence.name.rsplit("/", 1)[-1]}".')
+        item.Tep_dinh_kem = form.cleaned_data['evidence']
+        item.save(update_fields=['Tep_dinh_kem'])
+        messages.success(request, f'Đã đính kèm ảnh minh chứng "{item.Tep_dinh_kem.name.rsplit("/", 1)[-1]}".')
     else:
         messages.error(request, '; '.join(error for errors in form.errors.values() for error in errors))
     return redirect('nghi_phep:detail', pk=item.pk)
@@ -186,19 +196,19 @@ def leave_evidence(request, pk):
         pk=pk,
         employee__in=request_scope(request.user, own_employee),
     )
-    if not item.evidence:
+    if not item.Tep_dinh_kem:
         raise Http404
-    content_type = mimetypes.guess_type(item.evidence.name)[0] or 'application/octet-stream'
+    content_type = mimetypes.guess_type(item.Tep_dinh_kem.name)[0] or 'application/octet-stream'
     inline_file = content_type in EVIDENCE_CONTENT_TYPES
     try:
-        opened = item.evidence.open('rb')
+        opened = item.Tep_dinh_kem.open('rb')
     except (OSError, SuspiciousFileOperation):
         raise Http404
     response = FileResponse(
         opened,
         content_type=content_type,
         as_attachment=not inline_file,
-        filename=item.evidence.name.rsplit('/', 1)[-1],
+        filename=item.Tep_dinh_kem.name.rsplit('/', 1)[-1],
     )
     response['X-Content-Type-Options'] = 'nosniff'
     return response
@@ -216,7 +226,7 @@ def review_leave(request, pk, action):
     own_employee = Employee.objects.filter(user=request.user).only('pk').first()
     if own_employee and item.employee_id == own_employee.pk:
         raise PermissionDenied
-    if item.status != 'pending' or action not in ('approve', 'reject'):
+    if item.Trang_thai != 'pending' or action not in ('approve', 'reject'):
         messages.error(request, 'Đơn này đã được xử lý hoặc thao tác không hợp lệ.')
         return redirect('nghi_phep:detail', pk=item.pk)
     review_note = request.POST.get('review_note', '').strip()
@@ -226,37 +236,37 @@ def review_leave(request, pk, action):
     try:
         with transaction.atomic():
             item = LeaveRequest.objects.select_for_update().get(pk=pk)
-            if item.status != 'pending':
+            if item.Trang_thai != 'pending':
                 raise ValidationError('Đơn này đã được xử lý.')
             if action == 'approve':
-                day_count = (item.end_date - item.start_date).days + 1
-                for day_offset in range(day_count):
-                    leave_date = item.start_date + timedelta(days=day_offset)
+                item.full_clean()
+                for day_offset in range(item.days_count):
+                    leave_date = item.Ngay_bat_dau + timedelta(days=day_offset)
                     leave = LeaveDay(
                         employee=item.employee,
                         date=leave_date,
-                        units=item.units,
+                        units=Decimal('1.0000'),
                         paid=item.paid,
-                        reason=item.reason,
+                        reason=item.Ly_do,
                         approved=True,
                     )
                     leave.full_clean()
                     leave.save()
-                item.status = 'approved'
+                item.Trang_thai = 'approved'
                 item.review_note = review_note
             else:
-                item.status = 'rejected'
+                item.Trang_thai = 'rejected'
                 item.review_note = review_note
             item.reviewed_by = request.user
             item.reviewed_at = timezone.now()
-            item.save(update_fields=['status', 'review_note', 'reviewed_by', 'reviewed_at'])
+            item.save(update_fields=['Trang_thai', 'review_note', 'reviewed_by', 'reviewed_at'])
             if action == 'approve':
                 from bang_cong.models import KyCong
                 from bang_cong.services.summaries import refresh_summary
                 for period in KyCong.objects.filter(
-                    nam__gte=item.start_date.year, nam__lte=item.end_date.year,
+                    nam__gte=item.Ngay_bat_dau.year, nam__lte=item.Ngay_ket_thuc.year,
                 ):
-                    if (item.start_date.year, item.start_date.month) <= (period.nam, period.thang) <= (item.end_date.year, item.end_date.month):
+                    if (item.Ngay_bat_dau.year, item.Ngay_bat_dau.month) <= (period.nam, period.thang) <= (item.Ngay_ket_thuc.year, item.Ngay_ket_thuc.month):
                         refresh_summary(item.employee, period)
     except ValidationError as exc:
         messages.error(request, '; '.join(exc.messages))

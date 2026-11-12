@@ -64,7 +64,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(len(response.context['rows']), 5)
         self.assertContains(response, 'aria-current="page">BẢNG THƯỞNG</a>')
         LeaveRequest.objects.create(employee=Employee.objects.get(code='DEMO-NV01'),
-            start_date='2026-09-10', end_date='2026-09-10', reason='Test leave request')
+            Ngay_bat_dau='2026-09-10', Ngay_ket_thuc='2026-09-10', Ly_do='Test leave request')
         response = self.client.get('/nghi_phep/?month=9&year=2026')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['requests'].exists())

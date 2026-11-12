@@ -151,3 +151,11 @@
 .leave-sheet-buttons .reject-button:hover{background:#b93240}
 .leave-sheet-processed{max-width:560px;margin:17px auto 0;padding:10px 13px;border-radius:7px;background:#f3f6f9;color:#60748b;font-size:12px;text-align:center}
 @media(max-width:600px){.leave-review-sheet{padding:18px 17px 23px}.leave-review-sheet h1{font-size:23px}.leave-sheet-details p{font-size:12px}.leave-sheet-actions>label{font-size:12px}.leave-sheet-buttons{gap:8px}.leave-sheet-buttons .leave-button{min-width:0;flex:1}}
+.annual-leave-balance {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #f0f7f2;
+  color: #24583a;
+}
+

@@ -42,9 +42,9 @@ class LeaveAccessTests(TestCase):
         cls.unlinked_hr.groups.add(Group.objects.get(name=HR))
         cls.requests = {
             name: LeaveRequest.objects.create(
-                employee=employee, start_date=date(2026, 1, 12),
-                end_date=date(2026, 1, 12), reason=f'Lý do riêng của {name}',
-                status='rejected' if name == 'outsider' else 'pending',
+                employee=employee, Ngay_bat_dau=date(2026, 1, 12),
+                Ngay_ket_thuc=date(2026, 1, 12), Ly_do=f'Lý do riêng của {name}',
+                Trang_thai='rejected' if name == 'outsider' else 'pending',
             )
             for name, employee in cls.people.items()
         }
@@ -61,8 +61,8 @@ class LeaveAccessTests(TestCase):
 
     def valid_data(self, **overrides):
         return {
-            'start_date': '2026-01-20', 'end_date': '2026-01-20',
-            'leave_type': 'annual', 'reason': 'Nghỉ phép theo kế hoạch', 'view': 'mine', **overrides,
+            'Ngay_bat_dau': '2026-01-20', 'Ngay_ket_thuc': '2026-01-20',
+            'leave_type': 'annual', 'Ly_do': 'Nghỉ phép theo kế hoạch', 'view': 'mine', **overrides,
         }
 
     def assert_scope(self, response, names):
@@ -73,9 +73,9 @@ class LeaveAccessTests(TestCase):
             if name in names:
                 self.assertContains(response, reverse('nghi_phep:detail', args=[item.pk]))
                 detail = self.client.get(reverse('nghi_phep:detail', args=[item.pk]))
-                self.assertContains(detail, item.reason)
+                self.assertContains(detail, item.Ly_do)
             else:
-                self.assertNotContains(response, item.reason)
+                self.assertNotContains(response, item.Ly_do)
 
     def test_anonymous_get_and_post_require_login(self):
         for response in [self.client.get(self.url), self.post(self.url, self.valid_data())]:
@@ -92,7 +92,7 @@ class LeaveAccessTests(TestCase):
             with self.subTest(role=name):
                 self.client.force_login(self.people[name].user)
                 self.assert_scope(self.client.get(self.url), expected)
-                response = self.post(self.url, {'reason': 'Thiếu ngày nghỉ'})
+                response = self.post(self.url, {'Ly_do': 'Thiếu ngày nghỉ'})
                 if not response.context['manage_view']:
                     self.assertTrue(response.context['form'].errors)
                 self.assert_scope(response, expected)
@@ -124,27 +124,27 @@ class LeaveAccessTests(TestCase):
             self.client.force_login(user)
             with self.subTest(user=user.username):
                 url = self.url + f'?department={self.other_department.pk}'
-                for response in [self.client.get(url), self.post(url, {'reason': 'Thiếu ngày'})]:
+                for response in [self.client.get(url), self.post(url, {'Ly_do': 'Thiếu ngày'})]:
                     self.assertEqual(response.status_code, 200)
                     self.assertFalse(response.context['requests'].exists())
-                    self.assertNotContains(response, self.requests['outsider'].reason)
-                response = self.post(self.url + '?status=invalid', {'reason': 'Thiếu ngày'})
+                    self.assertNotContains(response, self.requests['outsider'].Ly_do)
+                response = self.post(self.url + '?status=invalid', {'Ly_do': 'Thiếu ngày'})
                 self.assertTrue(response.context['filters'].errors)
-                self.assertNotContains(response, self.requests['outsider'].reason)
+                self.assertNotContains(response, self.requests['outsider'].Ly_do)
 
     def test_valid_submission_uses_logged_in_employee_and_pending_status(self):
         for index, name in enumerate(['employee', 'manager', 'hr', 'director']):
             with self.subTest(role=name):
                 self.client.force_login(self.people[name].user)
                 response = self.post(self.url, self.valid_data(
-                    start_date=f'2026-01-{20 + index}', end_date=f'2026-01-{20 + index}',
-                    employee=self.people['outsider'].pk, status='approved',
+                    Ngay_bat_dau=f'2026-01-{20 + index}', Ngay_ket_thuc=f'2026-01-{20 + index}',
+                    employee=self.people['outsider'].pk, Trang_thai='approved',
                     reviewed_by=self.people['director'].user_id,
                 ))
                 target = self.url + '?view=mine' if name != 'employee' else self.url
                 self.assertRedirects(response, target)
-                item = LeaveRequest.objects.get(employee=self.people[name], start_date=date(2026, 1, 20 + index))
-                self.assertEqual(item.status, 'pending')
+                item = LeaveRequest.objects.get(employee=self.people[name], Ngay_bat_dau=date(2026, 1, 20 + index))
+                self.assertEqual(item.Trang_thai, 'pending')
                 self.assertIsNone(item.reviewed_by_id)
                 self.assertTrue(item.paid)
         self.assertEqual(LeaveRequest.objects.count(), len(self.requests) + 4)
@@ -152,7 +152,7 @@ class LeaveAccessTests(TestCase):
 
     def test_model_validation_failure_preserves_own_scope(self):
         self.client.force_login(self.people['employee'].user)
-        response = self.post(self.url, self.valid_data(start_date='2019-01-02', end_date='2019-01-02'))
+        response = self.post(self.url, self.valid_data(Ngay_bat_dau='2019-01-02', Ngay_ket_thuc='2019-01-02'))
         self.assert_scope(response, {'employee'})
         self.assertContains(response, 'Ngày nghỉ không được trước ngày vào làm.')
         self.assertEqual(LeaveRequest.objects.count(), len(self.requests))
@@ -193,7 +193,7 @@ class LeaveAccessTests(TestCase):
             url = reverse('nghi_phep:review', args=[self.requests['employee'].pk, action])
             self.assertEqual(self.post(url, {'review_note': 'Đã xem xét'}).status_code, 403)
         self.requests['employee'].refresh_from_db()
-        self.assertEqual(self.requests['employee'].status, 'pending')
+        self.assertEqual(self.requests['employee'].Trang_thai, 'pending')
         self.assertFalse(LeaveDay.objects.exists())
 
     def test_reviewers_cannot_approve_or_reject_their_own_request(self):
@@ -205,7 +205,7 @@ class LeaveAccessTests(TestCase):
                     url = reverse('nghi_phep:review', args=[item.pk, action])
                     self.assertEqual(self.post(url, {'review_note': 'Test'}).status_code, 403)
             item.refresh_from_db()
-            self.assertEqual(item.status, 'pending')
+            self.assertEqual(item.Trang_thai, 'pending')
             self.assertIsNone(item.reviewed_by_id)
         self.assertFalse(LeaveDay.objects.exists())
 
@@ -215,7 +215,7 @@ class LeaveAccessTests(TestCase):
             url = reverse('nghi_phep:review', args=[self.requests['hr'].pk, action])
             self.assertEqual(self.post(url, {'review_note': 'Đã xem xét'}).status_code, 404)
         self.requests['hr'].refresh_from_db()
-        self.assertEqual(self.requests['hr'].status, 'pending')
+        self.assertEqual(self.requests['hr'].Trang_thai, 'pending')
         self.assertFalse(LeaveDay.objects.exists())
 
     def test_authorized_roles_can_approve_and_create_leave_days(self):
@@ -223,11 +223,11 @@ class LeaveAccessTests(TestCase):
             self.client.force_login(self.people[name].user)
             day = date(2026, 1, 21 + index)
             item = LeaveRequest.objects.create(employee=self.people['employee'],
-                start_date=day, end_date=day, reason='Nghỉ phép hợp lệ', paid=True)
+                Ngay_bat_dau=day, Ngay_ket_thuc=day, Ly_do='Nghỉ phép hợp lệ', paid=True)
             url = reverse('nghi_phep:review', args=[item.pk, 'approve'])
             self.assertRedirects(self.post(url), reverse('nghi_phep:detail', args=[item.pk]))
             item.refresh_from_db()
-            self.assertEqual(item.status, 'approved')
+            self.assertEqual(item.Trang_thai, 'approved')
             self.assertEqual(item.reviewed_by_id, self.people[name].user_id)
             self.assertIsNotNone(item.reviewed_at)
             leave = LeaveDay.objects.get(employee=item.employee, date=day)
@@ -240,11 +240,11 @@ class LeaveAccessTests(TestCase):
         url = reverse('nghi_phep:review', args=[item.pk, 'reject'])
         self.assertRedirects(self.post(url), reverse('nghi_phep:detail', args=[item.pk]))
         item.refresh_from_db()
-        self.assertEqual(item.status, 'pending')
+        self.assertEqual(item.Trang_thai, 'pending')
         self.assertRedirects(self.post(url, {'review_note': 'Cần bàn giao công việc'}),
                              reverse('nghi_phep:detail', args=[item.pk]))
         item.refresh_from_db()
-        self.assertEqual(item.status, 'rejected')
+        self.assertEqual(item.Trang_thai, 'rejected')
         self.assertEqual(item.review_note, 'Cần bàn giao công việc')
         self.assertFalse(LeaveDay.objects.exists())
 
@@ -256,7 +256,7 @@ class LeaveAccessTests(TestCase):
         url = reverse('nghi_phep:review', args=[self.requests['employee'].pk, 'approve'])
         self.assertEqual(self.client.post(url).status_code, 403)
         self.requests['employee'].refresh_from_db()
-        self.assertEqual(self.requests['employee'].status, 'pending')
+        self.assertEqual(self.requests['employee'].Trang_thai, 'pending')
         self.assertFalse(LeaveDay.objects.exists())
 
     def test_get_cannot_approve_or_reject(self):
@@ -265,5 +265,5 @@ class LeaveAccessTests(TestCase):
             url = reverse('nghi_phep:review', args=[self.requests['employee'].pk, action])
             self.assertEqual(self.client.get(url).status_code, 405)
         self.requests['employee'].refresh_from_db()
-        self.assertEqual(self.requests['employee'].status, 'pending')
+        self.assertEqual(self.requests['employee'].Trang_thai, 'pending')
         self.assertFalse(LeaveDay.objects.exists())

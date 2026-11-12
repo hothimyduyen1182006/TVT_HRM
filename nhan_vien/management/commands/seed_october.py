@@ -74,9 +74,9 @@ class Command(BaseCommand):
                     contract_type='Hợp đồng minh họa 12 tháng', signed_date=date(2026, 10, 1), start_date=date(2026, 10, 1),
                     end_date=date(2027, 9, 30), agreed_salary=employee.base_salary, status='Đang hiệu lực')
             for leave in LeaveDay.objects.all():
-                LeaveRequest.objects.create(employee=leave.employee, start_date=leave.date, end_date=leave.date,
-                    units=leave.units, leave_type='annual' if leave.paid else 'unpaid', paid=leave.paid,
-                    reason=leave.reason, status='approved', reviewed_by=hr, reviewed_at=timezone.now())
+                LeaveRequest.objects.create(employee=leave.employee, Ngay_bat_dau=leave.date, Ngay_ket_thuc=leave.date,
+                    leave_type='annual' if leave.paid else 'unpaid', paid=leave.paid,
+                    Ly_do=leave.reason, Trang_thai='approved', reviewed_by=hr, reviewed_at=timezone.now())
             Bonus.objects.update(proposed_by=hr)
             # Chỉ so sánh tài khoản cũ, không in hash hoặc mật khẩu hiện có.
             if dict(User.objects.filter(pk__in=existing).values_list('pk', 'password')) != existing:

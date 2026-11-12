@@ -77,7 +77,7 @@ def protected_media(request, path):
     employees = visible_employees(request.user)
     for model, field_name in [
         (Employee, 'avatar'), (Education, 'certificate_file'),
-        (LaborContract, 'contract_file'), (LeaveRequest, 'evidence'),
+        (LaborContract, 'contract_file'), (LeaveRequest, 'Tep_dinh_kem'),
     ]:
         scope = {'pk__in': employees.values('pk')} if model is Employee else {'employee__in': employees}
         record = model.objects.filter(**scope, **{field_name: path}).first()
