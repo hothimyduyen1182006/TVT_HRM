@@ -1,3 +1,13 @@
+## Tên app Bảng công
+
+Các app nghiệp vụ: `bang_cong` (attendance), `nhan_vien` (employees), `bang_luong` (payroll), `nghi_phep` (leaves), `thuong` (bonuses).
+URL chính dùng tên tiếng Việt không dấu tương ứng: `/bang_cong/`, `/nhan_vien/`, `/bang_luong/`, `/nghi_phep/`, `/thuong/`.
+Mỗi AppConfig giữ label tiếng Anh cũ để không đổi bảng, migration, content types và permissions.
+`BangCongConfig` giữ `label = 'attendance'` để bảo toàn migration, bảng dữ liệu và quyền hiện có.
+URL `/bang_cong/`, namespace `bang_cong`; đường dẫn template/static và tham chiếu model trong migration giữ nguyên.
+Sau khi lấy bản đổi tên, khởi động lại server; kiểm thử app bằng `python manage.py test bang_cong --noinput`.
+Không đổi tên bảng database hoặc tạo lại dữ liệu.
+
 ## OT tự động từ chấm công
 
 - Áp dụng tất cả phòng ban. Ngày làm việc: OT = max(0, check-out − max(17:00, check-in)), khi có bản ghi Có mặt hợp lệ và lịch ngày.
@@ -32,19 +42,19 @@ py -3.12 -m venv .venv
 ```
 
 Use Python 3.12 for this Django 4.2.8 project. Do not run it with Python 3.14.
-Truy cập http://127.0.0.1:8000/ và đăng nhập tài khoản vừa tạo. Mở trang thưởng tại /bonuses/.
-Quản trị tại /admin/; bảng công /attendance/; bảng lương /payroll/;
-dữ liệu thuế/BH/phụ cấp /payroll/inputs/; nhân viên /employees/.
+Truy cập http://127.0.0.1:8000/ và đăng nhập tài khoản vừa tạo. Mở trang thưởng tại /thuong/.
+Quản trị tại /admin/; bảng công /bang_cong/; bảng lương /bang_luong/;
+dữ liệu thuế/BH/phụ cấp /bang_luong/inputs/; nhân viên /nhan_vien/.
 Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu dáng; form vẫn hoạt động khi CDN không có mạng.
 
 ### Giao diện bảng công theo mẫu
 
-- Nhân sự/Giám đốc/Trưởng phòng mở /attendance/ để xem tổng hợp một dòng mỗi nhân viên,
+- Nhân sự/Giám đốc/Trưởng phòng mở /bang_cong/ để xem tổng hợp một dòng mỗi nhân viên,
   tìm theo mã/họ tên và lọc phòng, trạng thái, tháng/năm trong phạm vi quyền.
-- Chọn Xem chi tiết để mở /attendance/employee/<id>/ với chỉ số tháng và bảng từng ngày.
+- Chọn Xem chi tiết để mở /bang_cong/employee/<id>/ với chỉ số tháng và bảng từng ngày.
   Có lọc khoảng ngày, tình trạng, đi trễ/nghỉ phép/nghỉ không phép và phân trang.
-- Nhân viên thông thường vào /attendance/ sẽ thấy giao diện công cá nhân.
-- Lịch sử tại /attendance/employee/<id>/history/ hiển thị từng trường trước/sau, người sửa,
+- Nhân viên thông thường vào /bang_cong/ sẽ thấy giao diện công cá nhân.
+- Lịch sử tại /bang_cong/employee/<id>/history/ hiển thị từng trường trước/sau, người sửa,
   lý do; lọc theo thời gian điều chỉnh, trường và người. Chỉ hiển thị lần sửa thực sự;
   không đưa tạo mới, lưu không đổi, duyệt hoặc tính lại tự động vào lịch sử điều chỉnh.
 - Nhân sự/Giám đốc xuất công và lịch sử theo bộ lọc bằng CSV UTF-8 mở được bằng Excel,
@@ -84,11 +94,11 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
    hệ thống không tự suy đoán ngày lễ. Nếu lịch nguồn thiếu ngày, chưa xác nhận hoặc có
    nhiều quy tắc khác nhau cho cùng thứ trong tuần, hệ thống báo cần HR xác định lịch.
    Tạo kỳ tháng mới không tự tạo dữ liệu chấm công, duyệt công hoặc tính lương.
-7. Nhân sự ghi công tại /attendance/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
+7. Nhân sự ghi công tại /bang_cong/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.
 8. Check-out sau 17:00 tự có OT theo giờ thực tế, không cần gửi/duyệt. Mở Bảng công hoặc chi tiết ngày để xem; sửa giờ ra sẽ tính lại OT. Giữ nguyên quy trình duyệt/khóa Bảng công.
-9. Nhân sự/Giám đốc chọn tháng/năm tại /attendance/, mở chi tiết từng nhân viên và bấm
+9. Nhân sự/Giám đốc chọn tháng/năm tại /bang_cong/, mở chi tiết từng nhân viên và bấm
    Duyệt bảng công cạnh Lịch sử điều chỉnh công. Hệ thống kiểm tra đủ ngày của riêng người đó,
    tính lại chỉ số, lưu người/thời gian duyệt và chuyển dòng đó sang Đã duyệt. Khi đủ nhân viên
    được duyệt, kỳ công hoàn tất và có thể tính lương toàn kỳ.

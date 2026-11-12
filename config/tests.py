@@ -1,20 +1,20 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from django.contrib.auth.models import Group
-from employees.models import Education, LaborContract
-from leaves.models import LeaveRequest
+from nhan_vien.models import Education, LaborContract
+from nghi_phep.models import LeaveRequest
 from datetime import date, time
 
 from django.conf import settings
 from django.contrib.auth import SESSION_KEY, get_user_model
 from django.contrib.sessions.models import Session
-from django.test import Client, TestCase, override_settings
-from django.urls import reverse
+from django.test import Client, SimpleTestCase, TestCase, override_settings
+from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 
-from employees.models import Department, Employee
-from employees import test_personal_records as personal_fixtures
-from attendance.models import AttendancePeriod
-from payroll.models import PayrollRecord, PayrollPeriod
+from nhan_vien.models import Department, Employee
+from nhan_vien import test_personal_records as personal_fixtures
+from bang_cong.models import AttendancePeriod
+from bang_luong.models import PayrollRecord, PayrollPeriod
 
 
 class HomePageTests(TestCase):
@@ -34,11 +34,11 @@ class HomePageTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertContains(response,employee.full_name)
                 self.assertContains(response,'Chào mừng trở lại!')
-                self.assertEqual(response.context['attendance_url'],'/attendance/personal/')
-                self.assertEqual(response.context['payroll_url'],'/payroll/personal/?month=1&year=2026')
+                self.assertEqual(response.context['attendance_url'],'/bang_cong/personal/')
+                self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=1&year=2026')
                 self.assertEqual(self.client.get(response.context['attendance_url']).status_code,200)
                 self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
-                self.assertEqual(response.context['leave_url'],'/leaves/')
+                self.assertEqual(response.context['leave_url'],'/nghi_phep/')
         self.assertEqual(list(PayrollRecord.objects.values()),before)
 
     def test_latest_salary_is_selected_only_for_current_user(self):
@@ -53,7 +53,7 @@ class HomePageTests(TestCase):
             record.save()
         self.client.force_login(employee.user)
         response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
-        self.assertEqual(response.context['payroll_url'],'/payroll/personal/?month=2&year=2027')
+        self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=2&year=2027')
         self.assertContains(response,'Phiếu lương mới nhất · 02/2027')
         self.assertNotContains(response,'02/2028')
 
@@ -76,8 +76,8 @@ class HomePageTests(TestCase):
         admin=get_user_model().objects.create_superuser('home-admin',password='TestOnly')
         self.client.force_login(admin)
         response=self.client.get('/')
-        self.assertEqual(response.context['attendance_url'],'/attendance/')
-        self.assertEqual(response.context['payroll_url'],'/payroll/')
+        self.assertEqual(response.context['attendance_url'],'/bang_cong/')
+        self.assertEqual(response.context['payroll_url'],'/bang_luong/')
         self.assertEqual(self.client.get('/dashboard/').status_code,200)
 
     def test_display_name_is_escaped_and_dashboard_stays_protected(self):
@@ -88,7 +88,7 @@ class HomePageTests(TestCase):
         response=self.client.get('/')
         self.assertContains(response,'&lt;script&gt;alert(1)&lt;/script&gt;')
         self.assertNotContains(response,'<script>alert(1)</script>')
-        self.assertRedirects(self.client.get('/dashboard/'),'/attendance/',fetch_redirect_response=False)
+        self.assertRedirects(self.client.get('/dashboard/'),'/bang_cong/',fetch_redirect_response=False)
 
 
 class LoginSessionTests(TestCase):
@@ -375,8 +375,8 @@ class PrivateMediaTests(TestCase):
         for name in self.files['employee'][:3]:
             self.assertContains(response, self.url(name))
         leave = LeaveRequest.objects.get(employee=self.people['employee'])
-        response = self.client.get(reverse('leaves:detail', args=[leave.pk]))
-        evidence_url = reverse('leaves:evidence', args=[leave.pk])
+        response = self.client.get(reverse('nghi_phep:detail', args=[leave.pk]))
+        evidence_url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertContains(response, evidence_url)
         response = self.client.get(evidence_url)
         self.assertEqual(response.status_code, 200)
@@ -394,7 +394,7 @@ class PrivateMediaTests(TestCase):
 
     def test_evidence_url_checks_authentication_scope_and_cache(self):
         leave = LeaveRequest.objects.get(employee=self.people['outsider'])
-        url = reverse('leaves:evidence', args=[leave.pk])
+        url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertEqual(self.client.get(url).status_code, 302)
         self.client.force_login(self.people['employee'].user)
         self.assertEqual(self.client.get(url).status_code, 404)
@@ -414,9 +414,44 @@ class PrivateMediaTests(TestCase):
         leave.evidence = name
         leave.save(update_fields=['evidence'])
         self.client.force_login(self.people['employee'].user)
-        for url in [self.url(name), reverse('leaves:evidence', args=[leave.pk])]:
+        for url in [self.url(name), reverse('nghi_phep:evidence', args=[leave.pk])]:
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response['Content-Disposition'].startswith('attachment'))
             self.assertEqual(response['X-Content-Type-Options'], 'nosniff')
             response.close()
+
+
+class BangCongURLTests(SimpleTestCase):
+    def test_all_attendance_routes_use_new_namespace_and_prefix(self):
+        routes = {'list': [], 'personal': [], 'clock': [], 'create': [],
+                  'employee-month': [1], 'employee-approve': [1, 2],
+                  'history': [1], 'export': [1], 'detail': [1],
+                  'edit': [1], 'transition': [2]}
+        for name, args in routes.items():
+            with self.subTest(route=name):
+                url = reverse('bang_cong:' + name, args=args)
+                self.assertTrue(url.startswith('/bang_cong/'))
+                self.assertEqual(resolve(url).view_name, 'bang_cong:' + name)
+
+    def test_old_public_prefix_and_namespace_are_not_registered(self):
+        with self.assertRaises(Resolver404):
+            resolve('/attendance/')
+        with self.assertRaises(NoReverseMatch):
+            reverse('attendance:list')
+
+    def test_all_business_apps_keep_database_identity_with_new_packages(self):
+        from django.apps import apps
+        names = {'attendance': 'bang_cong', 'employees': 'nhan_vien',
+                 'payroll': 'bang_luong', 'leaves': 'nghi_phep', 'bonuses': 'thuong'}
+        for label, name in names.items():
+            with self.subTest(app=name):
+                self.assertEqual(apps.get_app_config(label).name, name)
+
+    def test_other_business_urls_resolve_with_vietnamese_prefixes(self):
+        for name in ['bang_luong', 'nghi_phep', 'thuong']:
+            with self.subTest(app=name):
+                url = reverse(name + ':list')
+                self.assertEqual(url, '/' + name + '/')
+                self.assertEqual(resolve(url).namespace, name)
+        self.assertEqual(reverse('employees'), '/nhan_vien/')

@@ -6,16 +6,16 @@ from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
-from employees.access import has_role, require_role, HR, DIRECTOR, MANAGER
-from employees.access import visible_employees
-from employees.models import Employee, Education, LaborContract
-from leaves.models import LeaveRequest
+from nhan_vien.access import has_role, require_role, HR, DIRECTOR, MANAGER
+from nhan_vien.access import visible_employees
+from nhan_vien.models import Employee, Education, LaborContract
+from nghi_phep.models import LeaveRequest
 from django.core.paginator import Paginator
 from .dashboard import DashboardFilter, dashboard_context
 from django.urls import reverse
 from django.utils import timezone
 from urllib.parse import urlencode
-from payroll.models import PayrollRecord
+from bang_luong.models import PayrollRecord
 
 
 @login_required
@@ -28,16 +28,16 @@ def home(request):
         '-period__attendance_period__year','-period__attendance_period__month','-calculated_at','-pk').first()
     today=timezone.localdate()
     period=latest.period.attendance_period if latest else None
-    payroll_url=reverse('payroll:personal')+'?'+urlencode({'month':period.month if period else today.month,
+    payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.month if period else today.month,
         'year':period.year if period else today.year})
     return render(request,'home.html',{
         'display_name':name,
-        'attendance_url':reverse('attendance:personal') if employee else (reverse('attendance:list') if can_manage else ''),
+        'attendance_url':reverse('bang_cong:personal') if employee else (reverse('bang_cong:list') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
-        'payroll_url':payroll_url if employee or not can_manage else reverse('payroll:list'),
+        'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
         'payroll_description':f'Phiếu lương mới nhất · {period.month:02}/{period.year}' if period else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
-        'leave_url':reverse('leaves:list') if can_manage or (employee and employee.is_active) else '',
+        'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.is_active) else '',
         'leave_title':'Quản lý nghỉ phép' if can_manage else 'Đăng ký nghỉ phép',
         'leave_description':'Xem các yêu cầu theo quyền' if can_manage else (
             'Tạo đơn nghỉ phép' if employee and employee.is_active else 'Cần hồ sơ nhân viên đang hoạt động'),
@@ -47,7 +47,7 @@ def home(request):
 @login_required
 def dashboard(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
-        return redirect('attendance:list')
+        return redirect('bang_cong:list')
     form = DashboardFilter(request.user, request.GET)
     context = dashboard_context(request.user, form) if form.is_valid() else {}
     query = request.GET.copy()

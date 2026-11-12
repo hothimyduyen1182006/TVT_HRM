@@ -21,7 +21,7 @@
  <th>Họ tên</th><th>Phòng ban</th><th>Lương cơ<br>bản</th><th>Lương<br>theo công</th><th>Lương<br>tăng ca</th><th>Tổng tiền<br>thưởng</th><th>Khấu trừ<br>đi trễ</th><th>Khấu trừ<br>BHXH</th><th>Thuế<br>TNCN</th><th>Lương thực<br>lĩnh</th><th>Trạng thái</th>{% if director %}<th>Tác vụ</th>{% endif %}
 </tr></thead><tbody>
 {% for row in rows %}<tr>
- <td class="pr-name"><a href="{% url 'payroll:detail' row.pk %}">{{ row.employee_name }}</a><small>{{ row.employee_code }}</small></td>
+ <td class="pr-name"><a href="{% url 'bang_luong:detail' row.pk %}">{{ row.employee_name }}</a><small>{{ row.employee_code }}</small></td>
  <td class="pr-department pr-tone-{{ row.department_name|department_tone }}">{{ row.department_name }}</td>
  <td class="pr-muted pr-money">{{ row.base_salary|money }}</td><td class="pr-money">{{ row.attendance_pay|money }}</td>
  <td class="pr-bonus pr-money">{{ row.ot_pay|money }}</td>
@@ -30,7 +30,7 @@
  <td class="pr-deduct pr-money">{% with bhxh_amount=row|bhxh %}{% if bhxh_amount != None %}− {{ bhxh_amount|money }}{% else %}—{% endif %}{% endwith %}<small class="pr-muted">Tổng BH: {{ row.insurance|money }}</small></td>
  <td class="{% if row.tax %}pr-deduct{% else %}pr-muted{% endif %} pr-money">{% if row.tax %}− {% endif %}{{ row.tax|money }}</td>
  <td class="pr-net-cell pr-money">{{ row.net_pay|money }}</td><td class="pr-status pr-status-{{ row.status }}">{{ row.get_status_display }}{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}</td>
- {% if director %}<td>{% if row.status == 'pending' %}<form method="post" action="{% url 'payroll:employee-approve' row.pk %}">{% csrf_token %}<button class="pr-button pr-approve-record" type="submit">Duyệt bảng lương</button></form>{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}{% else %}<span class="pr-muted">{{ row.get_status_display }}</span>{% endif %}</td>{% endif %}
+ {% if director %}<td>{% if row.status == 'pending' %}<form method="post" action="{% url 'bang_luong:employee-approve' row.pk %}">{% csrf_token %}<button class="pr-button pr-approve-record" type="submit">Duyệt bảng lương</button></form>{% if row.approval_error %}<small class="pr-approval-note">{{ row.approval_error }}</small>{% endif %}{% else %}<span class="pr-muted">{{ row.get_status_display }}</span>{% endif %}</td>{% endif %}
 </tr>{% empty %}<tr><td colspan="{% if director %}12{% else %}11{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}
  <h2>CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG</h2>
  {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Chọn kỳ lương khác hoặc hoàn thiện công đã duyệt và căn cứ tính lương để hệ thống tự cập nhật.</p>{% if form.q.value or form.department.value or form.status.value or form.employee.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
@@ -39,11 +39,11 @@
 {% if rows %}<p class="pr-table-note">Bảo hiểm và thuế TNCN đã được trừ khi tính lương thực lĩnh. Các khoản thành phần được trình bày trong phiếu chi tiết; không tự tính tiền phạt từ thời gian đi trễ.</p>{% endif %}
 {% if can_manage %}
 <dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng lương đã duyệt hoặc đã chi trả.</p>
- <form method="post" action="{% url 'payroll:export' 'csv' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<div class="pr-actions"><button class="pr-button">CSV</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'json' %}">JSON</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'txt' %}">TXT</button></div></form>
+ <form method="post" action="{% url 'bang_luong:export' 'csv' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<div class="pr-actions"><button class="pr-button">CSV</button><button class="pr-button pr-secondary" formaction="{% url 'bang_luong:export' 'json' %}">JSON</button><button class="pr-button pr-secondary" formaction="{% url 'bang_luong:export' 'txt' %}">TXT</button></div></form>
 </dialog>
 {% endif %}
 {% if director and period %}<details class="pr-workflow"><summary>Quản lý kỳ {{ period }} · {{ period.get_status_display }}</summary>
- <form method="post" action="{% url 'payroll:transition' period.pk %}">{% csrf_token %}<label for="pr-workflow-reason">Lý do thao tác</label><textarea id="pr-workflow-reason" name="reason" required></textarea>
+ <form method="post" action="{% url 'bang_luong:transition' period.pk %}">{% csrf_token %}<label for="pr-workflow-reason">Lý do thao tác</label><textarea id="pr-workflow-reason" name="reason" required></textarea>
  {% if period.status == 'pending' %}<p>Duyệt riêng từng nhân viên bằng nút ở cột Tác vụ.</p>{% if has_approved_records %}<button class="pr-button pr-secondary" name="action" value="reopen">Mở lại các phiếu đã duyệt để điều chỉnh</button>{% endif %}{% endif %}
  {% if period.status == 'approved' %}<label for="pr-evidence">Bằng chứng thanh toán (mã giao dịch / đường dẫn chứng từ)</label><textarea id="pr-evidence" name="evidence"></textarea><div class="pr-actions"><button class="pr-button pr-secondary" name="action" value="reopen">Mở lại để điều chỉnh</button><button class="pr-button" name="action" value="paid">Xác nhận đã chi trả</button></div>{% endif %}
  {% if period.status == 'paid' %}<p>Kỳ đã chi trả được khóa. Không mở lại trực tiếp.</p>{% endif %}</form>

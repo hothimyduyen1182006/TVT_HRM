@@ -5,12 +5,12 @@
 
 <div class="pr-personal-heading pr-no-print">
  <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
- <form class="pr-period-form" method="get" action="{% if personal %}{% url 'payroll:personal' %}{% else %}{% url 'payroll:list' %}{% endif %}">
+ <form class="pr-period-form" method="get" action="{% if personal %}{% url 'bang_luong:personal' %}{% else %}{% url 'bang_luong:list' %}{% endif %}">
   <label class="pr-sr-only" for="id_month">Tháng</label>{{ form.month }}<label class="pr-sr-only" for="id_year">Năm</label>{{ form.year }}<button class="pr-button">Xem</button>
  </form>
 </div>
 {% if form.errors %}<div class="pr-errors pr-no-print">{{ form.errors }}</div>{% endif %}
-{% if not personal %}<p class="pr-no-print"><a class="pr-back" href="{% url 'payroll:list' %}?month={{ form.month.value }}&year={{ form.year.value }}">‹ Quay lại bảng lương chính</a></p>{% endif %}
+{% if not personal %}<p class="pr-no-print"><a class="pr-back" href="{% url 'bang_luong:list' %}?month={{ form.month.value }}&year={{ form.year.value }}">‹ Quay lại bảng lương chính</a></p>{% endif %}
 {% if row %}
 <article class="pr-slip" id="payroll-slip" aria-label="Phiếu thanh toán lương">
  <header class="pr-slip-header">

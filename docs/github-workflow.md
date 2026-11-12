@@ -31,15 +31,15 @@ OT hiện tại tính tự động từ chấm công, áp dụng mọi phòng ba
 
 ## Kiểm thử và lưu ý
 
-Bộ kiểm thử liên quan đã chạy thành công:
+Bộ kiểm thử toàn dự án đã chạy thành công trên database thử nghiệm:
 
 ```powershell
-python manage.py test attendance payroll config bonuses employees.test_personal_records employees.test_shared_profiles employees.tests.DemoDataTests.test_demo_login_and_personal_page --noinput
+python manage.py test --noinput
 ```
 
-200 kiểm thử liên quan dùng database riêng đã chạy thành công sau khi ghép cập nhật mới nhất từ nhóm. Toàn bộ test suite còn các lỗi đã ghi nhận ngoài phần công/lương:
-kiểm thử danh sách nghỉ phép đòi hiển thị lý do hiện nằm ở trang chi tiết; hai kiểm thử cũ trong
-employees.tests.DemoDataTests chưa khớp cấu trúc context và điều hướng theo quyền hiện tại.
+Ngày 12/11/2026: cả 277 test đều đạt sau khi đổi tên app và sửa lỗi nghỉ phép.
+Backend chặn tự duyệt/từ chối đơn của chính mình; bộ lọc không hợp lệ trả danh sách rỗng.
+Kiểm thử đã được cập nhật theo tab cá nhân/quản lý, trang chi tiết và phân trang hiện tại.
 
 ## Làm việc nhóm
 

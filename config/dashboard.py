@@ -3,10 +3,10 @@ from decimal import Decimal
 from django import forms
 from django.db.models import Count
 from django.utils import timezone
-from employees.access import visible_employees
-from employees.models import Department
-from attendance.models import AttendanceRecord, AttendancePeriod
-from leaves.models import LeaveDay
+from nhan_vien.access import visible_employees
+from nhan_vien.models import Department
+from bang_cong.models import AttendanceRecord, AttendancePeriod
+from nghi_phep.models import LeaveDay
 
 
 class DashboardFilter(forms.Form):

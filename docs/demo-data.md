@@ -22,14 +22,14 @@ và được cung cấp trong phản hồi của trợ lý, không lưu vào sou
 - 09/2026: công đã duyệt, lương đã duyệt; dùng xem chi tiết và xuất CSV/JSON/TXT.
 - 10/2026: đã chi trả GIẢ LẬP; chứng từ mang mã DEMO, không phát sinh giao dịch thật.
 - 11/2026: công đã được mở lại về chờ duyệt, lương đang chờ duyệt. Đăng nhập
-  demo_hr, vào /attendance/?month=11&year=2026, chọn Xem chi tiết của một nhân viên rồi
+  demo_hr, vào /bang_cong/?month=11&year=2026, chọn Xem chi tiết của một nhân viên rồi
   nhấn Duyệt bảng công cạnh Lịch sử điều chỉnh công. Chỉ nhân viên đó chuyển sang Đã duyệt.
   Sau khi duyệt công một nhân viên, bấm Tính lương để cập nhật phiếu của những người đã duyệt công,
   rồi dùng demo_director duyệt từng phiếu. Không cần chờ duyệt công toàn bộ nhân viên.
 - 12/2026: không tạo dữ liệu, dùng xem giao diện trống.
 
-Ví dụ: /payroll/?month=9&year=2026 và /attendance/?month=9&year=2026.
-Nhân viên vào /payroll/ thấy phiếu cá nhân; tài khoản quản lý thấy bảng tổng hợp theo quyền.
+Ví dụ: /bang_luong/?month=9&year=2026 và /bang_cong/?month=9&year=2026.
+Nhân viên vào /bang_luong/ thấy phiếu cá nhân; tài khoản quản lý thấy bảng tổng hợp theo quyền.
 
 Có công đủ ngày, đi muộn, nghỉ phép hưởng lương, nghỉ không lương, nghỉ không phép đã ghi
 nhận rõ ràng, nghỉ nửa ngày và lịch sử sửa giờ vào. OT/thưởng gồm cả bản đã duyệt và chưa

@@ -2,8 +2,8 @@ from datetime import date, time
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from django.urls import reverse
-from employees.models import Department, Employee
-from attendance.models import AttendancePeriod, AttendanceRecord
+from nhan_vien.models import Department, Employee
+from bang_cong.models import AttendancePeriod, AttendanceRecord
 
 
 class DashboardTests(TestCase):
@@ -56,7 +56,7 @@ class DashboardTests(TestCase):
 
     def test_employee_still_redirects_and_empty_scope_is_supported(self):
         self.client.force_login(self.people[1].user)
-        self.assertRedirects(self.client.get(reverse('dashboard')), '/attendance/', fetch_redirect_response=False)
+        self.assertRedirects(self.client.get(reverse('dashboard')), '/bang_cong/', fetch_redirect_response=False)
         Employee.objects.update(is_active=False)
         self.client.force_login(self.hr)
         response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
@@ -66,11 +66,11 @@ class DashboardTests(TestCase):
     def test_dashboard_links_and_attendance_day_filters_match_totals(self):
         self.client.force_login(self.hr)
         response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
-        self.assertContains(response, 'href="/employees/?active_as_of=2026-01-05"')
+        self.assertContains(response, 'href="/nhan_vien/?active_as_of=2026-01-05"')
         self.assertContains(response, 'href="/departments/?date=2026-01-05"')
         expected = {'ontime': self.people[0], 'late': self.people[1], 'unchecked': self.people[2]}
         for state, employee in expected.items():
-            response = self.client.get('/attendance/', {'month': 1, 'year': 2026,
+            response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026,
                 'day': '2026-01-05', 'day_state': state})
             self.assertEqual(response.status_code, 200)
             self.assertEqual([row['employee'] for row in response.context['rows']], [employee])
@@ -78,15 +78,15 @@ class DashboardTests(TestCase):
     def test_employee_gender_and_department_links_preserve_scope(self):
         self.client.force_login(self.hr)
         for value, expected in [('Nam', self.people[0]), ('Nữ', self.people[1]), ('unknown', self.people[2])]:
-            response = self.client.get('/employees/', {'active_as_of': '2026-01-05', 'gender': value})
+            response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'gender': value})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(list(response.context['rows']), [expected])
         self.client.force_login(self.manager)
         response = self.client.get('/departments/', {'date': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['departments']), 1)
-        response = self.client.get('/employees/', {'active_as_of': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'department': self.people[2].department_id})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['rows'].exists())
-        response = self.client.get('/attendance/', {'month': 1, 'year': 2026, 'day': '2026-01-05', 'day_state': 'unchecked'})
+        response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026, 'day': '2026-01-05', 'day_state': 'unchecked'})
         self.assertEqual(response.context['rows'], [])

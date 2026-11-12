@@ -1,4 +1,4 @@
 {% extends 'attendance/base.html' %}{% block attendance_content %}
-<div class="at-breadcrumb"><a href="{% url 'attendance:list' %}">Bảng công tổng hợp</a> / {{ title }}</div>
-<div class="at-edit"><h1>{{ title }}</h1><p class="at-muted">Dữ liệu được tính lại và ghi lịch sử cùng lý do thay đổi.</p><form method="post">{% csrf_token %}{{ form.as_p }}<div class="d-flex gap-2"><button class="at-button">Lưu thay đổi</button>{% if row %}<a class="at-button secondary" href="{% url 'attendance:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">Hủy</a>{% else %}<a class="at-button secondary" href="{% url 'attendance:list' %}">Hủy</a>{% endif %}</div></form></div>
+<div class="at-breadcrumb"><a href="{% url 'bang_cong:list' %}">Bảng công tổng hợp</a> / {{ title }}</div>
+<div class="at-edit"><h1>{{ title }}</h1><p class="at-muted">Dữ liệu được tính lại và ghi lịch sử cùng lý do thay đổi.</p><form method="post">{% csrf_token %}{{ form.as_p }}<div class="d-flex gap-2"><button class="at-button">Lưu thay đổi</button>{% if row %}<a class="at-button secondary" href="{% url 'bang_cong:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">Hủy</a>{% else %}<a class="at-button secondary" href="{% url 'bang_cong:list' %}">Hủy</a>{% endif %}</div></form></div>
 {% endblock %}

@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}{% block attendance_content %}
-<div class="at-breadcrumb"><a href="{% url 'attendance:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">‹ Chi tiết chấm công tháng {{ row.date.month }}/{{ row.date.year }}</a></div>
+<div class="at-breadcrumb"><a href="{% url 'bang_cong:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">‹ Chi tiết chấm công tháng {{ row.date.month }}/{{ row.date.year }}</a></div>
 <article class="at-day-detail">
   <header class="at-day-heading">
     <div><p class="at-day-eyebrow">CHI TIẾT CHẤM CÔNG</p><h1>{{ row.employee }}</h1><p class="at-day-date">Ngày {{ row.date|date:'d/m/Y' }}</p></div>
@@ -23,7 +23,7 @@
   </section>
   <footer class="at-day-footer">
     <p>Cập nhật bởi <strong>{{ row.updated_by|default:'—' }}</strong><span>{{ row.updated_at|date:'H:i · d/m/Y' }}</span></p>
-    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'attendance:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
+    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'bang_cong:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
   </footer>
 </article>
 {% endblock %}

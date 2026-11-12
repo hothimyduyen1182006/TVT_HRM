@@ -24,7 +24,7 @@
           <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
           <div class="tvt-clock" data-clock>--:--:--</div>
           <div class="tvt-status-strip tvt-status-working"><span></span>Đang trong ca{% if is_late %} · Đi trễ {{ today_record.late_minutes }} phút{% else %} · Đúng giờ{% endif %}</div>
-          {% if can_check_out %}<form method="post" action="{% url 'attendance:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
+          {% if can_check_out %}<form method="post" action="{% url 'bang_cong:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
           <div class="tvt-shift-caption">Check-in lúc {{ today_record.check_in|time:'H:i:s' }}{% if period %} · Ca làm việc: {{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% endif %}</div>
         {% else %}
           <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
@@ -33,7 +33,7 @@
           <div class="tvt-day-date">{{ today|date:'d/m/Y' }}</div>
           <div class="tvt-clock" data-clock>--:--:--</div>
           <div class="tvt-status-strip tvt-status-idle"><span></span>Chưa check-in</div>
-          {% if can_check_in %}<form method="post" action="{% url 'attendance:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
+          {% if can_check_in %}<form method="post" action="{% url 'bang_cong:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
           <div class="tvt-shift-caption">Ca làm việc: {% if period %}{{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
         {% endif %}
         {% if schedule_error %}<div class="tvt-period-note">{{ schedule_error }}</div>{% elif locked and page_state != 'done' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
