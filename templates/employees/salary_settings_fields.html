@@ -9,6 +9,4 @@
     {% endif %}
   {% endfor %}
   <div class="form-field"><label for="salary-dependents">Số người phụ thuộc</label><input id="salary-dependents" type="text" value="0" readonly{% if salary_readonly %} disabled{% endif %}></div>
-  <div class="form-field"><label for="salary-id-type">Loại ID</label><input id="salary-id-type" type="text" value="CCCD" readonly{% if salary_readonly %} disabled{% endif %}></div>
-  <div class="form-field"><label for="salary-national-id">Số ID (CCCD)</label><input id="salary-national-id" type="text" value="{{ employee.national_id|default:'' }}" placeholder="Chưa cập nhật" readonly{% if salary_readonly %} disabled{% endif %}>{% if not salary_readonly %}<small>Cập nhật trong thông tin cá nhân.</small>{% endif %}</div>
 </div>
