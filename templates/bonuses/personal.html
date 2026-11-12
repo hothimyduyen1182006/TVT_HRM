@@ -45,13 +45,13 @@
   <form method="get" class="bp-filter">
     {% for field in form %}<div class="bp-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
     <button class="btn" type="submit">Lọc</button>
-    <a class="bp-reset" href="{% url 'bonuses:personal' %}">Đặt lại</a>
+    <a class="bp-reset" href="{% url 'thuong:personal' %}">Đặt lại</a>
   </form>
   {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
   <section class="bp-summary" aria-label="Tổng hợp thưởng cá nhân">
     <article class="bp-summary-card bp-summary-received"><div class="bp-summary-label">{{ received_label }}</div><div class="bp-summary-value">{{ total_received|money }} ₫</div><div class="bp-summary-note">&#272;&#227; duy&#7879;t v&#224; th&#7921;c t&#7871;</div></article>
     <article class="bp-summary-card bp-summary-pending"><div class="bp-summary-label">Đang chờ duyệt</div><div class="bp-summary-value">{{ pending_total|money }} ₫</div></article>
-    <article class="bp-summary-card bp-summary-month"><div class="bp-summary-label">{{ summary_label }}</div><div class="bp-summary-value">{{ summary_total|money }} ₫</div></article>
+    <article class="bp-summary-card bp-summary-month"><div class="bp-summary-label">{{ summary_label }}</div><div class="bp-summary-value">{{ total_amount|money }} ₫</div></article>
   </section>
   <h2 class="h5 fw-bold text-uppercase mb-3" style="color:#17385e">Thông tin thưởng cá nhân</h2>
   <div class="table-responsive bg-white rounded">
@@ -67,7 +67,7 @@
           <td class="bp-money">{{ row.total|money }}</td>
           <td><span class="bp-status {{ row.status }}">{% if row.status == 'approved' %}Đã duyệt{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'draft' %}Bản nháp{% else %}Từ chối{% endif %}</span></td>
           <td>{% if row.approved_at and row.status != 'pending' and row.status != 'draft' %}{{ row.approved_at|date:'d/m/Y' }}{% else %}<span class="bp-no-data" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td>
-          <td><a class="bp-detail-link" href="{% url 'bonuses:detail' row.employee_id row.year row.month %}">Xem chi tiết</a></td>
+          <td><a class="bp-detail-link" href="{% url 'thuong:detail' row.employee_id row.year row.month %}">Xem chi tiết</a></td>
         </tr>
         {% empty %}<tr><td colspan="10" class="bp-empty">Không tìm thấy dữ liệu thưởng phù hợp</td></tr>{% endfor %}
       </tbody>

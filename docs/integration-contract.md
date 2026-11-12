@@ -26,13 +26,13 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 
 ## Phạm vi phần bảng công
 
-- WorkCalendarDay: ngày làm việc/nghỉ/lễ và công chuẩn theo lịch áp dụng.
-- AttendancePeriod: tháng/năm, phạm vi áp dụng, trạng thái duyệt, người/thời gian duyệt.
-- AttendanceRecord: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
+- LichLamViec: ngày làm việc/nghỉ/lễ và công chuẩn theo lịch áp dụng.
+- KyCong: tháng/năm, phạm vi áp dụng, trạng thái duyệt, người/thời gian duyệt.
+- ChamCong: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
   công thực tế, công nghỉ hưởng lương, công hưởng lương và ghi chú.
 - Ràng buộc database duy nhất (employee, date); kiểm tra checkout > checkin khi có cả hai.
-- OvertimeApproval: employee, ngày, giờ được duyệt, loại ngày, hệ số, thông tin duyệt.
-- AttendanceAuditLog: người sửa, thời gian, lý do, trước/sau; người thường không sửa/xóa.
+- LichSuTangCa: employee, ngày, giờ được duyệt, loại ngày, hệ số, thông tin duyệt.
+- NhatKyCong: người sửa, thời gian, lý do, trước/sau; người thường không sửa/xóa.
 
 Chưa tự áp dụng lịch 08:00–17:00, nghỉ trưa hay hệ số OT cho đến khi nhóm chốt.
 Không tự gán nghỉ không phép cho ngày thiếu chấm công. Kỳ đã duyệt phải mở lại có lý do.

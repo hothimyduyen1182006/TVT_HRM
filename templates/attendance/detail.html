@@ -1,29 +1,26 @@
 {% extends 'attendance/base.html' %}{% block attendance_content %}
-<div class="at-breadcrumb"><a href="{% url 'attendance:employee-month' row.employee_id %}?month={{ row.date.month }}&year={{ row.date.year }}">‹ Chi tiết chấm công tháng {{ row.date.month }}/{{ row.date.year }}</a></div>
+<div class="at-breadcrumb"><a href="{% url 'bang_cong:employee-month' row.nhan_vien_id %}?month={{ row.ngay.month }}&year={{ row.ngay.year }}">‹ Chi tiết chấm công tháng {{ row.ngay.month }}/{{ row.ngay.year }}</a></div>
 <article class="at-day-detail">
   <header class="at-day-heading">
-    <div><p class="at-day-eyebrow">CHI TIẾT CHẤM CÔNG</p><h1>{{ row.employee }}</h1><p class="at-day-date">Ngày {{ row.date|date:'d/m/Y' }}</p></div>
-    <span class="at-day-status">{{ row.get_status_display }}</span>
+    <div><p class="at-day-eyebrow">CHI TIẾT CHẤM CÔNG</p><h1>{{ row.nhan_vien }}</h1><p class="at-day-date">Ngày {{ row.ngay|date:'d/m/Y' }}</p></div>
+    <span class="at-day-status">{{ row.get_trang_thai_display }}</span>
   </header>
   <dl class="at-day-grid">
-    <div><dt>Giờ vào / ra</dt><dd>{{ row.check_in|default:'—' }} <span>/</span> {{ row.check_out|default:'—' }}</dd></div>
-    <div><dt>Giờ làm / phút muộn</dt><dd>{{ row.work_hours }} giờ <span>/</span> {{ row.late_minutes }} phút</dd></div>
-    <div><dt>Công thực tế / nghỉ hưởng lương</dt><dd>{{ row.actual_units }} <span>/</span> {{ row.paid_leave_units }}</dd></div>
-    <div><dt>Công hưởng lương</dt><dd>{{ row.paid_units }}</dd></div>
-    <div class="at-day-wide"><dt>Ghi chú</dt><dd class="at-day-note">{{ row.note|default:'—' }}</dd></div>
+    <div><dt>Giờ vào / ra</dt><dd>{{ row.gio_vao|default:'—' }} <span>/</span> {{ row.gio_ra|default:'—' }}</dd></div>
+    <div><dt>Giờ làm / phút muộn</dt><dd>{{ row.so_gio_lam }} giờ <span>/</span> {{ row.so_phut_tre }} phút</dd></div>
+    <div><dt>Công thực tế / nghỉ hưởng lương</dt><dd>{{ row.cong_thuc_te }} <span>/</span> {{ row.cong_nghi_co_luong }}</dd></div>
+    <div><dt>Công hưởng lương</dt><dd>{{ row.tong_cong }}</dd></div>
+    <div class="at-day-wide"><dt>Ghi chú</dt><dd class="at-day-note">{{ row.ghi_chu|default:'—' }}</dd></div>
   </dl>
   <section class="at-day-ot" aria-labelledby="ot-title">
     <h2 id="ot-title">Tăng ca tự động</h2>
     <p>Giờ OT: <strong>{{ automatic_ot.hours|floatformat:'-4' }} giờ</strong>. Ngày thường tính sau 17:00, không cộng vào công bình thường.</p>
     {% if automatic_ot.error %}<p class="at-muted">{{ automatic_ot.error }}</p>{% endif %}
     {% for warning in automatic_ot.warnings %}<p class="at-muted">{{ warning }}</p>{% endfor %}
-    {% if overtime_history %}<details><summary>Lịch sử OT cũ (chỉ xem, không dùng tính lương mới)</summary>
-      {% for ot in overtime_history %}<p>{{ ot.date|date:'d/m/Y' }} · {{ ot.hours }} giờ · {{ ot.get_status_display }}{% if ot.reviewed_by %} · {{ ot.reviewed_by }} · {{ ot.reviewed_at|date:'H:i d/m/Y' }}{% endif %}</p>{% endfor %}
-    </details>{% endif %}
   </section>
   <footer class="at-day-footer">
-    <p>Cập nhật bởi <strong>{{ row.updated_by|default:'—' }}</strong><span>{{ row.updated_at|date:'H:i · d/m/Y' }}</span></p>
-    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'attendance:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
+    <p>Cập nhật bởi <strong>{{ row.nguoi_cap_nhat|default:'—' }}</strong><span>{{ row.ngay_cap_nhat|date:'H:i · d/m/Y' }}</span></p>
+    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'bang_cong:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
   </footer>
 </article>
 {% endblock %}

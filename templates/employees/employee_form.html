@@ -55,5 +55,6 @@
     <section class="form-panel salary-settings-panel" id="salary-settings"><h2>Thông tin thanh toán và bảo hiểm</h2>{% include 'employees/salary_settings_fields.html' %}</section>
     <div class="form-actions">{% if is_create %}<a class="employee-button secondary" href="{% url 'employees' %}">Hủy</a><button class="employee-button" type="submit">Thêm</button>{% else %}<button class="employee-button" type="submit">Lưu thay đổi</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a>{% endif %}</div>
   </form>
+  {% if not is_create %}{% include 'employees/employee_records_edit.html' %}{% endif %}
 </section>
 {% endblock %}

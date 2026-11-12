@@ -9,8 +9,8 @@
 <section class="leave-page {% if manage_view %}leave-reviewer-page{% else %}leave-employee-page{% endif %}">
   {% if is_reviewer %}
     <nav class="leave-tabs" aria-label="Chức năng nghỉ phép">
-      <a class="leave-tab {% if active_view == 'manage' %}active{% endif %}" href="{% url 'leaves:list' %}?view=manage">Quản lý đơn nghỉ phép</a>
-      <a class="leave-tab {% if active_view == 'mine' %}active{% endif %}" href="{% url 'leaves:list' %}?view=mine">Đơn nghỉ phép của tôi</a>
+      <a class="leave-tab {% if active_view == 'manage' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=manage">Quản lý đơn nghỉ phép</a>
+      <a class="leave-tab {% if active_view == 'mine' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=mine">Đơn nghỉ phép của tôi</a>
     </nav>
   {% endif %}
   {% if manage_view %}
@@ -139,13 +139,13 @@
               <td><span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></td>
               <td>
                 {% if item.evidence %}
-                  <a class="leave-evidence-link" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener">Mở ảnh</a>
+                  <a class="leave-evidence-link" href="{% url 'nghi_phep:evidence' item.pk %}" target="_blank" rel="noopener">Mở ảnh</a>
                 {% else %}
                   <span class="leave-no-evidence">—</span>
                 {% endif %}
               </td>
               <td>
-                <a class="leave-detail-link {% if manage_view %}manager-detail-link{% endif %}" href="{% url 'leaves:detail' item.pk %}?view={% if manage_view %}manage{% else %}mine{% endif %}">
+                <a class="leave-detail-link {% if manage_view %}manager-detail-link{% endif %}" href="{% url 'nghi_phep:detail' item.pk %}?view={% if manage_view %}manage{% else %}mine{% endif %}">
                   Xem chi tiết <span aria-hidden="true">→</span>
                 </a>
               </td>
