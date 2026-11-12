@@ -23,7 +23,59 @@
 .bd-reject-card textarea{display:block;width:100%;min-height:105px;padding:10px 12px;border:1px solid #d8e0e9;border-radius:7px;font:inherit;font-size:14px;resize:vertical}
 .bd-reject-card textarea:focus{outline:0;border-color:#17385e;box-shadow:0 0 0 3px #17385e20}
 .bd-reject-buttons{display:flex;justify-content:center;gap:10px;margin-top:14px}.bd-table{width:100%;table-layout:fixed}.bd-table th,.bd-table td{overflow-wrap:anywhere}.bd-table th:nth-child(1),.bd-table td:nth-child(1){width:5%}.bd-table th:nth-child(2),.bd-table td:nth-child(2){width:18%}.bd-table th:nth-child(3),.bd-table td:nth-child(3){width:12%;white-space:nowrap}.bd-table th:nth-child(4),.bd-table td:nth-child(4){width:30%;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(5),.bd-table td:nth-child(5){width:17%;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(6),.bd-table td:nth-child(6){width:18%}.bd-table td:nth-child(4){text-align:left}.bd-row-actions{display:flex;justify-content:center;align-items:center;gap:5px;flex-wrap:wrap}.bd-row-actions form{margin:0}.bd-row-actions .btn{white-space:nowrap}.bd-table{width:100%;min-width:0;table-layout:fixed}.bd-table th,.bd-table td{box-sizing:border-box;min-width:0;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(1),.bd-table td:nth-child(1){width:5%}.bd-table th:nth-child(2),.bd-table td:nth-child(2){width:20%}.bd-table th:nth-child(3),.bd-table td:nth-child(3){width:12%}.bd-table th:nth-child(4),.bd-table td:nth-child(4){width:28%}.bd-table th:nth-child(5),.bd-table td:nth-child(5){width:17%}.bd-table th:nth-child(6),.bd-table td:nth-child(6){width:18%}.bd-table td:nth-child(3){white-space:nowrap!important}</style>{% endblock %}
-{% block content %}<main class="bd"><a class="bd-back" href="{% url 'bonuses:list' %}">← Quay lại quản lý thưởng</a><h1 class="h3 bd-title mt-2">CHI TIẾT THƯỞNG</h1>
-<div class="bd-info"><div><span class="bd-label">Nhân viên</span><span>{{ row.employee.full_name }}</span></div><div><span class="bd-label">Tháng</span><span>{{ row.month }}</span></div><div><span class="bd-label">Phòng ban</span><span>{{ row.employee.department.name }}</span></div><div><span class="bd-label">Năm</span><span>{{ row.year }}</span></div><div><span class="bd-label">Trạng thái</span><span><span class="bd-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></span></div></div>
-<h2 class="bd-section">THÔNG TIN CÁC KHOẢN THƯỞNG</h2><div class="table-responsive"><table class="table table-bordered bd-table mb-0"><thead><tr><th>STT</th><th>Tên thưởng</th><th>Số tiền</th><th>Lý do</th><th>Ngày đề xuất</th><th>Thao tác</th></tr></thead><tbody>{% for item in row.records %}<tr><td>{{ forloop.counter }}</td><td>{{ item.type_label }}</td><td class="bd-money">{% if item.is_uncomputed %}Chưa tính{% else %}{{ item.amount|money }}{% endif %}</td><td>{% if item.reason %}{{ item.reason }}{% else %}<span class="text-secondary">Chưa có lý do đề xuất</span>{% endif %}</td><td class="bd-money">{% if item.proposed_at %}{{ item.proposed_at|date:'d/m/Y' }}{% else %}<span class="text-secondary">Chưa có ngày gửi đề xuất</span>{% endif %}</td><td><div class="bd-row-actions">{% if item.automatic %}<span class="text-secondary">🔒 Tự động tính</span>{% else %}{% if item.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'bonuses:proposal-edit' item.id %}">S&#7917;a</a>{% endif %}{% if item.can_delete %}<form method="post" action="{% url 'bonuses:proposal-delete' item.id %}" onsubmit="return confirm('X&#243;a kho&#7843;n th&#432;&#7903;ng n&#224;y?')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">X&#243;a</button></form>{% endif %}{% endif %}</div></td></tr>{% empty %}<tr><td colspan="6" class="text-secondary">Không có khoản thưởng trong kỳ.</td></tr>{% endfor %}</tbody><tfoot><tr><td colspan="2" class="text-center">Tổng thưởng</td><td class="bd-money">{% if row.total_complete %}{{ row.total|money }}{% else %}Chưa đủ dữ liệu{% endif %}</td><td colspan="3"></td></tr></tfoot></table></div>
-{% if row.rejection_reason %}<div class="alert alert-danger mt-3"><b>Lý do Giám đốc trả về:</b> {{ row.rejection_reason }}</div>{% endif %}<div class="bd-actions"></div></main>{% endblock %}
+{% block content %}
+<main class="bd">
+  <a class="bd-back" href="{% url 'bonuses:list' %}">← Quay lại quản lý thưởng</a>
+  <h1 class="h3 bd-title mt-2">CHI TIẾT THƯỞNG</h1>
+
+  <div class="bd-info">
+    <div><span class="bd-label">Nhân viên</span><span>{{ row.employee.full_name }}</span></div>
+    <div><span class="bd-label">Tháng</span><span>{{ row.month }}</span></div>
+    <div><span class="bd-label">Phòng ban</span><span>{{ row.employee.department.name }}</span></div>
+    <div><span class="bd-label">Năm</span><span>{{ row.year }}</span></div>
+    <div>
+      <span class="bd-label">Trạng thái</span>
+      <span><span class="bd-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></span>
+    </div>
+  </div>
+
+  <h2 class="bd-section">THÔNG TIN CÁC KHOẢN THƯỞNG</h2>
+  <div class="table-responsive">
+    <table class="table table-bordered bd-table mb-0">
+      <thead>
+        <tr><th>STT</th><th>Tên thưởng</th><th>Số tiền</th><th>Lý do</th><th>Ngày đề xuất</th><th>Thao tác</th></tr>
+      </thead>
+      <tbody>
+        {% for item in row.records %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ item.type_label }}</td>
+          <td class="bd-money">{{ item.amount|money }}</td>
+          <td>{% if item.reason %}{{ item.reason }}{% else %}<span class="text-secondary">Chưa có lý do đề xuất</span>{% endif %}</td>
+          <td class="bd-money">{% if item.proposed_at %}{{ item.proposed_at|date:'d/m/Y' }}{% else %}<span class="text-secondary">Chưa có ngày gửi đề xuất</span>{% endif %}</td>
+          <td>
+            <div class="bd-row-actions">
+              {% if item.automatic %}
+                <span class="text-secondary">🔒 Tự động tính</span>
+              {% else %}
+                {% if item.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'bonuses:proposal-edit' item.id %}">Sửa</a>{% endif %}
+                {% if item.can_delete %}
+                  <form method="post" action="{% url 'bonuses:proposal-delete' item.id %}" onsubmit="return confirm('Xóa khoản thưởng này?')">
+                    {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
+                  </form>
+                {% endif %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="6" class="text-secondary">Không có khoản thưởng trong kỳ.</td></tr>{% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2" class="text-center">Tổng thưởng</td><td class="bd-money">{{ row.total|money }}</td><td colspan="3"></td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  {% if row.rejection_reason %}<div class="alert alert-danger mt-3"><b>Lý do Giám đốc trả về:</b> {{ row.rejection_reason }}</div>{% endif %}
+</main>
+{% endblock %}

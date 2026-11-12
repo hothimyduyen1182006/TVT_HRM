@@ -52,6 +52,8 @@ def bonus_rows(user, form):
 
 def grouped_bonuses(rows):
     groups = {}
+    order = {'seniority': 0, 'attendance': 1, 'other': 2}
+
     for bonus in rows:
         key = (bonus.employee_id, bonus.year, bonus.month)
         if key not in groups:
@@ -62,7 +64,6 @@ def grouped_bonuses(rows):
                 'attendance': Decimal(0),
                 'seniority': Decimal(0),
                 'other': Decimal(0),
-                'items': [],
                 'records': [],
                 'statuses': set(),
                 'approved_at': bonus.approved_at,
@@ -76,23 +77,20 @@ def grouped_bonuses(rows):
         )
         group['rejection_reason'] = group['rejection_reason'] or bonus.rejection_reason
         group[bonus.bonus_type] += bonus.amount
-        if bonus.bonus_type == 'other':
-            group['items'].append(bonus)
     results = []
     for (employee_id, year, month), group in groups.items():
-        order = {'seniority': 0, 'attendance': 1, 'other': 2}
         group['records'].sort(key=lambda item: (order.get(item.bonus_type, 9), item.name))
         statuses = group['statuses']
-        group['status'] = (
-            'pending' if 'pending' in statuses else
-            'draft' if 'draft' in statuses else
-            'rejected' if 'rejected' in statuses else
-            'approved'
-        )
+        if 'pending' in statuses:
+            group['status'] = 'pending'
+        elif 'draft' in statuses:
+            group['status'] = 'draft'
+        elif 'rejected' in statuses:
+            group['status'] = 'rejected'
+        else:
+            group['status'] = 'approved'
         group['total'] = group['attendance'] + group['seniority'] + group['other']
         group['employee_id'] = employee_id
-        group['has_pending'] = 'pending' in statuses
-        group['has_draft'] = 'draft' in statuses
         results.append(group)
     return sorted(results, key=lambda row: (row['employee'].code, -row['year'], -row['month']))
 
@@ -125,7 +123,6 @@ def bonus_list(request):
         'total_amount': total_amount,
         'can_propose': has_role(request.user, HR, MANAGER),
         'can_submit': has_role(request.user, HR),
-        'can_review': has_role(request.user, DIRECTOR),
         'can_send_period': has_role(request.user, HR) and period_rows.filter(status='draft').exists(),
         'can_decide_period': has_role(request.user, DIRECTOR) and bool(
             period.get('month') and period.get('year')
@@ -164,7 +161,6 @@ def personal_list(request):
         received_rows = received_rows.filter(year=year)
     total_received = received_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
     pending_total = all_rows.filter(status='pending').aggregate(total=Sum('amount'))['total'] or Decimal(0)
-    summary_total = rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
     received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
     if month and year:
         summary_label = f'Thưởng tháng {month}/{year}'
@@ -175,10 +171,11 @@ def personal_list(request):
     else:
         summary_label = 'Tổng thưởng theo bộ lọc'
     grouped = grouped_bonuses(rows)
+    total_amount = sum((row['total'] for row in grouped), Decimal(0))
     return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
-        'total_amount': sum((row['total'] for row in grouped), Decimal(0)),
+        'total_amount': total_amount,
         'total_received': total_received, 'pending_total': pending_total,
-        'summary_total': summary_total, 'received_label': received_label,
+        'received_label': received_label,
         'summary_label': summary_label,
         'employee': employee,
         'personal': True})
@@ -186,9 +183,21 @@ def personal_list(request):
 
 def calculate_seniority(employee, month, year):
     period_end = date(year, month, calendar.monthrange(year, month)[1])
-    years = max(0, period_end.year - employee.hire_date.year -
-                ((period_end.month, period_end.day) < (employee.hire_date.month, employee.hire_date.day)))
-    rate = Decimal(0) if years < 1 else Decimal(150000) if years < 3 else Decimal(200000) if years < 5 else Decimal(500000)
+    completed_years = period_end.year - employee.hire_date.year
+    anniversary_not_reached = (period_end.month, period_end.day) < (
+        employee.hire_date.month, employee.hire_date.day
+    )
+    years = max(0, completed_years - anniversary_not_reached)
+
+    if years < 1:
+        rate = Decimal(0)
+    elif years < 3:
+        rate = Decimal(150000)
+    elif years < 5:
+        rate = Decimal(200000)
+    else:
+        rate = Decimal(500000)
+
     amount = years * rate
     reason = f'{years} năm thâm niên; mức thưởng tháng áp dụng {rate:,.0f} VNĐ.'
     return "seniority", "Thưởng thâm niên", amount, reason
@@ -201,11 +210,13 @@ def calculate_attendance(employee, month, year):
                                                kind='work', expected_units__gt=0)
     if not period or not workdays.exists():
         raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
-    approved = True  # Use complete attendance inputs; approval is not a UC 6.2 eligibility rule.
-    if not approved:
-        raise ValidationError(f'Bảng công của {employee} chưa được duyệt.')
-    records = {record.date: record for record in AttendanceRecord.objects.filter(employee=employee, date__range=(start, end))}
-    leave_dates = set(LeaveDay.objects.filter(employee=employee, date__range=(start, end), approved=True).values_list('date', flat=True))
+    records = {
+        record.date: record
+        for record in AttendanceRecord.objects.filter(employee=employee, date__range=(start, end))
+    }
+    leave_dates = set(LeaveDay.objects.filter(
+        employee=employee, date__range=(start, end), approved=True
+    ).values_list('date', flat=True))
     if any(day.date not in records and day.date not in leave_dates for day in workdays):
         raise ValidationError(f'Thiếu dữ liệu chấm công của {employee}.')
     day_records = [records[d.date] for d in workdays if d.date in records]
@@ -233,31 +244,6 @@ def calculate_automatic(employee, month, year):
     except ValidationError as exc:
         return results, exc
     return results, None
-
-
-def ensure_automatic_bonuses(employee, month, year, actor):
-    """Create or refresh editable automatic bonus rows from approved source data."""
-    automatic, _ = calculate_automatic(employee, month, year)
-    for bonus_type, name, amount, reason in automatic:
-        row = Bonus.objects.filter(employee=employee, month=month, year=year,
-                                   bonus_type=bonus_type).first()
-        if row and row.status in ('pending', 'approved'):
-            continue
-        now = timezone.now()
-        if row:
-            changed = any((row.name != name, row.amount != amount, row.reason != reason,
-                           row.status != 'draft', bool(row.rejection_reason)))
-            if not changed:
-                continue
-            row.name, row.amount, row.reason = name, amount, reason
-            row.proposed_by, row.proposed_at = actor, now
-            row.status, row.rejection_reason = 'draft', ''
-            row.save(update_fields=['name', 'amount', 'reason', 'proposed_by', 'proposed_at',
-                                    'status', 'rejection_reason'])
-        else:
-            Bonus.objects.create(employee=employee, month=month, year=year, bonus_type=bonus_type,
-                name=name, amount=amount, reason=reason, proposed_by=actor, proposed_at=now,
-                status='draft')
 
 
 @login_required
@@ -294,13 +280,7 @@ def detail(request, employee_id, year, month):
         'amount': item.amount,
         'reason': item.reason or automatic_reasons.get(item.bonus_type, ''),
         'proposed_at': item.proposed_at,
-        'is_uncomputed': False,
-        'can_edit': (item.bonus_type == 'other' and item.status == 'rejected'
-                     and has_role(request.user, HR, MANAGER)),
-        'can_delete': (item.bonus_type == 'other' and item.status in {'draft', 'pending', 'rejected'}
-                       and has_role(request.user, HR, MANAGER)),
     } for item in group['records']]
-    group['total_complete'] = True
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
     can_manage_drafts = has_role(request.user, HR) and group['status'] in {'draft', 'rejected'}
     for item in display_records:
@@ -308,15 +288,11 @@ def detail(request, employee_id, year, month):
         item['can_delete'] = can_manage_drafts and item['bonus_type'] == 'other'
         item['automatic'] = item['bonus_type'] in {'attendance', 'seniority'}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
-    group['can_submit'] = False
-    group['can_decide'] = False
     return render(request, 'bonuses/detail.html', {'row': group})
 
 
 @login_required
 def propose(request):
-    if has_role(request.user, DIRECTOR) and not has_role(request.user, HR, MANAGER):
-        return access_denied(request)
     if not has_role(request.user, HR, MANAGER):
         return access_denied(request)
     form = BonusProposalForm(request.user, request.POST or None)
