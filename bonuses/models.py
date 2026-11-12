@@ -21,8 +21,8 @@ def approved_bonus_records(rows):
 
 
 def displayed_bonus_records(rows):
-    """Keep approved historical rows visible without making them payroll eligible."""
-    return rows.filter(Q(pk__in=complete_bonus_records(rows).values('pk')) | Q(status='approved'))
+    """Show complete real bonuses; keep seeded demo and incomplete legacy rows out of views."""
+    return complete_bonus_records(rows).exclude(name__startswith='DEMO:')
 
 
 def incomplete_approved_bonus_records(rows):
