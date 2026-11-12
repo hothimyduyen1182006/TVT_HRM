@@ -67,7 +67,7 @@
     <header class="proposal-top">
       <div>
         <div class="proposal-eyebrow">ĐỀ XUẤT THƯỞNG</div>
-        <h1 class="h3 fw-bold mt-2 mb-2">{% if editing_rejected %}S&#7917;a &#273;&#7873; xu&#7845;t th&#432;&#7903;ng b&#7883; t&#7915; ch&#7889;i{% else %}&#272;&#7873; xu&#7845;t th&#432;&#7903;ng kh&#225;c{% endif %}</h1>
+        <h1 class="h3 fw-bold mt-2 mb-2">{% if editing_rejected %}S&#7917;a kho&#7843;n th&#432;&#7903;ng kh&#225;c{% else %}&#272;&#7873; xu&#7845;t th&#432;&#7903;ng kh&#225;c{% endif %}</h1>
         <p>Ghi nhận khoản thưởng phát sinh và căn cứ đề xuất.</p>
       </div>
       <div class="proposal-mark" aria-hidden="true">+</div>
@@ -88,7 +88,7 @@
         </div>
         <div class="proposal-actions">
           <a class="btn btn-light border" href="{% url 'bonuses:list' %}">Hủy</a>
-          <button class="btn btn-primary" type="submit">{% if editing_rejected %}G&#7917;i duy&#7879;t l&#7841;i{% else %}G&#7917;i &#273;&#7873; xu&#7845;t ch&#7901; duy&#7879;t{% endif %} <span aria-hidden="true">&#8594;</span></button>
+          <button class="btn btn-primary" type="submit">{% if editing_rejected %}L&#432;u v&#224;o b&#7843;n nh&#225;p{% else %}Th&#234;m v&#224;o b&#7843;n nh&#225;p{% endif %} <span aria-hidden="true">&#8594;</span></button>
         </div>
       </form>
     </div>

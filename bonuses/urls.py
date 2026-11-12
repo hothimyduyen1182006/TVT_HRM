@@ -3,14 +3,14 @@ from django.urls import path
 from .views import (
     bonus_list,
     calculate_period,
-    decision,
     delete_proposal,
     detail,
     edit_rejected_proposal,
     export,
     personal_list,
     propose,
-    submit,
+    submit_period,
+    decision_period,
 )
 
 app_name = 'bonuses'
@@ -22,7 +22,7 @@ urlpatterns = [
     path('proposal/<int:bonus_id>/delete/', delete_proposal, name='proposal-delete'),
     path('calculate/', calculate_period, name='calculate'),
     path('detail/<int:employee_id>/<int:year>/<int:month>/', detail, name='detail'),
-    path('<int:employee_id>/<int:year>/<int:month>/submit/', submit, name='submit'),
-    path('<int:employee_id>/<int:year>/<int:month>/decision/', decision, name='decision'),
+    path('<int:year>/<int:month>/submit/', submit_period, name='submit'),
+    path('<int:year>/<int:month>/decision/', decision_period, name='decision'),
     path('export/', export, name='export'),
 ]
