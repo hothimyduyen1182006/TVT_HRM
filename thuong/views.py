@@ -276,17 +276,22 @@ def detail(request, employee_id, year, month):
     if attendance_error and 'attendance' not in automatic_reasons:
         automatic_reasons['attendance'] = '; '.join(attendance_error.messages)
     display_records = [{
+        'id': item.pk,
         'type_label': (item.name if item.bonus_type == 'other' else item.get_bonus_type_display()),
         'name': item.name, 'bonus_type': item.bonus_type,
         'amount': item.amount,
         'reason': item.reason or automatic_reasons.get(item.bonus_type, ''),
         'proposed_at': item.proposed_at,
         'is_uncomputed': False,
+        'can_edit': (item.bonus_type == 'other' and item.status == 'rejected'
+                     and has_role(request.user, HR, MANAGER)),
+        'can_delete': (item.bonus_type == 'other' and item.status in {'draft', 'pending', 'rejected'}
+                       and has_role(request.user, HR, MANAGER)),
     } for item in group['records']]
     group['total_complete'] = True
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
-    group['can_submit'] = has_role(request.user, HR) and group['has_draft']
+    group['can_submit'] = has_role(request.user, HR, MANAGER) and group['has_draft']
     group['can_decide'] = has_role(request.user, DIRECTOR) and group['has_pending']
     return render(request, 'bonuses/detail.html', {'row': group})
 
@@ -301,17 +306,17 @@ def propose(request):
     if request.method == 'POST' and form.is_valid():
         data = form.cleaned_data
         try:
-            state = 'draft'
             with transaction.atomic():
                 locked_rows = complete_bonus_records(Bonus.objects.filter(
                     employee=data['employee'], month=data['month'], year=data['year'],
-                    status__in=['pending', 'approved']))
+                    bonus_type='other', name=data['name'], status__in=['pending', 'approved']))
                 if locked_rows.exists():
-                    raise ValidationError('Kỳ thưởng đã gửi duyệt hoặc đã duyệt, không thể lập lại.')
+                    raise ValidationError('Khoản thưởng cùng tên trong kỳ này đang chờ duyệt hoặc đã được duyệt.')
                 previous = Bonus.objects.filter(employee=data['employee'], month=data['month'], year=data['year'],
                     bonus_type='other', name=data['name'], status='rejected').first()
                 values = {'reason': data['reason'], 'amount': data['amount'], 'proposed_by': request.user,
-                          'proposed_at': timezone.now(), 'status': state, 'rejection_reason': ''}
+                          'proposed_at': timezone.now(), 'status': 'pending', 'rejection_reason': '',
+                          'approved_by': None, 'approved_at': None}
                 if previous:
                     Bonus.objects.filter(pk=previous.pk).update(**values)
                 else:
@@ -320,12 +325,81 @@ def propose(request):
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
         else:
-            messages.success(request, 'Gửi đề xuất thành công. Đề xuất thưởng khác đang chờ QLNS kiểm tra.')
+            messages.success(request, 'Đã gửi đề xuất thưởng, đang chờ Giám đốc duyệt.')
             return redirect('thuong:propose')
     history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__in=visible_employees(request.user), proposed_by=request.user,
         bonus_type='other')).order_by('-proposed_at', '-pk')
     return render(request, 'bonuses/propose.html', {'form': form, 'history': history})
+
+
+@login_required
+def edit_rejected_proposal(request, bonus_id):
+    if not has_role(request.user, HR, MANAGER):
+        return access_denied(request)
+
+    editable_rows = complete_bonus_records(Bonus.objects.filter(
+        pk=bonus_id, bonus_type='other', status='rejected',
+        employee__in=visible_employees(request.user)))
+    bonus = get_object_or_404(editable_rows)
+    initial = {
+        'month': bonus.month,
+        'year': bonus.year,
+        'employee': bonus.employee_id,
+        'name': bonus.name,
+        'reason': bonus.reason,
+        'amount': bonus.amount,
+    }
+    form = BonusProposalForm(request.user, request.POST or None, initial=initial)
+    for field_name in ('month', 'year', 'employee'):
+        form.fields[field_name].disabled = True
+
+    if request.method == 'POST' and form.is_valid():
+        data = form.cleaned_data
+        try:
+            with transaction.atomic():
+                bonus = get_object_or_404(complete_bonus_records(Bonus.objects.select_for_update().filter(
+                    pk=bonus_id, bonus_type='other', status='rejected',
+                    employee__in=visible_employees(request.user))))
+                bonus.name = data['name']
+                bonus.reason = data['reason']
+                bonus.amount = data['amount']
+                bonus.proposed_by = request.user
+                bonus.proposed_at = timezone.now()
+                bonus.status = 'pending'
+                bonus.rejection_reason = ''
+                bonus.approved_by = None
+                bonus.approved_at = None
+                bonus.save(update_fields=[
+                    'name', 'reason', 'amount', 'proposed_by', 'proposed_at', 'status',
+                    'rejection_reason', 'approved_by', 'approved_at',
+                ])
+        except ValidationError as exc:
+            form.add_error(None, '; '.join(exc.messages))
+        else:
+            messages.success(request, 'Đã cập nhật và gửi lại đề xuất cho Giám đốc duyệt.')
+            return redirect('thuong:detail', bonus.employee_id, bonus.year, bonus.month)
+
+    history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
+        employee__in=visible_employees(request.user), proposed_by=request.user,
+        bonus_type='other')).order_by('-proposed_at', '-pk')
+    return render(request, 'bonuses/propose.html', {
+        'form': form, 'history': history, 'editing_rejected': True,
+    })
+
+
+@login_required
+@require_POST
+def delete_proposal(request, bonus_id):
+    if not has_role(request.user, HR, MANAGER):
+        return access_denied(request)
+    bonus = get_object_or_404(complete_bonus_records(Bonus.objects.filter(
+        pk=bonus_id, bonus_type='other', status__in=['draft', 'pending', 'rejected'],
+        employee__in=visible_employees(request.user))))
+    employee_id, year, month = bonus.employee_id, bonus.year, bonus.month
+    bonus.delete()
+    messages.success(request, 'Đã xóa khoản thưởng chưa được Giám đốc duyệt.')
+    return redirect('thuong:detail', employee_id, year, month)
 
 
 @login_required
@@ -382,7 +456,7 @@ def calculate_period(request):
 @login_required
 @require_POST
 def submit(request, employee_id, year, month):
-    if not has_role(request.user, HR):
+    if not has_role(request.user, HR, MANAGER):
         return access_denied(request)
     get_object_or_404(visible_employees(request.user), pk=employee_id)
     count = complete_bonus_records(Bonus.objects.filter(

@@ -3,8 +3,8 @@
 {% block extra_head %}
 <style>
 .proposal-wrap{max-width:1000px;margin:1.5rem auto 3rem;color:#344054;font-family:inherit;font-size:14px;line-height:1.5}
-.proposal-back{display:inline-flex;align-items:center;gap:.45rem;color:#1769d2;font-weight:600;text-decoration:none;padding:.4rem .65rem;border-radius:8px;transition:background .18s,color .18s}
-.proposal-back:hover{background:#e8f1ff;color:#0d4da8}
+.proposal-back{display:inline-flex;align-items:center;gap:.45rem;color:#365f91;font-weight:700;text-decoration:none;padding:0;border-radius:0;transition:color .18s}
+.proposal-back:hover{color:#17385e;text-decoration:none}
 .proposal-card{width:min(86vw,840px);margin:0 auto 18px;border:0;background:transparent;overflow:visible}
 .history-card{background:#fff;border:1px solid #e2eaf2;border-radius:14px;box-shadow:0 6px 20px #17365408;overflow:hidden}
 .proposal-top{display:flex;justify-content:center;padding:0;background:transparent;color:#173654;text-align:center}
@@ -37,27 +37,27 @@
 .history-count{padding:.28rem .6rem;border-radius:999px;background:#eaf2fb;color:#536b85;font-size:.78rem;font-weight:700}
 .history-card{border-radius:14px;box-shadow:0 6px 20px #17365408}
 .history-card table{margin:0}
-.history-card table{width:100%;min-width:0;table-layout:fixed}
+.history-card table{width:100%;min-width:1100px;table-layout:auto}
 .history-card th{padding:.85rem 1rem;background:#f4f7fb;color:#536b85;font-size:14px;text-transform:none;border-bottom:1px solid #e3eaf1}
 .history-card td{padding:.8rem 1rem;vertical-align:middle;color:#31445b}
 .history-card table,.history-card td{font-size:14px}
 .history-reason{white-space:normal;overflow-wrap:anywhere;line-height:1.45}
 .history-amount{font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
-.history-card th:nth-child(1),.history-card td:nth-child(1){width:5%}
-.history-card th:nth-child(2),.history-card td:nth-child(2){width:13%}
-.history-card th:nth-child(3),.history-card td:nth-child(3){width:9%;white-space:nowrap}
-.history-card th:nth-child(4),.history-card td:nth-child(4){width:14%}
-.history-card th:nth-child(5),.history-card td:nth-child(5){width:20%}
-.history-card th:nth-child(6),.history-card td:nth-child(6){width:10%;white-space:nowrap}
-.history-card th:nth-child(7),.history-card td:nth-child(7){width:11%;white-space:nowrap}
-.history-card th:nth-child(8),.history-card td:nth-child(8){width:10%;white-space:nowrap}
-.history-card th:nth-child(9),.history-card td:nth-child(9){width:8%;white-space:nowrap}
+.history-card th:nth-child(1),.history-card td:nth-child(1){min-width:56px}
+.history-card th:nth-child(2),.history-card td:nth-child(2){min-width:130px}
+.history-card th:nth-child(3),.history-card td:nth-child(3){min-width:88px;white-space:nowrap}
+.history-card th:nth-child(4),.history-card td:nth-child(4){min-width:190px}
+.history-card th:nth-child(5),.history-card td:nth-child(5){min-width:240px}
+.history-card th:nth-child(6),.history-card td:nth-child(6){min-width:115px;white-space:nowrap}
+.history-card th:nth-child(7),.history-card td:nth-child(7){min-width:120px;white-space:nowrap}
+.history-card th:nth-child(8),.history-card td:nth-child(8){min-width:105px;white-space:nowrap}
+.history-card th:nth-child(9),.history-card td:nth-child(9){min-width:90px;white-space:nowrap}
 .history-card tbody tr:last-child td{border-bottom:0}
 .history-status{display:inline-block;padding:.3rem .6rem;border-radius:999px;background:#fff1d7;color:#93600b;font-size:13px;font-weight:700;white-space:nowrap}
 .history-status.approved{background:#e5f5eb;color:#24794b}.history-status.rejected{background:#fae7e8;color:#b43b48}.history-status.draft{background:#edf1f6;color:#596a7c}
 .history-count{font-size:13px}
 .history-link{display:inline-block;white-space:nowrap;color:#1769d2;text-decoration:none;font-size:14px;font-weight:700}.history-link:hover{text-decoration:underline}
-@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-card{width:100%}.proposal-body{padding:13px 15px}.proposal-fields{grid-template-columns:1fr;gap:10px}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:minmax(0,1fr) 130px}.proposal-actions{flex-wrap:wrap}.history-card{overflow-x:auto}.history-card table{min-width:760px}.history-card th,.history-card td{padding:.65rem .5rem}.history-heading h2{font-size:20px}}
+@media(max-width:700px){.proposal-wrap{margin:1rem auto 2rem}.proposal-card{width:100%}.proposal-body{padding:13px 15px}.proposal-fields{grid-template-columns:1fr;gap:10px}.proposal-field-reason{grid-column:auto}.proposal-amount-controls{grid-template-columns:minmax(0,1fr) 130px}.proposal-actions{flex-wrap:wrap}.history-card{overflow-x:auto}.history-card table{min-width:1100px}.history-card th,.history-card td{padding:.65rem .5rem}.history-heading h2{font-size:20px}}
 </style>
 {% endblock %}
 {% block content %}
@@ -67,7 +67,7 @@
     <header class="proposal-top">
       <div>
         <div class="proposal-eyebrow">ĐỀ XUẤT THƯỞNG</div>
-        <h1 class="h3 fw-bold mt-2 mb-2">Đề xuất thưởng khác</h1>
+        <h1 class="h3 fw-bold mt-2 mb-2">{% if editing_rejected %}S&#7917;a &#273;&#7873; xu&#7845;t th&#432;&#7903;ng b&#7883; t&#7915; ch&#7889;i{% else %}&#272;&#7873; xu&#7845;t th&#432;&#7903;ng kh&#225;c{% endif %}</h1>
         <p>Ghi nhận khoản thưởng phát sinh và căn cứ đề xuất.</p>
       </div>
       <div class="proposal-mark" aria-hidden="true">+</div>
@@ -88,7 +88,7 @@
         </div>
         <div class="proposal-actions">
           <a class="btn btn-light border" href="{% url 'thuong:list' %}">Hủy</a>
-          <button class="btn btn-primary" type="submit">Gửi đề xuất <span aria-hidden="true">→</span></button>
+          <button class="btn btn-primary" type="submit">{% if editing_rejected %}G&#7917;i duy&#7879;t l&#7841;i{% else %}G&#7917;i &#273;&#7873; xu&#7845;t ch&#7901; duy&#7879;t{% endif %} <span aria-hidden="true">&#8594;</span></button>
         </div>
       </form>
     </div>

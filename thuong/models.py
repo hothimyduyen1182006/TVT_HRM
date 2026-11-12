@@ -21,7 +21,7 @@ def approved_bonus_records(rows):
 
 
 def displayed_bonus_records(rows):
-    """Keep approved historical rows visible without making them payroll eligible."""
+    """Keep approved historical rows visible so bonuses and payroll stay consistent."""
     return rows.filter(Q(pk__in=complete_bonus_records(rows).values('pk')) | Q(status='approved'))
 
 
