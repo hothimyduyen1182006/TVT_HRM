@@ -84,11 +84,11 @@
             {% for error in field.errors %}<small class="proposal-field-error text-danger">{{ error }}</small>{% endfor %}
           </div>
           {% endfor %}
-          <div class="proposal-note"><span class="proposal-note-icon" aria-hidden="true">i</span><span>Thưởng chuyên cần và thâm niên được QLNS tính riêng từ bảng công đã duyệt. Khoản đề xuất này sẽ được cộng vào tổng thưởng sau khi duyệt.</span></div>
+          <div class="proposal-note"><span class="proposal-note-icon" aria-hidden="true">i</span><span>Thưởng chuyên cần và thâm niên do QLNS tính từ dữ liệu chấm công và thâm niên. Khoản này được thêm vào bản nháp để QLNS rà soát trước khi gửi Giám đốc duyệt.</span></div>
         </div>
         <div class="proposal-actions">
           <a class="btn btn-light border" href="{% url 'thuong:list' %}">Hủy</a>
-          <button class="btn btn-primary" type="submit">{% if editing_rejected %}L&#432;u v&#224;o b&#7843;n nh&#225;p{% else %}Th&#234;m v&#224;o b&#7843;n nh&#225;p{% endif %} <span aria-hidden="true">&#8594;</span></button>
+          <button class="btn btn-primary" type="submit">{% if editing_rejected %}L&#432;u &#273;&#7873; xu&#7845;t th&#432;&#7903;ng{% else %}Th&#234;m &#273;&#7873; xu&#7845;t th&#432;&#7903;ng{% endif %} <span aria-hidden="true">&#8594;</span></button>
         </div>
       </form>
     </div>
