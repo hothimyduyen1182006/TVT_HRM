@@ -15,7 +15,6 @@
  {% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}
 </form>
 {% if can_manage %}<div class="pr-actions">
- <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-inputs">Thiết lập tính lương</button>
  <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-export">Xuất bảng lương</button>
 </div>{% endif %}
 <div class="pr-table-scroll"><table class="pr-table"><thead><tr>
@@ -39,13 +38,6 @@
 </tbody></table></div>
 {% if rows %}<p class="pr-table-note">Bảo hiểm và thuế TNCN đã được trừ khi tính lương thực lĩnh. Các khoản thành phần được trình bày trong phiếu chi tiết; không tự tính tiền phạt từ thời gian đi trễ.</p>{% endif %}
 {% if can_manage %}
-<dialog id="pr-inputs" class="pr-dialog pr-inputs-dialog" aria-labelledby="pr-inputs-title"{% if open_inputs %} data-auto-open{% endif %}>
- <div class="pr-dialog-heading"><h2 id="pr-inputs-title">Thiết lập tính lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div>
- <p class="pr-muted">Bảo hiểm và thuế tự áp dụng khi tính lương theo căn cứ đã xác nhận của từng nhân viên.</p>
- <p class="pr-errors" data-input-error role="alert" hidden></p>
- <div data-input-overview>{% include 'payroll/inputs.html' with form=input_settings.form period=input_settings.period employee_rows=input_settings.employee_rows adjustments=input_settings.adjustments month_label=input_settings.month_label year_label=input_settings.year_label %}</div>
- <div data-input-editor hidden></div>
-</dialog>
 <dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng lương đã duyệt hoặc đã chi trả.</p>
  <form method="post" action="{% url 'payroll:export' 'csv' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<div class="pr-actions"><button class="pr-button">CSV</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'json' %}">JSON</button><button class="pr-button pr-secondary" formaction="{% url 'payroll:export' 'txt' %}">TXT</button></div></form>
 </dialog>

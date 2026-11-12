@@ -73,16 +73,6 @@ class PayslipFilter(forms.Form):
         return data
 
 
-class PayrollInputFilter(PayrollFilter):
-    readiness = forms.ChoiceField(label='Tình trạng dữ liệu', required=False, choices=[
-        ('', 'Tất cả'), ('missing', 'Chưa nhập'), ('draft', 'Chưa kiểm tra'),
-        ('verified', 'Đã kiểm tra'), ('locked', 'Đã khóa')])
-
-    def __init__(self, user, data=None):
-        super().__init__(user, data)
-        self.fields.pop('status')
-
-
 class ScopedInputForm(forms.ModelForm):
     def __init__(self, user, *args, **kwargs):
         super().__init__(*args, **kwargs)

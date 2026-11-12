@@ -18,6 +18,9 @@ def canonical(value):
 
 
 def source_data(employee, attendance, inputs, records, overtime, bonuses, adjustments, tax_details):
+    adjustment_rows = ([{'id':row.pk,'kind':row.kind,'amount':row.amount,'tax_category':row.tax_category}
+                        for row in adjustments] if isinstance(adjustments,list) else
+                        list(adjustments.order_by('pk').values('id','kind','amount','tax_category')))
     data = {
         'base_salary': employee.base_salary,
         'schedule': [attendance.start_time, attendance.lunch_start, attendance.lunch_end,
@@ -33,7 +36,7 @@ def source_data(employee, attendance, inputs, records, overtime, bonuses, adjust
         'overtime_hourly_rate': inputs.overtime_hourly_rate,
         'overtime_basis':inputs.overtime_basis,
         'bonuses': list(bonuses.order_by('pk').values('id', 'amount')),
-        'adjustments': list(adjustments.order_by('pk').values('id', 'kind', 'amount')),
+        'adjustments': [{key:row[key] for key in ['id','kind','amount']} for row in adjustment_rows],
         'insurance_base': inputs.insurance_base,
         'insurance_rates': {key: Decimal(str(rate)) for key, rate in inputs.insurance_rates.items()},
         'tax': tax_details['tax'],
@@ -42,7 +45,9 @@ def source_data(employee, attendance, inputs, records, overtime, bonuses, adjust
         data['tax_calculation'] = tax_details
         data['tax_inputs'] = {'method': inputs.tax_method, 'dependents': inputs.tax_dependents,
             'personal_deduction': inputs.claim_personal_deduction, 'exempt_ot': inputs.tax_exempt_overtime}
-        data['adjustments'] = list(adjustments.order_by('pk').values('id', 'kind', 'amount', 'tax_category'))
+        data['adjustments'] = adjustment_rows
+    if employee.payroll_settings is not None:
+        data['employee_settings'] = employee.payroll_settings
     return canonical(data)
 
 

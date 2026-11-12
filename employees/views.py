@@ -6,8 +6,29 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from .access import DIRECTOR, HR, MANAGER, has_role, visible_employees
-from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter, PersonalProfileForm
+from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter, PersonalProfileForm, SalarySettingsForm
 from .models import Education, Employee, LaborContract
+
+
+def payroll_settings_context(request, employee):
+    if not employee or not (employee.user_id==request.user.pk or has_role(request.user,HR,DIRECTOR)):
+        return {}
+    settings=employee.payroll_settings
+    return {'shared_salary_settings':settings,'can_manage_salary':has_role(request.user,HR,DIRECTOR),
+            'salary_form':SalarySettingsForm(employee)}
+
+
+@login_required
+def payroll_settings_edit(request, employee_id, kind, record_id=None):
+    if not has_role(request.user,HR,DIRECTOR):
+        return _forbidden(request)
+    get_object_or_404(visible_employees(request.user),pk=employee_id)
+    from django.http import Http404
+    from payroll.models import PayrollInput,PayrollAdjustment
+    if kind not in ['tax','adjustment']: raise Http404
+    if record_id is not None:
+        get_object_or_404(PayrollInput if kind=='tax' else PayrollAdjustment,pk=record_id,employee_id=employee_id)
+    return redirect('employee_edit',employee_id=employee_id)
 
 
 MANAGEMENT_ROLES = (HR, DIRECTOR)
@@ -85,6 +106,7 @@ def employee_detail(request, employee_id):
     return render(request, 'employees/detail.html', {
         'employee': employee,
         'can_manage': has_role(request.user, *MANAGEMENT_ROLES),
+        **payroll_settings_context(request, employee),
     })
 
 
@@ -96,6 +118,7 @@ def personal_profile(request):
         'employee': employee,
         'personal_view': True,
         'can_manage': True,
+        **payroll_settings_context(request, employee),
     })
 
 
@@ -115,11 +138,15 @@ def employee_create(request):
     if not has_role(request.user, *MANAGEMENT_ROLES):
         return _forbidden(request)
     form = EmployeeForm(request.POST or None, request.FILES or None)
-    if request.method == 'POST' and form.is_valid():
+    salary_form=SalarySettingsForm(data=request.POST if request.method=='POST' and any(key.startswith('salary-') for key in request.POST) else None)
+    if request.method == 'POST' and form.is_valid() and (not salary_form.is_bound or salary_form.is_valid()):
         employee = form.save()
+        if salary_form.is_bound:
+            from payroll.services.inputs import save_employee_settings
+            save_employee_settings(request.user,employee,salary_form.settings_data())
         messages.success(request, 'Thêm mới nhân viên thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
-    return render(request, 'employees/employee_form.html', {'form': form, 'is_create': True})
+    return render(request, 'employees/employee_form.html', {'form': form, 'salary_form':salary_form,'is_create': True})
 
 
 @login_required
@@ -127,9 +154,21 @@ def employee_edit(request, employee_id):
     if not has_role(request.user, *MANAGEMENT_ROLES):
         return _forbidden(request)
     employee = get_object_or_404(Employee.objects.select_related('user'), pk=employee_id)
-    form = EmployeeForm(request.POST or None, request.FILES or None, instance=employee)
-    if request.method == 'POST' and form.is_valid():
+    basic_data=request.POST or None if request.POST.get('action')!='save_salary' else None
+    form = EmployeeForm(basic_data, request.FILES or None, instance=employee)
+    salary_form=SalarySettingsForm(employee,request.POST if request.method=='POST' and any(key.startswith('salary-') for key in request.POST) else None)
+    if request.method=='POST' and request.POST.get('action')=='save_salary':
+        if salary_form.is_bound and salary_form.is_valid():
+            from payroll.services.inputs import save_employee_settings
+            employee=save_employee_settings(request.user,employee,salary_form.settings_data())
+            messages.success(request,'Đã lưu thiết lập tính lương dùng chung của nhân viên.')
+            for error in employee.payroll_errors: messages.warning(request,error)
+            return redirect('employee_detail',employee_id=employee.pk)
+    elif request.method == 'POST' and form.is_valid() and (not salary_form.is_bound or salary_form.is_valid()):
         form.save()
+        if salary_form.is_bound:
+            from payroll.services.inputs import save_employee_settings
+            employee=save_employee_settings(request.user,employee,salary_form.settings_data())
         if set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
             from payroll.models import PayrollPeriod
             from payroll.services.calculations import refresh_employee_payroll
@@ -141,7 +180,7 @@ def employee_edit(request, employee_id):
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
-    return render(request, 'employees/employee_form.html', {'form': form, 'employee': employee})
+    return render(request, 'employees/employee_form.html', {'form': form,'salary_form':salary_form,'employee': employee})
 
 
 def _can_edit_employee_records(user, employee):

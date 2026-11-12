@@ -4,6 +4,7 @@ from .models import Department, Education, Employee, LaborContract, Position
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
+    readonly_fields = ('payroll_settings',)
     list_display = ('code', 'full_name', 'department', 'base_salary', 'is_active')
     list_filter = ('department', 'is_active')
     search_fields = ('code', 'full_name')

@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from decimal import Decimal
 
 from .models import Education, Employee, LaborContract
 
@@ -15,6 +16,48 @@ class DashboardEmployeeFilter(forms.Form):
 
 
 User = get_user_model()
+
+
+class SalarySettingsForm(forms.Form):
+    insurance_number = forms.CharField(label='Mã số BHXH', required=False, max_length=30)
+    tax_code = forms.CharField(label='Mã số thuế', required=False, max_length=30)
+    bank_name = forms.CharField(label='Tên ngân hàng', required=False, max_length=150)
+    bank_account = forms.CharField(label='Số tài khoản', required=False, max_length=50)
+    insurance_base = forms.DecimalField(label='Lương đóng bảo hiểm (VNĐ)',min_value=0,max_digits=16,decimal_places=2)
+    bhxh = forms.DecimalField(label='BHXH nhân viên đóng (%)',min_value=0,max_value=100,initial=8)
+    bhyt = forms.DecimalField(label='BHYT nhân viên đóng (%)',min_value=0,max_value=100,initial=Decimal('1.5'))
+    bhtn = forms.DecimalField(label='BHTN nhân viên đóng (%)',min_value=0,max_value=100,initial=1)
+    insurance_basis = forms.CharField(label='Căn cứ bảo hiểm',widget=forms.Textarea(attrs={'rows':2}))
+    tax_method = forms.ChoiceField(label='Đối tượng tính thuế',choices=[('resident_2026','Cá nhân cư trú, hợp đồng từ 03 tháng'),('other','Trường hợp khác/chưa xác định')])
+    claim_personal_deduction = forms.BooleanField(label='Giảm trừ bản thân tại TVT',required=False)
+    tax_basis = forms.CharField(label='Căn cứ thuế và giảm trừ',widget=forms.Textarea(attrs={'rows':2}))
+    lunch_allowance = forms.DecimalField(label='Phụ cấp ăn trưa (VNĐ/tháng)',min_value=0,max_digits=16,decimal_places=2,initial=450000)
+    overtime_hourly_rate = forms.DecimalField(label='Lương giờ căn cứ OT (VNĐ)',required=False,min_value=Decimal('.0001'),max_digits=18,decimal_places=4)
+    overtime_basis = forms.CharField(label='Căn cứ lương giờ OT',required=False,widget=forms.Textarea(attrs={'rows':2}))
+    verified = forms.BooleanField(label='Đã kiểm tra căn cứ tính lương',required=False)
+
+    def __init__(self, employee=None, data=None):
+        settings = employee.payroll_settings if employee else None
+        initial = dict(settings or {})
+        rates=initial.pop('insurance_rates',{})
+        for name in ['bhxh','bhyt','bhtn']:
+            if rates: initial[name]=Decimal(str(rates.get(name.upper(),0)))*100
+        super().__init__(data,initial=initial,prefix='salary')
+
+    def clean(self):
+        data=super().clean()
+        if sum((data.get(key,0) for key in ['bhxh','bhyt','bhtn']))>100:
+            raise forms.ValidationError('Tổng tỷ lệ bảo hiểm không vượt quá 100%.')
+        if data.get('overtime_hourly_rate') and not data.get('overtime_basis'):
+            self.add_error('overtime_basis','Cần ghi căn cứ lương giờ OT.')
+        return data
+
+    def settings_data(self):
+        from payroll.services.source_data import canonical
+        data=dict(self.cleaned_data)
+        data['insurance_rates']={key.upper():format((data.pop(key)/100).normalize(),'f') for key in ['bhxh','bhyt','bhtn']}
+        data['tax_dependents']=0
+        return canonical(data)
 
 
 class EmployeeForm(forms.ModelForm):

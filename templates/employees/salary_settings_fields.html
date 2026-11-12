@@ -1,0 +1,14 @@
+{% load payroll_display %}
+{% if not salary_readonly %}{{ salary_form.non_field_errors }}{% endif %}
+<div class="form-grid salary-settings-grid">
+  {% for field in salary_form %}
+    {% if field.name == 'insurance_basis' or field.name == 'tax_method' or field.name == 'tax_basis' or field.name == 'overtime_basis' or field.name == 'overtime_hourly_rate' or field.name == 'claim_personal_deduction' or field.name == 'verified' %}
+      {% if not salary_readonly %}{{ field.as_hidden }}{{ field.errors }}{% endif %}
+    {% else %}
+      <div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{% if salary_readonly %}<input id="{{ field.id_for_label }}" type="text" value="{% if field.name == 'insurance_base' or field.name == 'lunch_allowance' %}{{ field.value|money }}{% else %}{{ field.value|default_if_none:'' }}{% endif %}" placeholder="Chưa cập nhật" readonly aria-readonly="true" disabled>{% else %}{{ field }}{{ field.errors }}{% endif %}</div>
+    {% endif %}
+  {% endfor %}
+  <div class="form-field"><label for="salary-dependents">Số người phụ thuộc</label><input id="salary-dependents" type="text" value="0" readonly{% if salary_readonly %} disabled{% endif %}></div>
+  <div class="form-field"><label for="salary-id-type">Loại ID</label><input id="salary-id-type" type="text" value="CCCD" readonly{% if salary_readonly %} disabled{% endif %}></div>
+  <div class="form-field"><label for="salary-national-id">Số ID (CCCD)</label><input id="salary-national-id" type="text" value="{{ employee.national_id|default:'' }}" placeholder="Chưa cập nhật" readonly{% if salary_readonly %} disabled{% endif %}>{% if not salary_readonly %}<small>Cập nhật trong thông tin cá nhân.</small>{% endif %}</div>
+</div>

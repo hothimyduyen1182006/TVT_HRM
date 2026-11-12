@@ -52,6 +52,7 @@
         {% for field in form %}{% if field.name == 'department' or field.name == 'position' or field.name == 'hire_date' or field.name == 'base_salary' %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}
       </div></section>
     </div>{% endif %}
+    <section class="form-panel salary-settings-panel" id="salary-settings"><h2>Thông tin thanh toán và bảo hiểm</h2>{% include 'employees/salary_settings_fields.html' %}</section>
     <div class="form-actions">{% if is_create %}<a class="employee-button secondary" href="{% url 'employees' %}">Hủy</a><button class="employee-button" type="submit">Thêm</button>{% else %}<button class="employee-button" type="submit">Lưu thay đổi</button><a class="employee-button secondary" href="{% url 'employee_detail' employee.pk %}">Hủy</a>{% endif %}</div>
   </form>
 </section>

@@ -12,11 +12,11 @@ from django.views.decorators.http import require_POST
 
 from employees.access import visible_employees, has_role, require_role, HR, DIRECTOR, MANAGER
 from .models import PayrollRecord, PayrollPeriod, PayrollInput, PayrollAdjustment
-from .forms import PayrollInputForm, AdjustmentForm, PayrollFilter, PayslipFilter, PayrollInputFilter
+from .forms import PayrollInputForm, AdjustmentForm, PayrollFilter, PayslipFilter
 from .services.calculations import calculate_payroll
 from .services.workflow import change_payroll, approve_record, record_approval_error
 from .services.exports import export_records
-from .services.presentation import payslip_context, scoped_records, employee_records, input_list_context
+from .services.presentation import payslip_context, scoped_records, employee_records
 from .services.inputs import save_input
 
 
@@ -40,13 +40,6 @@ def record_list(request):
                   'has_approved_records': period.records.filter(status='approved').exists() if period else False,
                   'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value(),
                   'can_manage': has_role(request.user, HR, DIRECTOR), 'director': has_role(request.user, DIRECTOR)}
-    if context['can_manage']:
-        settings_context = input_list_context(request.user, PayrollInputFilter(request.user, request.GET))
-        context['input_settings'] = settings_context
-        # Reuse the scoped input data without replacing the payroll table's filter.
-        context.update({key: value for key, value in settings_context.items()
-                        if key not in ['form', 'period', 'month_label', 'year_label']})
-        context['open_inputs'] = request.GET.get('settings') == '1'
     return render(request, 'payroll/list.html', context)
 
 
@@ -136,18 +129,29 @@ def export(request, fmt):
 @login_required
 def inputs(request):
     require_role(request.user, HR, DIRECTOR)
-    query = request.GET.copy()
-    query['settings'] = '1'
-    return redirect(reverse('payroll:list') + '?' + query.urlencode())
+    if request.GET.get('employee'):
+        try:
+            employee = get_object_or_404(visible_employees(request.user), pk=int(request.GET['employee']))
+        except (ValueError, TypeError):
+            raise Http404
+        query = urlencode({key: request.GET[key] for key in ['month', 'year'] if request.GET.get(key)})
+        return redirect(reverse('employee_detail', args=[employee.pk]) + ('?' + query if query else '') + '#payroll-settings')
+    return redirect('employees')
 
 
 @login_required
-def edit_input(request, kind, pk=None):
+def edit_input(request, kind, pk=None, employee_id=None):
     require_role(request.user, HR, DIRECTOR)
     if kind not in ['tax', 'adjustment']:
         raise Http404
     model, form_class = (PayrollInput, PayrollInputForm) if kind == 'tax' else (PayrollAdjustment, AdjustmentForm)
-    obj = get_object_or_404(model, pk=pk, employee__in=visible_employees(request.user)) if pk else None
+    obj = get_object_or_404(model, pk=pk, employee__in=visible_employees(request.user)) if pk is not None else None
+    employee = get_object_or_404(visible_employees(request.user), pk=employee_id) if employee_id is not None else None
+    if obj and employee and obj.employee_id != employee.pk:
+        raise Http404
+    settings_employee=employee or (obj.employee if obj else None)
+    if settings_employee and settings_employee.payroll_settings is not None:
+        return redirect(reverse('employee_edit',args=[settings_employee.pk])+'#salary-settings')
     initial = {}
     if not obj and (request.GET.get('period') or request.GET.get('employee')):
         try:
@@ -157,6 +161,8 @@ def edit_input(request, kind, pk=None):
                 initial['employee'] = get_object_or_404(visible_employees(request.user), pk=int(request.GET['employee']))
         except (ValueError, TypeError):
             raise Http404
+    if employee:
+        initial['employee'] = employee
     form = form_class(request.user, request.POST or None, instance=obj, initial=initial)
     if request.method == 'POST' and form.is_valid():
         try:
@@ -168,8 +174,11 @@ def edit_input(request, kind, pk=None):
             if getattr(value, 'payroll_error', ''):
                 messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + value.payroll_error)
             at = value.period.attendance_period
-            return redirect(reverse('payroll:list') + '?' + urlencode({'month': at.month, 'year': at.year, 'settings': '1'}))
+            return redirect(reverse('employee_detail', args=[value.employee_id]) + '?' + urlencode({'month': at.month, 'year': at.year}) + '#payroll-settings')
     selected_period = obj.period if obj else initial.get('period')
     back_query = urlencode({'month': selected_period.attendance_period.month, 'year': selected_period.attendance_period.year}) if selected_period else ''
+    selected_employee = obj.employee if obj else initial.get('employee')
+    back_url = reverse('employee_detail', args=[selected_employee.pk]) + ('?' + back_query if back_query else '') + '#payroll-settings' if selected_employee else reverse('employees')
     return render(request, 'payroll/input_form.html', {'form': form, 'kind': kind, 'locked': obj.is_locked if obj else False,
-        'input_object': obj, 'back_query': back_query, 'title': 'Thuế và bảo hiểm theo kỳ' if kind == 'tax' else 'Phụ cấp / khấu trừ theo kỳ'})
+        'input_object': obj, 'back_query': back_query, 'back_url': back_url,
+        'title': 'Thiết lập tính lương' if kind == 'tax' else 'Phụ cấp / khấu trừ theo kỳ'})

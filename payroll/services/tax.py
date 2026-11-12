@@ -39,7 +39,7 @@ def calculate_tax(inputs, attendance, wage, overtime_pay, bonus, insurance, adju
         raise ValidationError('HR cần xác nhận đủ hồ sơ và căn cứ tính thuế trước khi tính lương.')
     if attendance.year != 2026 or attendance.month < 7:
         raise ValidationError('Chế độ tự tính hiện hỗ trợ 07–12/2026. Kỳ khác cần cấu hình chính sách phù hợp.')
-    allowances = list(adjustments.filter(kind='allowance'))
+    allowances = [row for row in adjustments if row.kind=='allowance']
     allowance = sum((row.amount for row in allowances), ZERO)
     meals = sum((row.amount for row in allowances if row.tax_category == 'meal_cash'), ZERO)
     other_exempt = sum((row.amount for row in allowances if row.tax_category == 'exempt'), ZERO)
@@ -72,14 +72,16 @@ def tax_source_error(record):
     saved = record.breakdown.get('tax_calculation', {})
     if saved.get('policy') != POLICY:
         return ''  # Historical/paid amounts remain historical; never infer a new policy for them.
-    from payroll.models import PayrollInput, PayrollAdjustment
+    from payroll.models import PayrollInput
     from bonuses.models import Bonus, payroll_bonus_records
     from attendance.services.calculations import payroll_overtime
     from .source_data import canonical
     attendance = record.period.attendance_period
     try:
-        inputs = PayrollInput.objects.get(period=record.period, employee=record.employee, verified=True)
-        adjustments = PayrollAdjustment.objects.filter(period=record.period, employee=record.employee, approved=True)
+        from .inputs import employee_input,employee_adjustments,record_employee
+        employee=record_employee(record)
+        inputs=employee_input(employee,record.period)
+        adjustments=employee_adjustments(employee,record.period)
         bonuses = payroll_bonus_records(Bonus.objects.filter(employee=record.employee, year=attendance.year, month=attendance.month))
         overtime = payroll_overtime(record.employee, attendance.year, attendance.month)
         insurance = sum((inputs.insurance_base * Decimal(str(rate)) for rate in inputs.insurance_rates.values()), ZERO)

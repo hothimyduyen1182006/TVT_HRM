@@ -65,6 +65,22 @@
 .form-page-heading { margin: 4px 0 18px; text-align: center; }
 .form-page-heading h1 { margin: 0; color: #20334f; font-size: 25px; font-weight: 750; letter-spacing: .3px; }
 .employee-form-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 20px; }
+.salary-settings-panel { margin-top: 20px; }
+.salary-settings-panel .salary-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; }
+.profile-page .salary-settings-panel > .salary-settings-grid { padding: 24px; gap: 20px 24px; box-sizing: border-box; }
+.profile-page .salary-settings-panel .form-field { gap: 8px; font-size: 14px; }
+.profile-page .salary-settings-panel .form-field label { line-height: 1.45; font-weight: 600; }
+.profile-page .salary-settings-panel .form-field input { min-height: 42px; padding: 10px 12px; border-radius: 7px; font-weight: 400; line-height: 1.5; }
+.profile-page .salary-settings-panel input[readonly] { background: #f8fafc; border-color: #e0e6ee; color: #34465e; }
+.profile-page .salary-settings-panel input:disabled { opacity: 1; -webkit-text-fill-color: #34465e; cursor: default; }
+.profile-page .salary-settings-panel input::placeholder { color: #8793a3; opacity: 1; font-weight: 400; }
+@media (max-width: 700px) {
+  .profile-page .salary-settings-panel > .salary-settings-grid { padding: 16px; gap: 16px; }
+}
+.salary-settings-grid .form-field { min-width: 0; }
+.salary-settings-grid input:not([type=checkbox]), .salary-settings-grid select, .salary-settings-grid textarea { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-size: 14px; }
+.salary-settings-grid textarea { min-height: 100px; resize: vertical; }
+@media (max-width: 700px) { .salary-settings-panel .salary-settings-grid { grid-template-columns: minmax(0, 1fr); } }
 .employee-form-panels .form-panel { padding: 20px; border: 1px solid #e5eaf0; border-radius: 10px; background: #fff; box-shadow: 0 4px 16px #20334f0a; }
 .employee-form-panels .form-panel h2 { margin: 0 0 13px; padding: 0 0 8px; color: #20334f; font-size: 14px; text-align: center; }
 .form-page .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }

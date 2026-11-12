@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import PermissionDenied
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):

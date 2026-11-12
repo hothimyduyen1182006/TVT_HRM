@@ -1,5 +1,17 @@
 # Lấy hồ sơ và tài khoản TVT về máy
 
+## Cập nhật ngày 12/11/2026
+
+Sau `git pull --ff-only origin main`, chạy `python manage.py migrate` và khởi động lại server.
+Migration `employees.0005_shared_salary_settings` chuyển thiết lập từ đầu vào lương mới nhất sang từng nhân viên, giữ dữ liệu cũ.
+HR cập nhật tại **Nhân viên → Sửa thông tin cơ bản → Thông tin thanh toán và bảo hiểm**, rồi chọn **Lưu thay đổi**.
+Hồ sơ nhân viên và hồ sơ cá nhân chỉ hiển thị các ô đã khóa, không sửa trực tiếp.
+Phụ cấp ăn trưa dùng chung theo nhân viên, mặc định 450.000đ/tháng; người phụ thuộc hiện cố định 0.
+Các trường căn cứ, chế độ thuế và xác nhận trước đây đã ẩn khỏi giao diện, giữ giá trị đang lưu.
+Các hướng dẫn cũ bên dưới về chọn lại chế độ thuế/phân loại phụ cấp theo kỳ không còn là thao tác trên giao diện hiện tại.
+
+## Chuẩn bị dữ liệu trên máy nhận
+
 Chạy trong thư mục dự án với môi trường Python của PyCharm:
 
 ```powershell
@@ -17,7 +29,7 @@ Hai lệnh `prepare_october_training` kiểm tra rồi chuẩn bị công, thư�
 
 Nếu tháng 10 trên máy nhận đã có dữ liệu khác, lệnh chuẩn bị sẽ dừng để bảo vệ dữ liệu đó; không tự xóa hoặc đặt lại. Nếu đã chạy thành công bộ tình huống này, chạy lại sẽ giữ nguyên các thao tác đã thực hiện.
 
-Bản cập nhật mới bổ sung cột tiền tăng ca ở Bảng lương, cột giờ tăng ca trong chi tiết Bảng công, nút Lọc không có biểu tượng và tự tính thuế TNCN. Sau `migrate`, đầu vào cũ được giữ ở chế độ lịch sử: với phiếu chưa khóa, HR vào **Bảng lương → Thiết lập tính lương → Chỉnh sửa**, chọn chế độ cá nhân cư trú/hợp đồng từ 03 tháng, xác nhận giảm trừ và căn cứ; phiếu chưa duyệt tự cập nhật khi lưu hợp lệ. Phụ cấp ăn trưa 450.000đ cần chọn phân loại tiền ăn giữa ca bằng tiền. Phiếu đã duyệt/chi trả không tự thay đổi. Xem [hướng dẫn thuế](income-tax.md).
+Bản cập nhật mới bổ sung cột tiền tăng ca ở Bảng lương, cột giờ tăng ca trong chi tiết Bảng công, nút Lọc không có biểu tượng và tự tính thuế TNCN. Sau `migrate`, đầu vào cũ được giữ ở chế độ lịch sử: với phiếu chưa khóa, HR vào **Nhân viên → Hồ sơ → Thiết lập tính lương → Chỉnh sửa**, chọn chế độ cá nhân cư trú/hợp đồng từ 03 tháng, xác nhận giảm trừ và căn cứ; phiếu chưa duyệt tự cập nhật khi lưu hợp lệ. Phụ cấp ăn trưa 450.000đ cần chọn phân loại tiền ăn giữa ca bằng tiền. Phiếu đã duyệt/chi trả không tự thay đổi. Xem [hướng dẫn thuế](income-tax.md).
 
 Git chia sẻ source, hồ sơ JSON và lệnh chuẩn bị dữ liệu; `git pull` không đồng bộ database hay các thao tác duyệt/chỉnh sửa đang có trên máy khác. Lệnh chuẩn bị tái tạo bộ tình huống ban đầu trên kỳ trống, không nhập đè trạng thái hiện tại của người nhận.
 

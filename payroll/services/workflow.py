@@ -41,7 +41,8 @@ def overtime_source_error(record):
         rate = Decimal(str(record.breakdown.get('overtime_hourly_rate', 0)))
         if rows:
             from payroll.models import PayrollInput
-            inputs = PayrollInput.objects.filter(employee=record.employee, period=record.period, verified=True).first()
+            from .inputs import employee_input,record_employee
+            inputs = employee_input(record_employee(record),record.period)
             if (not inputs or not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()
                     or rate != inputs.overtime_hourly_rate
                     or record.breakdown.get('overtime_basis') != inputs.overtime_basis):

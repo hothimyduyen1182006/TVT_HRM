@@ -45,6 +45,7 @@ class Employee(models.Model):
     hire_date = models.DateField('Ngày vào làm')
     base_salary = models.DecimalField('Lương cơ bản', max_digits=16, decimal_places=2,
                                      validators=[MinValueValidator(0)])
+    payroll_settings = models.JSONField('Thiết lập tính lương dùng chung', null=True, blank=True, default=None)
     is_active = models.BooleanField('Đang làm việc', default=True)
     employment_status = models.CharField('Trạng thái nhân viên', max_length=30,
                                          choices=EMPLOYMENT_STATUS_CHOICES,

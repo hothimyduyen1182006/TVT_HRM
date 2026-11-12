@@ -7,7 +7,7 @@ from employees.models import Employee
 from attendance.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
 from bonuses.models import Bonus, payroll_bonus_records
 from leaves.models import LeaveDay
-from payroll.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
+from payroll.models import PayrollPeriod, PayrollRecord, PayrollAuditLog
 from .source_data import source_data, canonical
 from .tax import calculate_tax
 
@@ -111,9 +111,8 @@ def payroll_values(employee, attendance, period, standard=None):
         standard = total(WorkCalendarDay.objects.filter(date__year=attendance.year, date__month=attendance.month), 'expected_units')
     if standard <= 0 or attendance.standard_hours <= 0:
         raise ValidationError('Công chuẩn phải lớn hơn 0.')
-    inputs = PayrollInput.objects.filter(period=period, employee=employee, verified=True).first()
-    if inputs is None:
-        raise ValidationError(f'{employee}: thiếu dữ liệu thuế/BH đã kiểm tra.')
+    from .inputs import employee_input,employee_adjustments
+    inputs = employee_input(employee,period)
     inputs.full_clean()
     records = AttendanceRecord.objects.filter(employee=employee, date__year=attendance.year, date__month=attendance.month)
     paid = total(records, 'paid_units')
@@ -132,9 +131,9 @@ def payroll_values(employee, attendance, period, standard=None):
         employee=employee, year=attendance.year, month=attendance.month))
     bonus_lines = [{'id': row.pk, 'name': row.name, 'amount': str(row.amount)} for row in bonuses]
     bonus = sum((Decimal(line['amount']) for line in bonus_lines), ZERO)
-    adjustments = PayrollAdjustment.objects.filter(employee=employee, period=period, approved=True)
-    allowance = total(adjustments.filter(kind='allowance'), 'amount')
-    deductions = total(adjustments.filter(kind='deduction'), 'amount')
+    adjustments = employee_adjustments(employee,period)
+    allowance = sum((row.amount for row in adjustments if row.kind=='allowance'),ZERO)
+    deductions = sum((row.amount for row in adjustments if row.kind=='deduction'),ZERO)
     insurance_lines = {name: str(inputs.insurance_base * Decimal(str(rate)))
                        for name, rate in inputs.insurance_rates.items()}
     insurance = sum((Decimal(value) for value in insurance_lines.values()), ZERO)

@@ -4,7 +4,7 @@
 
 Tạm tính theo tháng cho cá nhân cư trú có hợp đồng lao động từ 03 tháng, kỳ 07–12/2026. Đây không phải quyết toán năm. Kỳ khác, hợp đồng ngắn hạn, cá nhân không cư trú hoặc hồ sơ chưa xác định bị chặn để đối soát riêng, không mặc định thuế bằng 0.
 
-HR vào **Bảng lương → Thiết lập tính lương → Chỉnh sửa**, chọn phương pháp thuế, xác nhận đăng ký giảm trừ bản thân tại TVT và số người phụ thuộc đủ điều kiện trong tháng. Không tự suy ra người phụ thuộc từ số con. Ghi căn cứ cư trú, hợp đồng và hồ sơ giảm trừ, rồi xác nhận đã kiểm tra. Phân loại từng phụ cấp và lưu căn cứ miễn thuế trước khi tính lương.
+HR vào **Nhân viên → Hồ sơ → Thiết lập tính lương → Chỉnh sửa**, chọn phương pháp thuế, xác nhận đăng ký giảm trừ bản thân tại TVT và số người phụ thuộc đủ điều kiện trong tháng. Không tự suy ra người phụ thuộc từ số con. Ghi căn cứ cư trú, hợp đồng và hồ sơ giảm trừ, rồi xác nhận đã kiểm tra. Phân loại từng phụ cấp và lưu căn cứ miễn thuế trước khi tính lương.
 
 ## Công thức
 

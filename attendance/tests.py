@@ -464,7 +464,7 @@ class AttendanceTests(TestCase):
         self.client.force_login(root)
         pages = [('/', None), ('/dashboard/', 'DASHBOARD'), ('/employees/', 'NHÂN VIÊN'),
                  ('/attendance/', 'BẢNG CÔNG'), ('/payroll/', 'BẢNG LƯƠNG'),
-                 ('/payroll/inputs/', 'BẢNG LƯƠNG'), ('/admin/bonuses/bonus/', 'BẢNG THƯỞNG'),
+                 ('/payroll/inputs/', 'NHÂN VIÊN'), ('/admin/bonuses/bonus/', 'BẢNG THƯỞNG'),
                  ('/admin/leaves/leaveday/', 'NGHỈ PHÉP'), ('/admin/', None)]
         for url, active in pages:
             with self.subTest(url=url):
