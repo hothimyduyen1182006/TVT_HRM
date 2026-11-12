@@ -1,7 +1,8 @@
 from decimal import Decimal
+
 from django.conf import settings
-from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -9,25 +10,42 @@ class LeaveDay(models.Model):
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     date = models.DateField('Ngày nghỉ')
     units = models.DecimalField('Số công nghỉ', max_digits=5, decimal_places=4,
-                               validators=[MinValueValidator(Decimal('0.0001')), MaxValueValidator(1)])
+                                validators=[MinValueValidator(Decimal('0.0001')), MaxValueValidator(1)])
     paid = models.BooleanField('Hưởng lương', default=False)
     reason = models.CharField('Lý do', max_length=255)
     approved = models.BooleanField('Đã duyệt', default=False)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['employee', 'date'], name='unique_employee_leave_day')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee', 'date'],
+                name='unique_employee_leave_day',
+            ),
+        ]
 
     def clean(self):
         if self.approved and self.employee_id:
             from attendance.models import AttendancePeriod, EmployeeAttendanceApproval
-            periods = AttendancePeriod.objects.filter(year=self.date.year, month=self.date.month)
-            if periods.filter(status='approved').exists() or EmployeeAttendanceApproval.objects.filter(period__in=periods, employee_id=self.employee_id).exists():
+            periods = AttendancePeriod.objects.filter(
+                year=self.date.year,
+                month=self.date.month,
+            )
+            period_is_approved = periods.filter(status='approved').exists()
+            employee_is_approved = EmployeeAttendanceApproval.objects.filter(
+                period__in=periods,
+                employee_id=self.employee_id,
+            ).exists()
+            if period_is_approved or employee_is_approved:
                 raise ValidationError('Kỳ công đã duyệt. Cần mở lại trước khi sửa nghỉ phép.')
 
 
 class LeaveRequest(models.Model):
-    LEAVE_TYPES = [('annual', 'Nghỉ phép năm'), ('sick', 'Nghỉ ốm'),
-                   ('personal', 'Việc riêng'), ('unpaid', 'Nghỉ không lương')]
+    LEAVE_TYPES = [
+        ('annual', 'Nghỉ phép năm'),
+        ('sick', 'Nghỉ ốm'),
+        ('personal', 'Việc riêng'),
+        ('unpaid', 'Nghỉ không lương'),
+    ]
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, related_name='leave_requests')
     start_date = models.DateField('Từ ngày')
     end_date = models.DateField('Đến ngày')
@@ -38,8 +56,12 @@ class LeaveRequest(models.Model):
     paid = models.BooleanField('Nghỉ hưởng lương', default=False)
     reason = models.CharField('Lý do', max_length=255)
     evidence = models.FileField('Ảnh minh chứng', upload_to='leave_evidence/%Y/%m/', blank=True, null=True)
-    status = models.CharField('Trạng thái', max_length=12, choices=[('pending', 'Đang chờ'),
-        ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')], default='pending')
+    status = models.CharField(
+        'Trạng thái',
+        max_length=12,
+        choices=[('pending', 'Đang chờ'), ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')],
+        default='pending',
+    )
     review_note = models.TextField('Lý do từ chối', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
@@ -50,7 +72,7 @@ class LeaveRequest(models.Model):
         ordering = ['-created_at']
 
     def clean(self):
-        if self.end_date and self.start_date and self.end_date < self.start_date:
+        if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError('Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.')
         if self.employee_id and self.start_date and self.start_date < self.employee.hire_date:
             raise ValidationError('Ngày nghỉ không được trước ngày vào làm.')

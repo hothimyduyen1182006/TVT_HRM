@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Chi tiết đơn nghỉ phép · TVT{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261110-detail-processed-center">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261112-cleanup">{% endblock %}
 {% block content %}
 <main class="leave-detail-page">
   <a class="leave-back-link" href="{% url 'leaves:list' %}?view={{ back_view }}">← Quay lại danh sách đơn</a>
@@ -16,11 +16,24 @@
       <p><b>Ngày kết thúc:</b> {{ item.end_date|date:'d/m/Y' }}</p>
       <p><b>Số ngày nghỉ:</b> {{ days_count }} ngày</p>
       <p class="detail-wide detail-inline-row"><b>Lý do:</b> {{ item.reason }}</p>
-      {% if item.evidence %}<p class="detail-wide detail-inline-row"><b>Minh chứng:</b> <a class="leave-sheet-evidence" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener">Mở minh chứng</a></p>{% endif %}
+      {% if item.evidence %}
+        <p class="detail-wide detail-inline-row">
+          <b>Minh chứng:</b>
+          <a class="leave-sheet-evidence" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener">Mở minh chứng</a>
+        </p>
+      {% endif %}
       <p><b>Trạng thái:</b> <span class="leave-status {{ item.status }}">{{ item.get_status_display }}</span></p>
       <p><b>Ngày gửi:</b> {{ item.created_at|date:'d/m/Y H:i' }}</p>
-      {% if item.reviewed_by %}<p><b>Người xử lý:</b> {{ item.reviewed_by.get_full_name|default:item.reviewed_by.username }}</p><p><b>Thời gian xử lý:</b> {{ item.reviewed_at|date:'d/m/Y H:i' }}</p>{% endif %}
-      {% if item.review_note %}<div class="detail-wide leave-sheet-note"><small class="leave-step">LÝ DO TỪ CHỐI</small><p>{{ item.review_note }}</p></div>{% endif %}
+      {% if item.reviewed_by %}
+        <p><b>Người xử lý:</b> {{ item.reviewed_by.get_full_name|default:item.reviewed_by.username }}</p>
+        <p><b>Thời gian xử lý:</b> {{ item.reviewed_at|date:'d/m/Y H:i' }}</p>
+      {% endif %}
+      {% if item.review_note %}
+        <div class="detail-wide leave-sheet-note">
+          <small class="leave-step">GHI CHÚ XỬ LÝ</small>
+          <p>{{ item.review_note }}</p>
+        </div>
+      {% endif %}
     </div>
     {% if can_review and item.status == 'pending' %}
       <form method="post" class="leave-sheet-actions" action="{% url 'leaves:review' item.pk 'approve' %}">
@@ -32,7 +45,11 @@
           <button class="leave-button reject-button" type="submit" formaction="{% url 'leaves:review' item.pk 'reject' %}">Từ chối đơn</button>
         </div>
       </form>
-    {% else %}<div class="leave-sheet-processed">{% if can_review %}Đơn này đã được xử lý.{% else %}Theo dõi trạng thái đơn tại đây. Liên hệ quản lý nhân sự nếu cần điều chỉnh.{% endif %}</div>{% endif %}
+    {% else %}
+      <div class="leave-sheet-processed">
+        {% if can_review %}Đơn này đã được xử lý.{% else %}Theo dõi trạng thái đơn tại đây. Liên hệ quản lý nhân sự nếu cần điều chỉnh.{% endif %}
+      </div>
+    {% endif %}
   </section>
 </main>
 {% endblock %}
