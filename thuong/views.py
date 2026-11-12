@@ -184,7 +184,7 @@ def personal_list(request):
     received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
     grouped = grouped_bonuses(rows)
     total_amount = sum((row['total'] for row in grouped), Decimal(0))
-    personal_url = reverse('bonuses:personal')
+    personal_url = reverse('thuong:personal')
     highest_month_url = (
         f"{personal_url}?month={highest_month['month']}&year={highest_month['year']}&status=approved"
         if highest_month else personal_url
