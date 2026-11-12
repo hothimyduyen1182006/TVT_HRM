@@ -32,7 +32,7 @@ def today(request):
     period, day = schedule['period'], schedule['day']
     locked = period_is_locked(period, employee.pk, now.date()) if period and period.pk else False
     workday = day and day.kind == 'work'
-    can_punch = bool(not schedule['error'] and period and period.policy_confirmed and not locked and workday and
+    can_punch = bool(not schedule['error'] and period and not locked and workday and
                      employee.hire_date <= now.date())
     page_state = 'done' if record and record.check_out else (
         'checkout' if record and record.check_in else 'checkin')

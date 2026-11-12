@@ -6,7 +6,7 @@ from .models import EmployeeAttendanceApproval
 
 @admin.register(AttendancePeriod)
 class PeriodAdmin(admin.ModelAdmin):
-    list_display = ('month', 'year', 'status', 'policy_confirmed', 'revision')
+    list_display = ('month', 'year', 'status', 'revision')
     readonly_fields = ('status', 'revision', 'employee_ids', 'approved_by', 'approved_at')
     actions = None
 

@@ -168,8 +168,7 @@ class AttendanceTests(TestCase):
         self.other = Employee.objects.create(code='NV02', full_name='Nhân viên 2', user=self.other_user,
                     department=self.other_dep, hire_date=date(2020, 1, 1), base_salary=Decimal('22000000'))
         self.period = AttendancePeriod.objects.create(month=1, year=2026, start_time=time(8),
-                 lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8,
-                 policy_confirmed=True)
+                 lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8)
         for day in range(1, 32):
             value = date(2026, 1, day)
             work = value.weekday() < 5

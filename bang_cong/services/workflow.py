@@ -10,6 +10,7 @@ from nhan_vien.models import Employee
 from bang_cong.models import AttendancePeriod, AttendanceRecord, AttendanceAuditLog, WorkCalendarDay
 from bang_cong.models import EmployeeAttendanceApproval
 from .calculations import calculate_record
+from .scheduling import validate_schedule
 
 
 def period_is_locked(period, employee_id, record_date=None):
@@ -86,8 +87,9 @@ def change_period(actor, period_id, action, reason):
         raise ValidationError('Cần ghi lý do.')
     before = {'period': period.pk, 'status': period.status, 'revision': period.revision}
     if action == 'approve':
-        if period.status != 'pending' or not period.policy_confirmed:
-            raise ValidationError('Cần xác nhận chính sách và kỳ đang chờ duyệt.')
+        if period.status != 'pending':
+            raise ValidationError('Kỳ công phải đang chờ duyệt.')
+        validate_schedule(period)
         days = calendar.monthrange(period.year, period.month)[1]
         configured = WorkCalendarDay.objects.filter(date__year=period.year, date__month=period.month)
         if configured.count() != days:
@@ -135,8 +137,7 @@ def approve_employee(actor, employee, period_id):
     period = AttendancePeriod.objects.select_for_update().get(pk=period_id)
     if period_is_locked(period, employee.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
-    if not period.policy_confirmed:
-        raise ValidationError('Chưa xác nhận chính sách kỳ công.')
+    validate_schedule(period)
     days = calendar.monthrange(period.year, period.month)[1]
     schedules = WorkCalendarDay.objects.filter(date__year=period.year, date__month=period.month)
     if schedules.count() != days:

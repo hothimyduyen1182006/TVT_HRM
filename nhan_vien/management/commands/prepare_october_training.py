@@ -57,7 +57,7 @@ class Command(BaseCommand):
             with transaction.atomic():
                 self._require_empty_month()
                 period = AttendancePeriod(year=YEAR,month=MONTH,start_time=time(8),lunch_start=time(12),
-                    lunch_end=time(13),end_time=time(17),standard_hours=8,policy_confirmed=True)
+                    lunch_end=time(13),end_time=time(17),standard_hours=8)
                 period.full_clean(); period.save()
                 for number in range(1,32):
                     day = date(YEAR,MONTH,number)

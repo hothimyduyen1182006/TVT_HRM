@@ -39,7 +39,7 @@ class PayrollTests(TestCase):
                   department=self.other_dep, hire_date=date(2020, 1, 1), base_salary=Decimal('8000000'))
         self.attendance = AttendancePeriod.objects.create(month=1, year=2026, start_time=time(8),
                    lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8,
-                   policy_confirmed=True, status='approved', employee_ids=[self.emp.pk, self.other.pk])
+                   status='approved', employee_ids=[self.emp.pk, self.other.pk])
         WorkCalendarDay.objects.create(date=date(2026, 1, 5), kind='work', expected_units=1)
         self.period = PayrollPeriod.objects.create(attendance_period=self.attendance)
         for employee in [self.emp, self.other]:
@@ -1108,7 +1108,7 @@ class PayrollBonusSourceTests(TestCase):
             user=other_user, department=department, hire_date=date(2020, 1, 1), base_salary=8000000)
         cls.attendance = AttendancePeriod.objects.create(month=9, year=2026, start_time=time(8),
             lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8,
-            policy_confirmed=True, status='approved', employee_ids=[cls.employee.pk])
+            status='approved', employee_ids=[cls.employee.pk])
         WorkCalendarDay.objects.create(date=date(2026, 9, 3), kind='work', expected_units=1)
         AttendanceRecord.objects.create(employee=cls.employee, date=date(2026, 9, 3),
             status='present', check_in=time(8), check_out=time(17),
@@ -1328,7 +1328,7 @@ class SharedEmployeeSettingsTests(TestCase):
     def test_new_period_uses_same_employee_settings_without_monthly_inputs(self):
         self.save_settings()
         attendance=AttendancePeriod.objects.create(year=2026,month=12,start_time=time(8),lunch_start=time(12),
-            lunch_end=time(13),end_time=time(17),standard_hours=8,policy_confirmed=True,status='approved',employee_ids=[self.emp.pk])
+            lunch_end=time(13),end_time=time(17),standard_hours=8,status='approved',employee_ids=[self.emp.pk])
         period=PayrollPeriod.objects.create(attendance_period=attendance)
         WorkCalendarDay.objects.create(date=date(2026,12,1),kind='work',expected_units=1)
         AttendanceRecord.objects.create(employee=self.emp,date=date(2026,12,1),check_in=time(8),check_out=time(19),

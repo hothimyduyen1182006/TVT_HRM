@@ -87,7 +87,7 @@ class Command(BaseCommand):
         hr, director = users['demo_hr'], users['demo_director']
         for month in months:
             period = AttendancePeriod(year=year, month=month, start_time=time(8), lunch_start=time(12),
-                lunch_end=time(13), end_time=time(17), standard_hours=Decimal(8), policy_confirmed=True)
+                lunch_end=time(13), end_time=time(17), standard_hours=Decimal(8))
             period.full_clean()
             period.save()
             workdays, restdays = [], []

@@ -35,7 +35,7 @@ class AutomaticBonusPostTests(TestCase):
         cls.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
         AttendancePeriod.objects.create(month=1, year=2026, start_time=time(8),
             lunch_start=time(12), lunch_end=time(13), end_time=time(17),
-            standard_hours=8, policy_confirmed=True, status='approved',
+            standard_hours=8, status='approved',
             employee_ids=[employee.pk for employee in cls.people.values()])
         WorkCalendarDay.objects.create(date=date(2026, 1, 5), kind='work', expected_units=1)
         for employee in cls.people.values():

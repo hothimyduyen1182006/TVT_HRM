@@ -79,6 +79,33 @@ class ClockTests(TestCase):
         self.client.force_login(self.hr)
         self.assertEqual(self.client.get(reverse('bang_cong:clock')).status_code, 403)
 
+    def test_invalid_shift_blocks_punch_even_with_old_confirmation(self):
+        for values in [{'standard_hours': 0}, {'standard_hours': -1}, {'lunch_end': time(11)}]:
+            with self.subTest(values=values):
+                AttendancePeriod.objects.filter(pk=self.period.pk).update(standard_hours=8, lunch_end=time(13))
+                AttendancePeriod.objects.filter(pk=self.period.pk).update(**values)
+                with self.at(8), self.assertRaises(ValidationError):
+                    punch(self.user, 'in')
+                self.assertFalse(AttendanceRecord.objects.exists())
+
+    def test_incomplete_or_invalid_calendar_blocks_punch(self):
+        WorkCalendarDay.objects.filter(date=date(2026,1,31)).delete()
+        with self.at(8), self.assertRaises(ValidationError):
+            punch(self.user, 'in')
+        WorkCalendarDay.objects.create(date=date(2026,1,31),kind='rest',expected_units=1)
+        with self.at(8), self.assertRaises(ValidationError):
+            punch(self.user, 'in')
+        self.assertFalse(AttendanceRecord.objects.exists())
+
+    def test_valid_period_can_be_approved_without_confirmation(self):
+        from .services.workflow import approve_employee
+        for day in WorkCalendarDay.objects.filter(kind='work'):
+            AttendanceTests.record(self, date=day.date, updated_by=self.hr).save()
+        approval = approve_employee(self.hr, self.emp, self.period.pk)
+        self.assertEqual(approval.employee_id, self.emp.pk)
+        self.period.refresh_from_db()
+        self.assertNotIn('policy_confirmed', [field.name for field in AttendancePeriod._meta.fields])
+
 
 class AutomaticMonthClockTests(TestCase):
     def setUp(self):
@@ -121,7 +148,7 @@ class AutomaticMonthClockTests(TestCase):
             with self.assertRaises(ValidationError): punch(self.user, 'in')
         period = AttendancePeriod.objects.get(year=2026, month=11)
         self.assertEqual(period.status, 'pending')
-        self.assertTrue(period.policy_confirmed)
+        self.assertNotIn('policy_confirmed', [field.name for field in AttendancePeriod._meta.fields])
         self.assertEqual(period.employee_ids, [])
         self.assertFalse(period.employee_approvals.exists())
         self.assertEqual(AttendancePeriod.objects.count(), 2)
@@ -160,18 +187,17 @@ class AutomaticMonthClockTests(TestCase):
             self.assertFalse(response.context['can_check_in'])
             with self.assertRaises(ValidationError): punch(self.other_user,'in')
 
-    def test_missing_or_unconfirmed_source_does_not_guess_a_shift(self):
-        self.period.policy_confirmed = False
+    def test_valid_source_is_used_without_manual_confirmation(self):
         self.period.save()
         with self.at():
             response = self.client.get(reverse('bang_cong:clock'))
-            self.assertFalse(response.context['can_check_in'])
-            with self.assertRaises(ValidationError): punch(self.user,'in')
-        self.assertEqual(AttendancePeriod.objects.count(),1)
+            self.assertTrue(response.context['can_check_in'])
+            punch(self.user,'in')
+        self.assertEqual(AttendancePeriod.objects.count(),2)
 
     def test_future_policy_is_not_applied_before_its_month(self):
         AttendancePeriod.objects.create(year=2026,month=12,start_time=time(9),lunch_start=time(12),
-            lunch_end=time(13),end_time=time(18),standard_hours=8,policy_confirmed=True)
+            lunch_end=time(13),end_time=time(18),standard_hours=8)
         with self.at(): punch(self.user,'in')
         self.assertEqual(AttendancePeriod.objects.get(year=2026,month=11).start_time,time(8))
 
@@ -194,15 +220,15 @@ class AutomaticMonthClockTests(TestCase):
             with self.assertRaisesMessage(ValidationError,'ngoại lệ'): punch(self.user,'in')
         self.assertEqual(AttendancePeriod.objects.count(),1)
 
-    def test_existing_unconfirmed_month_is_not_overwritten(self):
+    def test_existing_valid_shift_is_kept_without_confirmation(self):
         period = AttendancePeriod.objects.create(year=2026,month=11,start_time=time(9),lunch_start=time(12),
-            lunch_end=time(13),end_time=time(18),standard_hours=8,policy_confirmed=False)
+            lunch_end=time(13),end_time=time(18),standard_hours=8)
         with self.at():
-            with self.assertRaises(ValidationError): punch(self.user,'in')
+            punch(self.user,'in')
         period.refresh_from_db()
-        self.assertFalse(period.policy_confirmed)
+        self.assertNotIn('policy_confirmed', [field.name for field in AttendancePeriod._meta.fields])
         self.assertEqual(period.start_time,time(9))
-        self.assertFalse(WorkCalendarDay.objects.filter(date__month=11).exists())
+        self.assertEqual(WorkCalendarDay.objects.filter(date__month=11).count(),30)
 
     def test_source_approval_is_not_copied_and_new_month_can_still_be_locked(self):
         self.period.status='approved'

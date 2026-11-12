@@ -22,7 +22,6 @@ class AttendancePeriod(models.Model):
         'Giờ/công', max_digits=5, decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))],
     )
-    policy_confirmed = models.BooleanField('Đã xác nhận chính sách và lịch cả tháng', default=False)
     status = models.CharField(
         max_length=10,
         choices=[('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt')],

@@ -1,4 +1,4 @@
-"""Kế thừa ca/lịch tuần đã xác nhận; GET chỉ xem trước, POST mới mở kỳ."""
+"""Kiểm tra ca/lịch thực tế; GET chỉ xem trước, POST mới mở kỳ."""
 import calendar
 from datetime import date
 
@@ -11,10 +11,19 @@ from bang_cong.models import AttendancePeriod, WorkCalendarDay, AttendanceAuditL
 SHIFT_FIELDS = ('start_time', 'lunch_start', 'lunch_end', 'end_time', 'standard_hours')
 
 
+def validate_schedule(period):
+    """Kiểm tra ca và toàn bộ lịch tháng, không phụ thuộc cờ xác nhận cũ."""
+    period.full_clean(validate_unique=False, validate_constraints=False)
+    days = list(WorkCalendarDay.objects.filter(date__year=period.year, date__month=period.month))
+    if len(days) != calendar.monthrange(period.year, period.month)[1]:
+        raise ValidationError('Lịch chưa đủ tháng; cần cấu hình tất cả ngày trong tháng.')
+    for day in days:
+        day.full_clean(validate_unique=False, validate_constraints=False)
+    return days
+
+
 def weekly_pattern(source):
-    days = list(WorkCalendarDay.objects.filter(date__year=source.year, date__month=source.month))
-    if len(days) != calendar.monthrange(source.year, source.month)[1]:
-        raise ValidationError('Lịch nguồn chưa đủ tháng; HR cần xác nhận lịch làm việc trước.')
+    days = validate_schedule(source)
     pattern = {}
     for weekday in range(7):
         choices = {(item.kind, item.expected_units) for item in days
@@ -30,9 +39,14 @@ def clock_schedule(day):
     period = AttendancePeriod.objects.filter(year=day.year, month=day.month).first()
     scheduled = WorkCalendarDay.objects.filter(date=day).first()
     plan = {'period': period, 'day': scheduled, 'source': None, 'weekly': {}, 'error': ''}
-    if period and not period.policy_confirmed:
-        plan['error'] = 'Ca làm việc hiện tại chưa được HR xác nhận.'
-        return plan
+    if period:
+        try:
+            period.full_clean(validate_unique=False, validate_constraints=False)
+            if scheduled:
+                validate_schedule(period)
+        except ValidationError as exc:
+            plan['error'] = ' '.join(exc.messages)
+            return plan
     if period and scheduled:
         return plan
     if period and (period.status != 'pending' or period.employee_approvals.exists()):
@@ -40,17 +54,16 @@ def clock_schedule(day):
         return plan
     source = AttendancePeriod.objects.filter(
         Q(year__lt=day.year) | Q(year=day.year, month__lt=day.month)).order_by('-year', '-month').first()
-    if not source or not source.policy_confirmed:
-        plan['error'] = 'Chưa có ca và lịch làm việc đã xác nhận để kế thừa. Vui lòng liên hệ HR.'
+    if not source:
+        plan['error'] = 'Chưa có ca và lịch làm việc để kế thừa. Vui lòng liên hệ HR.'
         return plan
     try:
-        source.full_clean()
         pattern = weekly_pattern(source)
     except ValidationError as exc:
         plan['error'] = ' '.join(exc.messages)
         return plan
     if not period:
-        period = AttendancePeriod(year=day.year, month=day.month, policy_confirmed=True,
+        period = AttendancePeriod(year=day.year, month=day.month,
                                   **{field: getattr(source, field) for field in SHIFT_FIELDS})
     if not scheduled:
         kind, units = pattern[day.weekday()]
@@ -73,9 +86,9 @@ def ensure_clock_schedule(day, actor):
     if preview.pk and plan['day'].pk:
         return preview, plan['day']
     period, created = AttendancePeriod.objects.get_or_create(year=day.year, month=day.month,
-        defaults={**{field: getattr(preview, field) for field in SHIFT_FIELDS}, 'policy_confirmed': True})
+        defaults={field: getattr(preview, field) for field in SHIFT_FIELDS})
     period = AttendancePeriod.objects.select_for_update().get(pk=period.pk)
-    if not period.policy_confirmed or period.status != 'pending' or period.employee_approvals.exists():
+    if period.status != 'pending' or period.employee_approvals.exists():
         raise ValidationError('Kỳ công đã thay đổi hoặc đã khóa. Vui lòng tải lại trang.')
     added = 0
     for number in range(1, calendar.monthrange(day.year, day.month)[1] + 1):
@@ -84,8 +97,9 @@ def ensure_clock_schedule(day, actor):
         _, new = WorkCalendarDay.objects.get_or_create(date=value, defaults={
             'kind': kind, 'expected_units': units, 'name': 'Nghỉ hằng tuần' if kind == 'rest' else ''})
         added += new
+    validate_schedule(period)
     if created or added:
         AttendanceAuditLog.objects.create(actor=actor, action='auto_open_period',
-            reason='Kế thừa ca và lịch tuần đã xác nhận khi nhân viên chấm công', before={},
+            reason='Kế thừa ca và lịch tuần hợp lệ khi nhân viên chấm công', before={},
             after={'period': period.pk, 'source_period': plan['source'].pk, 'calendar_days_added': added})
     return period, WorkCalendarDay.objects.get(date=day)
