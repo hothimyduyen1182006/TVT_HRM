@@ -12,6 +12,7 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -109,6 +110,11 @@ def bonus_list(request):
     if form.is_valid() and form.cleaned_data.get('status'):
         rows = [row for row in rows if row['status'] == form.cleaned_data['status']]
     total_amount = sum((row['total'] for row in rows), Decimal(0))
+    period = form.cleaned_data if form.is_valid() else {}
+    period_rows = complete_bonus_records(Bonus.objects.filter(
+        employee__in=visible_employees(request.user),
+        month=period.get('month'), year=period.get('year'),
+    )) if period.get('month') and period.get('year') else Bonus.objects.none()
     page_query = request.GET.copy()
     page_query.pop('page', None)
     page_obj = Paginator(rows, 5).get_page(request.GET.get('page'))
@@ -121,6 +127,12 @@ def bonus_list(request):
         'can_propose': has_role(request.user, HR, MANAGER),
         'can_submit': has_role(request.user, HR),
         'can_review': has_role(request.user, DIRECTOR),
+        'can_send_period': has_role(request.user, HR) and period_rows.filter(status='draft').exists(),
+        'can_decide_period': has_role(request.user, DIRECTOR) and bool(
+            period.get('month') and period.get('year')
+        ),
+        'selected_month': period.get('month'),
+        'selected_year': period.get('year'),
         'can_export': has_role(request.user, HR, DIRECTOR),
     })
 
@@ -145,13 +157,14 @@ def personal_list(request):
             rows = rows.filter(year=year)
         if status:
             rows = rows.filter(status=status)
+    # Each card follows the period named by its label: annual approved total,
+    # all pending items, and the exact filtered rows shown in the table.
     all_rows = displayed_bonus_records(Bonus.objects.filter(employee__user=request.user))
     received_rows = all_rows.filter(status='approved')
     if year:
         received_rows = received_rows.filter(year=year)
-    pending_rows = all_rows.filter(status='pending')
     total_received = received_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
-    pending_total = pending_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
+    pending_total = all_rows.filter(status='pending').aggregate(total=Sum('amount'))['total'] or Decimal(0)
     summary_total = rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
     received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
     if month and year:
@@ -290,9 +303,14 @@ def detail(request, employee_id, year, month):
     } for item in group['records']]
     group['total_complete'] = True
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
+    can_manage_drafts = has_role(request.user, HR) and group['status'] in {'draft', 'rejected'}
+    for item in display_records:
+        item['can_edit'] = can_manage_drafts and item['bonus_type'] == 'other'
+        item['can_delete'] = can_manage_drafts and item['bonus_type'] == 'other'
+        item['automatic'] = item['bonus_type'] in {'attendance', 'seniority'}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
-    group['can_submit'] = has_role(request.user, HR, MANAGER) and group['has_draft']
-    group['can_decide'] = has_role(request.user, DIRECTOR) and group['has_pending']
+    group['can_submit'] = False
+    group['can_decide'] = False
     return render(request, 'bonuses/detail.html', {'row': group})
 
 
@@ -313,9 +331,9 @@ def propose(request):
                 if locked_rows.exists():
                     raise ValidationError('Khoản thưởng cùng tên trong kỳ này đang chờ duyệt hoặc đã được duyệt.')
                 previous = Bonus.objects.filter(employee=data['employee'], month=data['month'], year=data['year'],
-                    bonus_type='other', name=data['name'], status='rejected').first()
+                    bonus_type='other', name=data['name'], status__in=['draft', 'rejected']).first()
                 values = {'reason': data['reason'], 'amount': data['amount'], 'proposed_by': request.user,
-                          'proposed_at': timezone.now(), 'status': 'pending', 'rejection_reason': '',
+                          'proposed_at': timezone.now(), 'status': 'draft', 'rejection_reason': '',
                           'approved_by': None, 'approved_at': None}
                 if previous:
                     Bonus.objects.filter(pk=previous.pk).update(**values)
@@ -325,8 +343,8 @@ def propose(request):
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
         else:
-            messages.success(request, 'Đã gửi đề xuất thưởng, đang chờ Giám đốc duyệt.')
-            return redirect('thuong:propose')
+            messages.success(request, 'Đã thêm khoản thưởng khác vào bản nháp để QLNS rà soát.')
+            return redirect('thuong:detail', data['employee'].pk, data['year'], data['month'])
     history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
         employee__in=visible_employees(request.user), proposed_by=request.user,
         bonus_type='other')).order_by('-proposed_at', '-pk')
@@ -335,11 +353,11 @@ def propose(request):
 
 @login_required
 def edit_rejected_proposal(request, bonus_id):
-    if not has_role(request.user, HR, MANAGER):
+    if not has_role(request.user, HR):
         return access_denied(request)
 
     editable_rows = complete_bonus_records(Bonus.objects.filter(
-        pk=bonus_id, bonus_type='other', status='rejected',
+        pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
         employee__in=visible_employees(request.user)))
     bonus = get_object_or_404(editable_rows)
     initial = {
@@ -359,14 +377,14 @@ def edit_rejected_proposal(request, bonus_id):
         try:
             with transaction.atomic():
                 bonus = get_object_or_404(complete_bonus_records(Bonus.objects.select_for_update().filter(
-                    pk=bonus_id, bonus_type='other', status='rejected',
+                    pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
                     employee__in=visible_employees(request.user))))
                 bonus.name = data['name']
                 bonus.reason = data['reason']
                 bonus.amount = data['amount']
                 bonus.proposed_by = request.user
                 bonus.proposed_at = timezone.now()
-                bonus.status = 'pending'
+                bonus.status = 'draft'
                 bonus.rejection_reason = ''
                 bonus.approved_by = None
                 bonus.approved_at = None
@@ -377,7 +395,7 @@ def edit_rejected_proposal(request, bonus_id):
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
         else:
-            messages.success(request, 'Đã cập nhật và gửi lại đề xuất cho Giám đốc duyệt.')
+            messages.success(request, 'Đã cập nhật khoản thưởng khác trong bản nháp.')
             return redirect('thuong:detail', bonus.employee_id, bonus.year, bonus.month)
 
     history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
@@ -391,10 +409,10 @@ def edit_rejected_proposal(request, bonus_id):
 @login_required
 @require_POST
 def delete_proposal(request, bonus_id):
-    if not has_role(request.user, HR, MANAGER):
+    if not has_role(request.user, HR):
         return access_denied(request)
     bonus = get_object_or_404(complete_bonus_records(Bonus.objects.filter(
-        pk=bonus_id, bonus_type='other', status__in=['draft', 'pending', 'rejected'],
+        pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
         employee__in=visible_employees(request.user))))
     employee_id, year, month = bonus.employee_id, bonus.year, bonus.month
     bonus.delete()
@@ -455,43 +473,51 @@ def calculate_period(request):
 
 @login_required
 @require_POST
-def submit(request, employee_id, year, month):
-    if not has_role(request.user, HR, MANAGER):
+def submit_period(request, year, month):
+    if not has_role(request.user, HR):
         return access_denied(request)
-    get_object_or_404(visible_employees(request.user), pk=employee_id)
+    employees = visible_employees(request.user)
     count = complete_bonus_records(Bonus.objects.filter(
-        employee_id=employee_id, year=year, month=month, status='draft')).update(status='pending')
+        employee__in=employees, year=year, month=month, status='draft')).update(status='pending')
     if not count:
-        messages.error(request, 'Không có đề xuất nháp trong kỳ này để gửi duyệt.')
-        return redirect('thuong:list')
-    messages.success(request, 'Đã gửi bảng thưởng tổng hợp chờ Giám đốc duyệt.')
-    return redirect('thuong:list')
+        messages.error(request, 'Không có khoản thưởng bản nháp trong kỳ này để gửi duyệt.')
+    else:
+        messages.success(request, f'Đã gửi {count} khoản thưởng tháng {month}/{year} cho Giám đốc duyệt.')
+    return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
 
 
 @login_required
 @require_POST
-def decision(request, employee_id, year, month):
+def decision_period(request, year, month):
     if not has_role(request.user, DIRECTOR):
         return access_denied(request)
     rows = complete_bonus_records(Bonus.objects.filter(
-        employee_id=employee_id, year=year, month=month, status='pending'))
+        employee__in=visible_employees(request.user), year=year, month=month, status='pending'))
     if not rows.exists():
-        raise Http404
+        messages.error(request, 'Không có bảng thưởng nào đang chờ duyệt trong kỳ này.')
+        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
     action = request.POST.get('action')
     if action not in ['approve', 'reject']:
         raise ValidationError('Lựa chọn duyệt không hợp lệ.')
     reason = request.POST.get('reason', '').strip()
     if action == 'reject' and not reason:
         messages.error(request, 'Vui lòng nhập lý do từ chối.')
-        return redirect('thuong:list')
-    rows.update(status='approved' if action == 'approve' else 'rejected', approved_by=request.user,
-                approved_at=timezone.now(), rejection_reason=reason if action == 'reject' else '')
+        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
+    if action == 'reject':
+        rows.update(status='draft', rejection_reason=reason, approved_by=None, approved_at=None)
+        messages.success(request, 'Đã trả bảng thưởng về Bản nháp để QLNS chỉnh sửa khoản thưởng khác.')
+        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
+
+    employee_ids = list(rows.values_list('employee_id', flat=True).distinct())
+    rows.update(status='approved', approved_by=request.user, approved_at=timezone.now(), rejection_reason='')
     from bang_luong.services.calculations import refresh_employee_payroll
-    payroll_error = refresh_employee_payroll(request.user, employee_id, year, month)
-    if payroll_error:
-        messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + payroll_error)
-    messages.success(request, 'Đã cập nhật kết quả duyệt thưởng.')
-    return redirect('thuong:list')
+    payroll_errors = [refresh_employee_payroll(request.user, employee_id, year, month)
+                      for employee_id in employee_ids]
+    payroll_errors = [error for error in payroll_errors if error]
+    if payroll_errors:
+        messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + ' | '.join(payroll_errors[:5]))
+    messages.success(request, f'Đã duyệt bảng thưởng tháng {month}/{year} và cập nhật bảng lương.')
+    return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
 
 
 @login_required

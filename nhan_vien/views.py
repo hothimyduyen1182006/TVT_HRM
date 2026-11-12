@@ -122,7 +122,7 @@ def employee_detail(request, employee_id):
         return _forbidden(request)
     return render(request, 'employees/detail.html', {
         'employee': employee,
-        'can_manage': has_role(request.user, *MANAGEMENT_ROLES),
+        'can_manage': False,
         **payroll_settings_context(request, employee),
     })
 
@@ -205,6 +205,7 @@ def employee_edit(request, employee_id):
         'form': form,
         'salary_form': salary_form,
         'employee': employee,
+        'can_manage': True,
     })
 
 

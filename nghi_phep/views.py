@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST, require_safe
 from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, require_role, visible_employees
 from nhan_vien.models import Department, Employee
 
-from .forms import EVIDENCE_CONTENT_TYPES, LeaveFilterForm, LeaveRequestForm
+from .forms import EVIDENCE_CONTENT_TYPES, LeaveEvidenceForm, LeaveFilterForm, LeaveRequestForm
 from .models import LeaveDay, LeaveRequest
 
 REVIEWER_ROLES = (HR, DIRECTOR, MANAGER)
@@ -56,14 +56,18 @@ def leave_list(request):
     else:
         requests = requests.none()
 
-    form = LeaveRequestForm(request.POST or None, request.FILES or None)
+    form = LeaveRequestForm(data=request.POST or None, files=request.FILES or None)
     if request.method == 'POST':
         if manage_view:
             messages.error(request, 'Hãy chuyển sang tab Đơn nghỉ phép của tôi để gửi đơn.')
         elif not own_employee:
             messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
         elif form.is_valid():
+            uploaded_evidence = form.cleaned_data.get('evidence')
             item = form.save(commit=False)
+            # Keep the uploaded object attached explicitly before saving the new request.
+            if uploaded_evidence:
+                item.evidence = uploaded_evidence
             item.employee = own_employee
             item.paid = item.leave_type in ('annual', 'sick')
             try:
@@ -72,7 +76,13 @@ def leave_list(request):
             except ValidationError as exc:
                 form.add_error(None, exc)
             else:
-                messages.success(request, 'Đã gửi đơn nghỉ phép. Bạn có thể theo dõi trạng thái trong lịch sử đơn.')
+                if uploaded_evidence and item.evidence:
+                    messages.success(
+                        request,
+                        f'Đã gửi đơn nghỉ phép kèm minh chứng "{item.evidence.name.rsplit("/", 1)[-1]}".'
+                    )
+                else:
+                    messages.success(request, 'Đã gửi đơn nghỉ phép. Đơn này chưa có tệp minh chứng.')
                 if is_reviewer:
                     return redirect(f"{reverse('nghi_phep:list')}?view=mine")
                 return redirect('nghi_phep:list')
@@ -128,12 +138,42 @@ def leave_detail(request, pk):
     back_view = request.GET.get('view', 'manage' if can_review else 'mine')
     if back_view not in ('mine', 'manage'):
         back_view = 'manage' if can_review else 'mine'
+    evidence_available = False
+    if item.evidence:
+        try:
+            evidence_available = item.evidence.storage.exists(item.evidence.name)
+        except (OSError, SuspiciousFileOperation):
+            evidence_available = False
     return render(request, 'leaves/detail.html', {
         'item': item,
         'can_review': can_review,
         'days_count': (item.end_date - item.start_date).days + 1,
         'back_view': back_view,
+        'evidence_available': evidence_available,
+        'can_attach_evidence': bool(item.status == 'pending' and item.employee_id == linked_employee_id
+                                    and not evidence_available),
     })
+
+
+@login_required
+@require_POST
+def attach_leave_evidence(request, pk):
+    own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
+    if not own_employee:
+        raise PermissionDenied
+    item = get_object_or_404(LeaveRequest, pk=pk, employee=own_employee, status='pending')
+    if item.evidence and item.evidence.storage.exists(item.evidence.name):
+        messages.error(request, 'Đơn này đã có ảnh minh chứng.')
+        return redirect('nghi_phep:detail', pk=item.pk)
+
+    form = LeaveEvidenceForm(request.POST, request.FILES)
+    if form.is_valid():
+        item.evidence = form.cleaned_data['evidence']
+        item.save(update_fields=['evidence'])
+        messages.success(request, f'Đã đính kèm ảnh minh chứng "{item.evidence.name.rsplit("/", 1)[-1]}".')
+    else:
+        messages.error(request, '; '.join(error for errors in form.errors.values() for error in errors))
+    return redirect('nghi_phep:detail', pk=item.pk)
 
 
 @never_cache
@@ -149,7 +189,7 @@ def leave_evidence(request, pk):
     if not item.evidence:
         raise Http404
     content_type = mimetypes.guess_type(item.evidence.name)[0] or 'application/octet-stream'
-    inline_image = content_type in EVIDENCE_CONTENT_TYPES
+    inline_file = content_type in EVIDENCE_CONTENT_TYPES
     try:
         opened = item.evidence.open('rb')
     except (OSError, SuspiciousFileOperation):
@@ -157,7 +197,7 @@ def leave_evidence(request, pk):
     response = FileResponse(
         opened,
         content_type=content_type,
-        as_attachment=not inline_image,
+        as_attachment=not inline_file,
         filename=item.evidence.name.rsplit('/', 1)[-1],
     )
     response['X-Content-Type-Options'] = 'nosniff'

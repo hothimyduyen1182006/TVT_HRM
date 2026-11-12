@@ -56,10 +56,10 @@
           {% for error in form.reason.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
         <div class="leave-field leave-field-wide">
-          <label for="{{ form.evidence.id_for_label }}">Ảnh minh chứng <span>(không bắt buộc)</span></label>
+          <label for="{{ form.evidence.id_for_label }}">Tệp minh chứng <span>(không bắt buộc)</span></label>
           <label class="leave-upload" for="{{ form.evidence.id_for_label }}">
             <span class="leave-upload-icon" aria-hidden="true">↑</span>
-            <span><b>Chọn ảnh minh chứng</b><small>JPG, PNG, WEBP hoặc GIF · tối đa 5 MB</small></span>
+            <span><b>Chọn ảnh hoặc tệp PDF</b><small>JPG, PNG, WEBP, GIF hoặc PDF · tối đa 5 MB</small></span>
             {{ form.evidence }}
           </label>
           <small class="leave-selected-file" data-evidence-name aria-live="polite">Chưa chọn tệp</small>

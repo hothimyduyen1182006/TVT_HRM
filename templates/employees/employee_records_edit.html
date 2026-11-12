@@ -1,0 +1,101 @@
+{% if can_manage %}
+  <section class="form-panel profile-card data-section employee-records-edit">
+    <div class="section-heading">
+      <h2>Học vấn</h2>
+      <a class="employee-button small" href="{% url 'education_create' employee.pk %}">Thêm học vấn</a>
+    </div>
+    <div class="employee-table-wrap">
+      <table class="employee-table">
+        <thead>
+          <tr>
+            <th>Mã học vấn</th>
+            <th>Bằng cấp</th>
+            <th>Chuyên ngành</th>
+            <th>Trường</th>
+            <th>Năm tốt nghiệp</th>
+            <th>Tệp bằng cấp</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in employee.educations.all %}
+            <tr>
+              <td>{{ item.code }}</td>
+              <td>{{ item.degree }}</td>
+              <td>{{ item.major|default:'—' }}</td>
+              <td>{{ item.school|default:'—' }}</td>
+              <td>{{ item.graduation_year|default:'—' }}</td>
+              <td>
+                {% if item.certificate_file %}
+                  <a href="{{ item.certificate_file.url }}" target="_blank" rel="noopener">{{ item.certificate_file.name|cut:'employees/education/' }}</a>
+                {% else %}—{% endif %}
+              </td>
+              <td class="row-actions-cell">
+                <a class="row-action" href="{% url 'education_edit' employee.pk item.pk %}" aria-label="Sửa học vấn {{ item.code }}" title="Sửa">✎</a>
+                <form class="row-delete-form" method="post" action="{% url 'education_delete' employee.pk item.pk %}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mục này?')">
+                  {% csrf_token %}
+                  <button class="row-action row-action-delete" type="submit" aria-label="Xóa học vấn {{ item.code }}" title="Xóa">×</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="table-empty">Chưa có thông tin học vấn.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="form-panel profile-card data-section employee-records-edit">
+    <div class="section-heading">
+      <h2>Hợp đồng lao động</h2>
+      <a class="employee-button small" href="{% url 'contract_create' employee.pk %}">Thêm hợp đồng</a>
+    </div>
+    <div class="employee-table-wrap">
+      <table class="employee-table">
+        <thead>
+          <tr>
+            <th>Mã HĐ</th>
+            <th>Số hợp đồng</th>
+            <th>Loại hợp đồng</th>
+            <th>Ngày ký</th>
+            <th>Ngày bắt đầu</th>
+            <th>Ngày kết thúc</th>
+            <th>Lương thỏa thuận</th>
+            <th>Trạng thái</th>
+            <th>Tệp hợp đồng</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in employee.contracts.all %}
+            <tr>
+              <td>{{ item.code }}</td>
+              <td>{{ item.number }}</td>
+              <td>{{ item.contract_type }}</td>
+              <td>{{ item.signed_date|date:'d/m/Y' }}</td>
+              <td>{{ item.start_date|date:'d/m/Y' }}</td>
+              <td>{{ item.end_date|date:'d/m/Y'|default:'—' }}</td>
+              <td>{{ item.agreed_salary|floatformat:0 }} ₫</td>
+              <td>{{ item.status }}</td>
+              <td>
+                {% if item.contract_file %}
+                  <a href="{{ item.contract_file.url }}" target="_blank" rel="noopener">{{ item.contract_file.name|cut:'employees/contracts/' }}</a>
+                {% else %}—{% endif %}
+              </td>
+              <td class="row-actions-cell">
+                <a class="row-action" href="{% url 'contract_edit' employee.pk item.pk %}" aria-label="Sửa hợp đồng {{ item.code }}" title="Sửa">✎</a>
+                <form class="row-delete-form" method="post" action="{% url 'contract_delete' employee.pk item.pk %}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa mục này?')">
+                  {% csrf_token %}
+                  <button class="row-action row-action-delete" type="submit" aria-label="Xóa hợp đồng {{ item.code }}" title="Xóa">×</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="10" class="table-empty">Chưa có hợp đồng lao động.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}

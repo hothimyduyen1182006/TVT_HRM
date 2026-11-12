@@ -3,7 +3,8 @@ from django.core.exceptions import ValidationError
 from .models import LeaveRequest
 
 MAX_EVIDENCE_SIZE = 5 * 1024 * 1024
-EVIDENCE_CONTENT_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+EVIDENCE_CONTENT_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'}
+EVIDENCE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,image/jpeg,image/png,image/webp,image/gif,application/pdf'
 
 
 class LeaveRequestForm(forms.ModelForm):
@@ -19,18 +20,29 @@ class LeaveRequestForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': 'Nhập lý do xin nghỉ phép',
             }),
-            'evidence': forms.ClearableFileInput(attrs={'accept': 'image/*', 'class': 'leave-file-input'}),
+            'evidence': forms.ClearableFileInput(attrs={'accept': EVIDENCE_ACCEPT, 'class': 'leave-file-input'}),
         }
 
     def clean_evidence(self):
-        uploaded_file = self.cleaned_data.get('evidence')
-        if not uploaded_file:
-            return uploaded_file
-        if uploaded_file.size > MAX_EVIDENCE_SIZE:
-            raise ValidationError('Ảnh minh chứng không được vượt quá 5 MB.')
-        if uploaded_file.content_type not in EVIDENCE_CONTENT_TYPES:
-            raise ValidationError('Vui lòng tải lên tệp ảnh JPG, PNG, WEBP hoặc GIF.')
+        return validate_evidence(self.cleaned_data.get('evidence'))
+
+
+class LeaveEvidenceForm(forms.Form):
+    evidence = forms.FileField(label='Ảnh minh chứng', widget=forms.ClearableFileInput(
+        attrs={'accept': EVIDENCE_ACCEPT}))
+
+    def clean_evidence(self):
+        return validate_evidence(self.cleaned_data.get('evidence'))
+
+
+def validate_evidence(uploaded_file):
+    if not uploaded_file:
         return uploaded_file
+    if uploaded_file.size > MAX_EVIDENCE_SIZE:
+        raise ValidationError('Tệp minh chứng không được vượt quá 5 MB.')
+    if uploaded_file.content_type not in EVIDENCE_CONTENT_TYPES:
+        raise ValidationError('Vui lòng tải lên ảnh JPG, PNG, WEBP, GIF hoặc tệp PDF.')
+    return uploaded_file
 
 
 class LeaveFilterForm(forms.Form):
