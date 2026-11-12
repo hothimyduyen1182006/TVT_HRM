@@ -9,6 +9,7 @@ exports/
 .env
 .env.*
 !.env.example
-media/
+media/*
+!media/leave_evidence/
 references/
 .local-backups/
