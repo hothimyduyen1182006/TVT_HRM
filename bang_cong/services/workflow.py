@@ -7,32 +7,33 @@ from django.db.models import Q
 from django.utils import timezone
 from nhan_vien.access import require_role, HR, DIRECTOR
 from nhan_vien.models import Employee
-from bang_cong.models import AttendancePeriod, AttendanceRecord, AttendanceAuditLog, WorkCalendarDay
-from bang_cong.models import EmployeeAttendanceApproval
+from bang_cong.models import KyCong, ChamCong, NhatKyCong, LichLamViec
+from bang_cong.models import ChotBangCong
 from .calculations import calculate_record
 from .scheduling import validate_schedule
+from .summaries import record_adjustments, refresh_summary, refresh_period_summaries
 
 
 def period_is_locked(period, employee_id, record_date=None):
     if not period:
         return False
-    if period.status == 'approved':
+    if period.trang_thai == 'approved':
         return True
-    approval = period.employee_approvals.filter(employee_id=employee_id).only('approved_at').first()
+    approval = period.employee_approvals.filter(nhan_vien_id=employee_id).only('ngay_duyet').first()
     if not approval:
         return False
     if record_date is None:
-        return not AttendanceRecord.objects.filter(employee_id=employee_id,
-            date__year=period.year, date__month=period.month,
-            updated_at__gt=approval.approved_at).exists()
+        return not ChamCong.objects.filter(nhan_vien_id=employee_id,
+            ngay__year=period.nam, ngay__month=period.thang,
+            ngay_cap_nhat__gt=approval.ngay_duyet).exists()
     # An employee approval locks only completed rows included in that approval.
-    return AttendanceRecord.objects.filter(employee_id=employee_id, date=record_date).exclude(
-        status='incomplete').filter(updated_at__lte=approval.approved_at).exists()
+    return ChamCong.objects.filter(nhan_vien_id=employee_id, ngay=record_date).exclude(
+        trang_thai='incomplete').filter(ngay_cap_nhat__lte=approval.ngay_duyet).exists()
 
 
 def record_is_locked(record):
-    period = AttendancePeriod.objects.filter(year=record.date.year, month=record.date.month).first()
-    return period_is_locked(period, record.employee_id, record.date)
+    period = KyCong.objects.filter(nam=record.ngay.year, thang=record.ngay.month).first()
+    return period_is_locked(period, record.nhan_vien_id, record.ngay)
 
 
 def _recalculate_records(records, period, actor, reason):
@@ -43,14 +44,21 @@ def _recalculate_records(records, period, actor, reason):
         record.save()
         after = record_values(record)
         if before != after:
-            AttendanceAuditLog.objects.create(actor=actor, action='recalculate', reason=reason,
-                before=before, after=after)
+            audit = NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='recalculate', ly_do=reason,
+                du_lieu_cu=before, du_lieu_moi=after)
+            record_adjustments(audit)
 
 
 def record_values(record):
-    return {field: str(getattr(record, field)) for field in
-            ['pk', 'employee_id', 'date', 'check_in', 'check_out', 'status', 'work_hours',
-             'late_minutes', 'actual_units', 'paid_leave_units', 'paid_units', 'overtime_hours', 'note']}
+    # Giữ khóa JSON lịch sử để đối chiếu phiếu lương và nhật ký cũ.
+    fields = {
+        'pk': 'pk', 'employee_id': 'nhan_vien_id', 'date': 'ngay',
+        'check_in': 'gio_vao', 'check_out': 'gio_ra', 'status': 'trang_thai',
+        'work_hours': 'so_gio_lam', 'late_minutes': 'so_phut_tre',
+        'actual_units': 'cong_thuc_te', 'paid_leave_units': 'cong_nghi_co_luong',
+        'paid_units': 'tong_cong', 'overtime_hours': 'gio_tang_ca', 'note': 'ghi_chu',
+    }
+    return {key: str(getattr(record, field)) for key, field in fields.items()}
 
 
 @transaction.atomic
@@ -58,122 +66,126 @@ def save_record(actor, record, reason):
     require_role(actor, HR, DIRECTOR)
     if not reason.strip():
         raise ValidationError('Cần lý do thay đổi.')
-    period = AttendancePeriod.objects.select_for_update().get(year=record.date.year, month=record.date.month)
-    if period_is_locked(period, record.employee_id, record.date):
+    period = KyCong.objects.select_for_update().get(nam=record.ngay.year, thang=record.ngay.month)
+    if period_is_locked(period, record.nhan_vien_id, record.ngay):
         raise ValidationError('Kỳ công đã duyệt, cần mở lại trước.')
     before = {}
     if record.pk:
-        old = AttendanceRecord.objects.select_for_update().get(pk=record.pk)
-        if old.employee_id != record.employee_id or old.date != record.date:
+        old = ChamCong.objects.select_for_update().get(pk=record.pk)
+        if old.nhan_vien_id != record.nhan_vien_id or old.ngay != record.ngay:
             raise ValidationError('Không đổi nhân viên/ngày của bản ghi đã tạo.')
         before = record_values(old)
-    record.updated_by = actor
+    record.nguoi_cap_nhat = actor
     calculate_record(record, period)
     record.full_clean()
     record.save()
     after = record_values(record)
     if not before:
-        AttendanceAuditLog.objects.create(actor=actor, action='create_record', reason=reason, before={}, after=after)
+        NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='create_record', ly_do=reason, du_lieu_cu={}, du_lieu_moi=after)
     elif before != after:
-        AttendanceAuditLog.objects.create(actor=actor, action='edit_record', reason=reason, before=before, after=after)
+        audit = NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='edit_record', ly_do=reason, du_lieu_cu=before, du_lieu_moi=after)
+        record_adjustments(audit)
+    refresh_summary(record.nhan_vien, period)
     return record
 
 
 @transaction.atomic
 def change_period(actor, period_id, action, reason):
     require_role(actor, DIRECTOR)
-    period = AttendancePeriod.objects.select_for_update().get(pk=period_id)
+    period = KyCong.objects.select_for_update().get(pk=period_id)
     if not reason.strip():
         raise ValidationError('Cần ghi lý do.')
-    before = {'period': period.pk, 'status': period.status, 'revision': period.revision}
+    before = {'period': period.pk, 'status': period.trang_thai, 'revision': period.phien_ban}
     if action == 'approve':
-        if period.status != 'pending':
+        if period.trang_thai != 'pending':
             raise ValidationError('Kỳ công phải đang chờ duyệt.')
         validate_schedule(period)
-        days = calendar.monthrange(period.year, period.month)[1]
-        configured = WorkCalendarDay.objects.filter(date__year=period.year, date__month=period.month)
+        days = calendar.monthrange(period.nam, period.thang)[1]
+        configured = LichLamViec.objects.filter(ngay__year=period.nam, ngay__month=period.thang)
         if configured.count() != days:
             raise ValidationError('Phải cấu hình lịch cho tất cả ngày trong tháng.')
-        records = AttendanceRecord.objects.filter(date__year=period.year, date__month=period.month)
-        employees = Employee.objects.filter(is_active=True, hire_date__lte=date(period.year, period.month, days))
+        records = ChamCong.objects.filter(ngay__year=period.nam, ngay__month=period.thang)
+        employees = Employee.objects.filter(is_active=True, hire_date__lte=date(period.nam, period.thang, days))
         for employee in employees:
-            required = configured.filter(kind='work', date__gte=employee.hire_date).values_list('date', flat=True)
-            available = set(records.filter(employee=employee).exclude(status='incomplete').values_list('date', flat=True))
+            required = configured.filter(loai_ngay='work', ngay__gte=employee.hire_date).values_list('ngay', flat=True)
+            available = set(records.filter(nhan_vien=employee).exclude(trang_thai='incomplete').values_list('ngay', flat=True))
             if not set(required).issubset(available):
                 raise ValidationError(f'{employee}: còn ngày làm việc chưa kiểm tra.')
         _recalculate_records(records, period, actor, reason)
-        period.status = 'approved'
-        period.employee_ids = list(employees.values_list('pk', flat=True))
+        period.trang_thai = 'approved'
+        period.ds_nhan_vien = list(employees.values_list('pk', flat=True))
         for employee in employees:
-            EmployeeAttendanceApproval.objects.get_or_create(period=period, employee=employee, defaults={'approved_by': actor})
-        period.approved_by = actor
-        period.approved_at = timezone.now()
+            ChotBangCong.objects.get_or_create(ky_cong=period, nhan_vien=employee, defaults={'nguoi_duyet': actor})
+        period.nguoi_duyet = actor
+        period.ngay_duyet = timezone.now()
     elif action == 'reopen':
-        if period.status != 'approved':
+        if period.trang_thai != 'approved':
             raise ValidationError('Chỉ mở lại kỳ đã duyệt.')
         from bang_luong.models import PayrollPeriod
         if PayrollPeriod.objects.filter(attendance_period=period).filter(
                 Q(status__in=['approved', 'paid']) | Q(records__status__in=['approved', 'paid'])).exists():
             raise ValidationError('Cần mở lại bảng lương trước; lương đã chi trả không mở lại trực tiếp.')
-        period.status = 'pending'
-        period.revision += 1
-        period.approved_by = None
-        period.approved_at = None
+        period.trang_thai = 'pending'
+        period.phien_ban += 1
+        period.nguoi_duyet = None
+        period.ngay_duyet = None
         period.employee_approvals.all().delete()
     else:
         raise ValidationError('Thao tác không hợp lệ.')
     period.save()
-    AttendanceAuditLog.objects.create(actor=actor, action=action, reason=reason, before=before,
-                                      after={'period': period.pk, 'status': period.status, 'revision': period.revision})
+    refresh_period_summaries(period)
+    NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong=action, ly_do=reason, du_lieu_cu=before,
+                                      du_lieu_moi={'period': period.pk, 'status': period.trang_thai, 'revision': period.phien_ban})
     if action == 'approve':
         from bang_luong.services.calculations import refresh_employee_payroll
-        for employee_id in period.employee_ids:
-            refresh_employee_payroll(actor, employee_id, period.year, period.month)
+        for employee_id in period.ds_nhan_vien:
+            refresh_employee_payroll(actor, employee_id, period.nam, period.thang)
 
 
 @transaction.atomic
 def approve_employee(actor, employee, period_id):
     require_role(actor, HR, DIRECTOR)
-    period = AttendancePeriod.objects.select_for_update().get(pk=period_id)
+    period = KyCong.objects.select_for_update().get(pk=period_id)
     if period_is_locked(period, employee.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
     validate_schedule(period)
-    days = calendar.monthrange(period.year, period.month)[1]
-    schedules = WorkCalendarDay.objects.filter(date__year=period.year, date__month=period.month)
+    days = calendar.monthrange(period.nam, period.thang)[1]
+    schedules = LichLamViec.objects.filter(ngay__year=period.nam, ngay__month=period.thang)
     if schedules.count() != days:
         raise ValidationError('Phải cấu hình lịch đủ tháng trước khi duyệt.')
-    records = AttendanceRecord.objects.filter(employee=employee, date__year=period.year, date__month=period.month)
-    required = set(schedules.filter(kind='work', date__gte=employee.hire_date).values_list('date', flat=True))
-    available = set(records.exclude(status='incomplete').values_list('date', flat=True))
-    if not records.exists() or not required.issubset(available) or records.filter(status='incomplete').exists():
+    records = ChamCong.objects.filter(nhan_vien=employee, ngay__year=period.nam, ngay__month=period.thang)
+    required = set(schedules.filter(loai_ngay='work', ngay__gte=employee.hire_date).values_list('ngay', flat=True))
+    available = set(records.exclude(trang_thai='incomplete').values_list('ngay', flat=True))
+    if not records.exists() or not required.issubset(available) or records.filter(trang_thai='incomplete').exists():
         raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
     _recalculate_records(records, period, actor, 'Tính lại trước khi duyệt nhân viên')
-    approval = period.employee_approvals.filter(employee=employee).first()
+    approval = period.employee_approvals.filter(nhan_vien=employee).first()
     if approval:
-        approval.approved_by = actor
-        approval.approved_at = timezone.now()
-        approval.save(update_fields=['approved_by', 'approved_at'])
+        approval.nguoi_duyet = actor
+        approval.ngay_duyet = timezone.now()
+        approval.save(update_fields=['nguoi_duyet', 'ngay_duyet'])
     else:
-        approval = EmployeeAttendanceApproval.objects.create(period=period, employee=employee, approved_by=actor)
-    AttendanceAuditLog.objects.create(actor=actor, action='approve_employee', reason='Duyệt công nhân viên từ trang chi tiết chấm công',
-        before={'approval_status': 'pending'}, after={'employee_id': str(employee.pk),
-            'date': f'{period.year:04}-{period.month:02}-01', 'approval_status': 'approved'})
+        approval = ChotBangCong.objects.create(ky_cong=period, nhan_vien=employee, nguoi_duyet=actor)
+    NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='approve_employee', ly_do='Duyệt công nhân viên từ trang chi tiết chấm công',
+        du_lieu_cu={'approval_status': 'pending'}, du_lieu_moi={'employee_id': str(employee.pk),
+            'date': f'{period.nam:04}-{period.thang:02}-01', 'approval_status': 'approved'})
     employee_ids = set(Employee.objects.filter(is_active=True,
-        hire_date__lte=date(period.year, period.month, days)).values_list('pk', flat=True))
+        hire_date__lte=date(period.nam, period.thang, days)).values_list('pk', flat=True))
     current_approval_ids = set()
     for employee_approval in period.employee_approvals.all():
-        if not AttendanceRecord.objects.filter(employee_id=employee_approval.employee_id,
-                date__year=period.year, date__month=period.month,
-                updated_at__gt=employee_approval.approved_at).exists():
-            current_approval_ids.add(employee_approval.employee_id)
+        if not ChamCong.objects.filter(nhan_vien_id=employee_approval.nhan_vien_id,
+                ngay__year=period.nam, ngay__month=period.thang,
+                ngay_cap_nhat__gt=employee_approval.ngay_duyet).exists():
+            current_approval_ids.add(employee_approval.nhan_vien_id)
     if employee_ids and employee_ids.issubset(current_approval_ids):
-        period.status = 'approved'
-        period.employee_ids = sorted(employee_ids)
-        period.approved_by = actor
-        period.approved_at = timezone.now()
+        period.trang_thai = 'approved'
+        period.ds_nhan_vien = sorted(employee_ids)
+        period.nguoi_duyet = actor
+        period.ngay_duyet = timezone.now()
         period.save()
-        AttendanceAuditLog.objects.create(actor=actor, action='approve', reason='Tất cả nhân viên trong kỳ đã được duyệt riêng',
-            before={'period': period.pk, 'status': 'pending'}, after={'period': period.pk, 'status': 'approved', 'revision': period.revision})
+        NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='approve', ly_do='Tất cả nhân viên trong kỳ đã được duyệt riêng',
+            du_lieu_cu={'period': period.pk, 'status': 'pending'}, du_lieu_moi={'period': period.pk, 'status': 'approved', 'revision': period.phien_ban})
+    refresh_summary(employee, period)
     from bang_luong.services.calculations import refresh_employee_payroll
-    approval.payroll_error = refresh_employee_payroll(actor, employee.pk, period.year, period.month)
+    approval.payroll_error = refresh_employee_payroll(actor, employee.pk, period.nam, period.thang)
     return approval

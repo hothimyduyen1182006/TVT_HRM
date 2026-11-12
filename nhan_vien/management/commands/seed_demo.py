@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from nhan_vien.models import Department, Employee
-from bang_cong.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
+from bang_cong.models import KyCong, ChamCong, LichLamViec
 from bang_cong.services.workflow import save_record, change_period
 from nghi_phep.models import LeaveDay
 from thuong.models import Bonus
@@ -53,15 +53,15 @@ class Command(BaseCommand):
         User = get_user_model()
         if (Employee.objects.filter(code__in=codes).count() == len(codes)
                 and User.objects.filter(username__in=usernames).count() == len(usernames)
-                and AttendancePeriod.objects.filter(year=year, month__in=months).count() == len(months)):
+                and KyCong.objects.filter(nam=year, thang__in=months).count() == len(months)):
             self.stdout.write('Demo already exists. No data or passwords were changed.')
             return
         if Employee.objects.exists():
             raise CommandError('Employees already exist. Demo seeding requires an empty employee database; nothing changed.')
         if (not reuse_users and User.objects.filter(username__in=usernames).exists()) or Department.objects.filter(code__startswith='DEMO-').exists():
             raise CommandError('Demo account/department names already exist; nothing changed.')
-        if (AttendancePeriod.objects.filter(year=year, month__in=months).exists()
-                or WorkCalendarDay.objects.filter(date__year=year, date__month__in=months).exists()):
+        if (KyCong.objects.filter(nam=year, thang__in=months).exists()
+                or LichLamViec.objects.filter(ngay__year=year, ngay__month__in=months).exists()):
             raise CommandError('Target periods/calendar already exist; nothing changed.')
         password = options.get('password') or secrets.token_urlsafe(12)
         if len(password) < 12:
@@ -86,8 +86,8 @@ class Command(BaseCommand):
         departments['SX'].save(update_fields=['manager'])
         hr, director = users['demo_hr'], users['demo_director']
         for month in months:
-            period = AttendancePeriod(year=year, month=month, start_time=time(8), lunch_start=time(12),
-                lunch_end=time(13), end_time=time(17), standard_hours=Decimal(8))
+            period = KyCong(nam=year, thang=month, gio_bat_dau=time(8), bat_dau_nghi_trua=time(12),
+                ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=Decimal(8))
             period.full_clean()
             period.save()
             workdays, restdays = [], []
@@ -96,8 +96,8 @@ class Command(BaseCommand):
                 # Lịch minh họa do bộ demo lựa chọn; không phải chính sách chính thức.
                 holiday = month == 9 and number == 2
                 kind = 'holiday' if holiday else ('work' if day.weekday() < 5 else 'rest')
-                schedule = WorkCalendarDay(date=day, kind=kind, expected_units=1 if kind == 'work' else 0,
-                                           name='DEMO: lịch minh họa, không dùng cho lương thật')
+                schedule = LichLamViec(ngay=day, loai_ngay=kind, cong_chuan=1 if kind == 'work' else 0,
+                                           ghi_chu='DEMO: lịch minh họa, không dùng cho lương thật')
                 schedule.full_clean()
                 schedule.save()
                 if kind == 'work':
@@ -106,24 +106,24 @@ class Command(BaseCommand):
                     restdays.append(day)
             for index, employee in enumerate(employees):
                 for number, day in enumerate(workdays):
-                    values = {'employee': employee, 'date': day, 'status': 'present',
-                              'check_in': time(8), 'check_out': time(17), 'note': 'DEMO: dữ liệu minh họa'}
+                    values = {'nhan_vien': employee, 'ngay': day, 'trang_thai': 'present',
+                              'gio_vao': time(8), 'gio_ra': time(17), 'ghi_chu': 'DEMO: dữ liệu minh họa'}
                     if index in [2, 3, 5] and number == 2:
                         self.leave(employee, day, Decimal(1), True)
-                        values.update(status='leave', check_in=None, check_out=None, note='DEMO: nghỉ phép hưởng lương')
+                        values.update(trang_thai='leave', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ phép hưởng lương')
                     elif index == 4 and number == 3:
                         self.leave(employee, day, Decimal(1), False)
-                        values.update(status='leave', check_in=None, check_out=None, note='DEMO: nghỉ không lương')
+                        values.update(trang_thai='leave', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ không lương')
                     elif index in [2, 6] and number == 4:
-                        values.update(status='absent', check_in=None, check_out=None, note='DEMO: nghỉ không phép đã xác nhận')
+                        values.update(trang_thai='absent', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ không phép đã xác nhận')
                     elif index == 3 and number == 6:
                         self.leave(employee, day, Decimal('.5'), True)
-                        values.update(check_out=time(12), note='DEMO: làm nửa ngày, nghỉ phép có lương nửa ngày')
+                        values.update(gio_ra=time(12), ghi_chu='DEMO: làm nửa ngày, nghỉ phép có lương nửa ngày')
                     elif index in [1, 2, 4, 6] and number in [0, 5]:
-                        values['check_in'] = time(8, 10 + index * 5)
-                    row = save_record(hr, AttendanceRecord(**values), 'DEMO: nhập dữ liệu chấm công minh họa')
+                        values['gio_vao'] = time(8, 10 + index * 5)
+                    row = save_record(hr, ChamCong(**values), 'DEMO: nhập dữ liệu chấm công minh họa')
                     if index == 2 and number == 0:
-                        row.check_in = time(8, 10)
+                        row.gio_vao = time(8, 10)
                         save_record(hr, row, 'DEMO: sửa giờ vào sau khi đối chiếu; xem giá trị trước/sau trong lịch sử')
                 for approved in [True, False]:
                     bonus = Bonus(employee=employee, month=month, year=year,

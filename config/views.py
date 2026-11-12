@@ -25,17 +25,17 @@ def home(request):
     can_manage=has_role(request.user,HR,DIRECTOR,MANAGER)
     name=(employee.full_name if employee else '') or request.user.get_full_name() or request.user.get_username()
     latest=PayrollRecord.objects.filter(employee__user=request.user).select_related('period__attendance_period').order_by(
-        '-period__attendance_period__year','-period__attendance_period__month','-calculated_at','-pk').first()
+        '-period__attendance_period__nam','-period__attendance_period__thang','-calculated_at','-pk').first()
     today=timezone.localdate()
     period=latest.period.attendance_period if latest else None
-    payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.month if period else today.month,
-        'year':period.year if period else today.year})
+    payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,
+        'year':period.nam if period else today.year})
     return render(request,'home.html',{
         'display_name':name,
         'attendance_url':reverse('bang_cong:personal') if employee else (reverse('bang_cong:list') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
-        'payroll_description':f'Phiếu lương mới nhất · {period.month:02}/{period.year}' if period else (
+        'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
         'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.is_active) else '',
         'leave_title':'Quản lý nghỉ phép' if can_manage else 'Đăng ký nghỉ phép',

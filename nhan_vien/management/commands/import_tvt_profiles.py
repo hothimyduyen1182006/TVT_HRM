@@ -120,8 +120,8 @@ class Command(BaseCommand):
             setattr(employee, field, item[field])
         employee.date_of_birth = date.fromisoformat(item['date_of_birth']) if item['date_of_birth'] else None
         employee.hire_date = date.fromisoformat(item['hire_date'])
-        from bang_cong.models import AttendanceRecord
-        if AttendanceRecord.objects.filter(employee_id=employee.pk, date__lt=employee.hire_date).exists():
+        from bang_cong.models import ChamCong
+        if ChamCong.objects.filter(nhan_vien_id=employee.pk, ngay__lt=employee.hire_date).exists():
             raise CommandError('Ngày vào làm xung đột với chấm công: ' + item['code'])
         employee.base_salary = Decimal(item['base_salary'])
         employee.department = department

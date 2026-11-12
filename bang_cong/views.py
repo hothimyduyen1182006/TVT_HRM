@@ -1,4 +1,6 @@
 """Nhận request, kiểm tra quyền và trả trang Bảng công; nghiệp vụ nằm trong services."""
+
+from django.db.models import F
 import csv
 import io
 from urllib.parse import urlencode
@@ -17,7 +19,7 @@ from django.views.decorators.http import require_POST
 from nhan_vien.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
 from nhan_vien.models import Employee
 from .forms import AttendanceForm, AttendanceFilter
-from .models import AttendanceRecord, AttendancePeriod
+from .models import ChamCong, KyCong
 from .services.workflow import save_record, change_period, approve_employee, record_is_locked
 from .services.presentation import month_summary, month_data, audit_data, overtime_context
 
@@ -36,16 +38,16 @@ def record_list(request):
         employees = form.employee_scope(request.user)
         if data['q']:
             employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
-        period = AttendancePeriod.objects.filter(year=data['year'], month=data['month']).first()
+        period = KyCong.objects.filter(nam=data['year'], thang=data['month']).first()
         if data.get('day'):
             employees = employees.filter(is_active=True, hire_date__lte=data['day'])
-            checked = AttendanceRecord.objects.filter(date=data['day'], check_in__isnull=False)
+            checked = ChamCong.objects.filter(ngay=data['day'], gio_vao__isnull=False)
             if data['day_state'] == 'unchecked':
-                employees = employees.exclude(pk__in=checked.values('employee_id'))
+                employees = employees.exclude(pk__in=checked.values(**{'employee_id': F('nhan_vien_id')}))
             elif data['day_state'] in ['ontime', 'late']:
                 if period:
-                    checked = checked.filter(check_in__lte=period.start_time) if data['day_state'] == 'ontime' else checked.filter(check_in__gt=period.start_time)
-                    employees = employees.filter(pk__in=checked.values('employee_id'))
+                    checked = checked.filter(gio_vao__lte=period.gio_bat_dau) if data['day_state'] == 'ontime' else checked.filter(gio_vao__gt=period.gio_bat_dau)
+                    employees = employees.filter(pk__in=checked.values(**{'employee_id': F('nhan_vien_id')}))
                 else:
                     employees = employees.none()
         rows = month_summary(employees, data['year'], data['month'], period)
@@ -76,7 +78,7 @@ def employee_month(request, employee_id, own_only=False):
     context = month_data(request, employee)
     personal = own_only or not has_role(request.user, HR, DIRECTOR, MANAGER)
     context.update({'employee': employee, 'personal': personal,
-        'can_edit': not personal and has_role(request.user, HR, DIRECTOR) and (not context['period'] or context['period'].status != 'approved')
+        'can_edit': not personal and has_role(request.user, HR, DIRECTOR) and (not context['period'] or context['period'].trang_thai != 'approved')
                     and (not context['summary'] or context['summary']['state'] != 'approved'),
         'can_approve': not personal and has_role(request.user, HR, DIRECTOR),
         'can_export': not personal and has_role(request.user, HR, DIRECTOR),
@@ -92,7 +94,7 @@ def employee_month(request, employee_id, own_only=False):
 def approve_employee_view(request, employee_id, period_id):
     require_role(request.user, HR, DIRECTOR)
     employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
-    period = get_object_or_404(AttendancePeriod, pk=period_id)
+    period = get_object_or_404(KyCong, pk=period_id)
     try:
         approval = approve_employee(request.user, employee, period.pk)
     except ValidationError as exc:
@@ -102,7 +104,7 @@ def approve_employee_view(request, employee_id, period_id):
         if getattr(approval, 'payroll_error', ''):
             messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + approval.payroll_error)
     return redirect(reverse('bang_cong:employee-month', args=[employee.pk]) + '?' +
-                    urlencode({'month': period.month, 'year': period.year}))
+                    urlencode({'month': period.thang, 'year': period.nam}))
 
 
 @login_required
@@ -136,9 +138,9 @@ def export_month(request, employee_id):
         values = []
         for row in context['rows']:
             record = row['record']
-            values.append([employee.code, employee.full_name, row['date'], record.check_in if record else '',
-                record.check_out if record else '', row['label'], record.late_minutes if record else '',
-                record.work_hours if record else '', record.paid_units if record else '', record.note if record else '',row['ot']])
+            values.append([employee.code, employee.full_name, row['date'], record.gio_vao if record else '',
+                record.gio_ra if record else '', row['label'], record.so_phut_tre if record else '',
+                record.so_gio_lam if record else '', record.tong_cong if record else '', record.ghi_chu if record else '',row['ot']])
     for row in values:
         cells = [str(value) if value is not None else '' for value in row]
         writer.writerow(["'" + value if value.lstrip().startswith(('=', '+', '-', '@')) else value for value in cells])
@@ -149,8 +151,8 @@ def export_month(request, employee_id):
 
 @login_required
 def detail(request, pk):
-    row = get_object_or_404(AttendanceRecord.objects.select_related('employee'), pk=pk,
-                            employee__in=visible_employees(request.user))
+    row = get_object_or_404(ChamCong.objects.select_related('nhan_vien'), pk=pk,
+                            nhan_vien__in=visible_employees(request.user))
     context={'row':row,'can_edit':has_role(request.user,HR,DIRECTOR) and not record_is_locked(row)}
     context.update(overtime_context(row))
     return render(request,'attendance/detail.html',context)
@@ -159,7 +161,7 @@ def detail(request, pk):
 @login_required
 def edit(request, pk=None):
     require_role(request.user, HR, DIRECTOR)
-    row = get_object_or_404(AttendanceRecord, pk=pk, employee__in=visible_employees(request.user)) if pk else None
+    row = get_object_or_404(ChamCong, pk=pk, nhan_vien__in=visible_employees(request.user)) if pk else None
     if row and record_is_locked(row):
         raise PermissionDenied('Kỳ công đã duyệt, không được chỉnh sửa chấm công.')
     initial = {'employee': request.GET.get('employee'), 'date': request.GET.get('date')} if not row else None
@@ -167,7 +169,7 @@ def edit(request, pk=None):
     if request.method == 'POST' and form.is_valid():
         try:
             saved = save_record(request.user, form.save(commit=False), form.cleaned_data['reason'])
-        except AttendancePeriod.DoesNotExist:
+        except KyCong.DoesNotExist:
             form.add_error(None, 'Chưa tạo kỳ công cho tháng này trong trang quản trị.')
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
@@ -183,11 +185,11 @@ def edit(request, pk=None):
 @require_POST
 def transition(request, pk):
     require_role(request.user, DIRECTOR)
-    period = get_object_or_404(AttendancePeriod, pk=pk)
+    period = get_object_or_404(KyCong, pk=pk)
     try:
         change_period(request.user, pk, request.POST.get('action'), request.POST.get('reason', ''))
     except ValidationError as exc:
         messages.error(request, '; '.join(exc.messages))
     else:
         messages.success(request, 'Đã cập nhật trạng thái kỳ công.')
-    return redirect(reverse('bang_cong:list') + '?' + urlencode({'month': period.month, 'year': period.year}))
+    return redirect(reverse('bang_cong:list') + '?' + urlencode({'month': period.thang, 'year': period.nam}))

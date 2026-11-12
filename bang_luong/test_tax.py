@@ -12,7 +12,7 @@ from bang_luong.services.inputs import save_input
 from bang_luong.services.exports import export_records
 from bang_luong.forms import PayrollInputForm
 from bang_luong import tests as legacy_fixtures
-from bang_cong.models import AttendanceRecord
+from bang_cong.models import ChamCong
 
 
 class ProgressiveTaxTests(SimpleTestCase):
@@ -28,11 +28,11 @@ class ProgressiveTaxTests(SimpleTestCase):
 class AutomaticTaxTests(TestCase):
     def setUp(self):
         legacy_fixtures.PayrollTests.setUp(self)
-        self.attendance.month=10
+        self.attendance.thang=10
         self.attendance.save()
-        from bang_cong.models import WorkCalendarDay
-        WorkCalendarDay.objects.update(date=date(2026,10,5))
-        AttendanceRecord.objects.update(date=date(2026,10,5))
+        from bang_cong.models import LichLamViec
+        LichLamViec.objects.update(ngay=date(2026,10,5))
+        ChamCong.objects.update(ngay=date(2026,10,5))
         PayrollInput.objects.update(tax_method='resident_2026',tax_amount=99999999,
             insurance_base=0,insurance_rates={},tax_basis='Cư trú; HĐ >= 3 tháng; đăng ký giảm trừ tại TVT; không người phụ thuộc')
         self.emp.base_salary=20000000
@@ -69,7 +69,7 @@ class AutomaticTaxTests(TestCase):
         self.assertEqual(row.net_pay,21150000)
 
     def test_lawful_ot_is_exempt_and_bonus_is_taxable(self):
-        AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(19))
+        ChamCong.objects.filter(nhan_vien=self.emp).update(gio_ra=time(19))
         PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=100000,overtime_basis='Lương giờ hợp lệ')
         row=self.salary()
         self.assertEqual(row.ot_pay,300000)
@@ -90,7 +90,7 @@ class AutomaticTaxTests(TestCase):
         self.assertFalse(PayrollRecord.objects.exists())
 
     def test_excess_ot_needs_review_instead_of_assuming_all_pay_exempt(self):
-        AttendanceRecord.objects.filter(employee=self.emp).update(check_out=time(22))
+        ChamCong.objects.filter(nhan_vien=self.emp).update(gio_ra=time(22))
         PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=100000,overtime_basis='Căn cứ')
         with self.assertRaisesMessage(ValidationError,'cảnh báo'): self.salary()
         PayrollInput.objects.filter(employee=self.emp).update(tax_exempt_overtime=600000)
@@ -137,13 +137,13 @@ class AutomaticTaxTests(TestCase):
         self.assertEqual(response.status_code,200)
 
     def test_other_period_does_not_silently_reuse_2026_policy(self):
-        self.attendance.year=2027
+        self.attendance.nam=2027
         self.attendance.save()
         from types import SimpleNamespace
         from bang_luong.services.tax import calculate_tax
         inputs=PayrollInput.objects.get(employee=self.emp)
         with self.assertRaisesMessage(ValidationError,'07–12/2026'):
-            calculate_tax(inputs,SimpleNamespace(year=2027,month=10),20000000,0,0,0,
+            calculate_tax(inputs,SimpleNamespace(nam=2027,thang=10),20000000,0,0,0,
                 PayrollAdjustment.objects.none(),[])
 
     def test_exempt_deductions_and_missing_exemption_basis_are_invalid(self):

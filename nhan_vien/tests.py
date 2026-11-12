@@ -3,8 +3,8 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command, CommandError
 from django.test import TestCase
 from nhan_vien.models import Employee
-from bang_cong.models import AttendanceRecord
-from bang_cong.models import AttendancePeriod
+from bang_cong.models import ChamCong
+from bang_cong.models import KyCong
 from bang_luong.models import PayrollPeriod, PayrollRecord
 from nghi_phep.models import LeaveRequest
 
@@ -17,11 +17,11 @@ class DemoDataTests(TestCase):
 
     def test_periods_sources_and_scope(self):
         self.assertEqual(Employee.objects.count(), 8)
-        states = dict(PayrollPeriod.objects.values_list('attendance_period__month', 'status'))
+        states = dict(PayrollPeriod.objects.values_list('attendance_period__thang', 'status'))
         self.assertEqual(states, {9: 'approved', 10: 'paid', 11: 'pending'})
-        self.assertEqual(AttendancePeriod.objects.get(year=2026, month=11).status, 'pending')
+        self.assertEqual(KyCong.objects.get(nam=2026, thang=11).trang_thai, 'pending')
         self.assertEqual(PayrollRecord.objects.count(), 24)
-        self.assertEqual(PayrollPeriod.objects.filter(attendance_period__month=12).count(), 0)
+        self.assertEqual(PayrollPeriod.objects.filter(attendance_period__thang=12).count(), 0)
         for row in PayrollRecord.objects.select_related('period__attendance_period'):
             self.assertLess(row.bonus_pay, 2000000)  # Thưởng chưa duyệt không được cộng.
         manager = get_user_model().objects.get(username='demo_manager')
@@ -31,14 +31,14 @@ class DemoDataTests(TestCase):
         self.assertEqual(response.context['rows'].count(), 2)
 
     def test_rerun_does_not_duplicate_or_reset_passwords(self):
-        before = AttendanceRecord.objects.count()
+        before = ChamCong.objects.count()
         user = get_user_model().objects.get(username='demo_employee')
         password_hash = user.password
         output = StringIO()
         call_command('seed_demo', year=2026, password='DifferentPassword@2026', stdout=output)
         self.assertIn('already exists', output.getvalue())
         self.assertEqual(PayrollRecord.objects.count(), 24)
-        self.assertEqual(AttendanceRecord.objects.count(), before)
+        self.assertEqual(ChamCong.objects.count(), before)
         user.refresh_from_db()
         self.assertEqual(user.password, password_hash)
 
@@ -98,7 +98,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(self.client.get('/thuong/?month=9&year=2026').status_code, 200)
         self.assertEqual(self.client.get('/nghi_phep/?month=9&year=2026').status_code, 200)
         self.assertEqual(self.client.get('/admin/').status_code, 302)
-        salary = PayrollRecord.objects.filter(period__attendance_period__month=11).first()
+        salary = PayrollRecord.objects.filter(period__attendance_period__thang=11).first()
         self.assertEqual(self.client.post(f'/bang_luong/{salary.pk}/approve/').status_code, 403)
         hr.refresh_from_db()
         self.assertFalse(hr.is_staff)

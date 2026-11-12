@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from bang_cong.models import AttendanceRecord, AttendancePeriod, WorkCalendarDay
+from bang_cong.models import ChamCong, KyCong, LichLamViec
 from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from nhan_vien.models import Employee
 from nghi_phep.models import LeaveDay
@@ -184,30 +184,30 @@ def calculate_seniority(employee, month, year):
 
 def calculate_attendance(employee, month, year):
     start, end = date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
-    period = AttendancePeriod.objects.filter(month=month, year=year).first()
-    workdays = WorkCalendarDay.objects.filter(date__range=(max(start, employee.hire_date), end),
-                                               kind='work', expected_units__gt=0)
+    period = KyCong.objects.filter(thang=month, nam=year).first()
+    workdays = LichLamViec.objects.filter(ngay__range=(max(start, employee.hire_date), end),
+                                               loai_ngay='work', cong_chuan__gt=0)
     if not period or not workdays.exists():
         raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
     approved = True  # Use complete attendance inputs; approval is not a UC 6.2 eligibility rule.
     if not approved:
         raise ValidationError(f'Bảng công của {employee} chưa được duyệt.')
-    records = {record.date: record for record in AttendanceRecord.objects.filter(employee=employee, date__range=(start, end))}
+    records = {record.ngay: record for record in ChamCong.objects.filter(nhan_vien=employee, ngay__range=(start, end))}
     leave_dates = set(LeaveDay.objects.filter(employee=employee, date__range=(start, end), approved=True).values_list('date', flat=True))
-    if any(day.date not in records and day.date not in leave_dates for day in workdays):
+    if any(day.ngay not in records and day.ngay not in leave_dates for day in workdays):
         raise ValidationError(f'Thiếu dữ liệu chấm công của {employee}.')
-    day_records = [records[d.date] for d in workdays if d.date in records]
-    if any(record.status == 'absent' or
-           (record.status == 'leave' and record.date not in leave_dates)
+    day_records = [records[d.ngay] for d in workdays if d.ngay in records]
+    if any(record.trang_thai == 'absent' or
+           (record.trang_thai == 'leave' and record.ngay not in leave_dates)
            for record in day_records):
         attendance_amount, attendance_reason = Decimal(0), 'Có ngày nghỉ không phép trong kỳ.'
-    elif any(record.status == 'incomplete' for record in day_records):
+    elif any(record.trang_thai == 'incomplete' for record in day_records):
         raise ValidationError(f'Dữ liệu chấm công của {employee} chưa đầy đủ.')
-    elif any(record.late_minutes for record in day_records) or any(
-            record.check_out and record.check_out < period.end_time and record.date not in leave_dates
+    elif any(record.so_phut_tre for record in day_records) or any(
+            record.gio_ra and record.gio_ra < period.gio_ket_thuc and record.ngay not in leave_dates
             for record in day_records):
         attendance_amount, attendance_reason = Decimal(0), 'Không đạt điều kiện chuyên cần do đi muộn hoặc về sớm vượt ngưỡng.'
-    elif leave_dates.intersection(day.date for day in workdays):
+    elif leave_dates.intersection(day.ngay for day in workdays):
         attendance_amount, attendance_reason = Decimal(200000), 'Có nghỉ phép hợp lệ trong kỳ.'
     else:
         attendance_amount, attendance_reason = Decimal(500000), 'Đủ ngày công quy định trong tháng.'

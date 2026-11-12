@@ -23,9 +23,9 @@
           <p class="tvt-greeting">Cảm ơn {{ employee.full_name }} đã làm việc hết mình hôm nay! 💪</p>
           <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
           <div class="tvt-clock" data-clock>--:--:--</div>
-          <div class="tvt-status-strip tvt-status-working"><span></span>Đang trong ca{% if is_late %} · Đi trễ {{ today_record.late_minutes }} phút{% else %} · Đúng giờ{% endif %}</div>
+          <div class="tvt-status-strip tvt-status-working"><span></span>Đang trong ca{% if is_late %} · Đi trễ {{ today_record.so_phut_tre }} phút{% else %} · Đúng giờ{% endif %}</div>
           {% if can_check_out %}<form method="post" action="{% url 'bang_cong:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
-          <div class="tvt-shift-caption">Check-in lúc {{ today_record.check_in|time:'H:i:s' }}{% if period %} · Ca làm việc: {{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% endif %}</div>
+          <div class="tvt-shift-caption">Check-in lúc {{ today_record.gio_vao|time:'H:i:s' }}{% if period %} · Ca làm việc: {{ period.gio_bat_dau|time:'H:i' }} – {{ period.gio_ket_thuc|time:'H:i' }}{% endif %}</div>
         {% else %}
           <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
           <p class="tvt-greeting">Chào {{ employee.full_name }} 👋</p>
@@ -34,15 +34,15 @@
           <div class="tvt-clock" data-clock>--:--:--</div>
           <div class="tvt-status-strip tvt-status-idle"><span></span>Chưa check-in</div>
           {% if can_check_in %}<form method="post" action="{% url 'bang_cong:clock' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
-          <div class="tvt-shift-caption">Ca làm việc: {% if period %}{{ period.start_time|time:'H:i' }} – {{ period.end_time|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+          <div class="tvt-shift-caption">Ca làm việc: {% if period %}{{ period.gio_bat_dau|time:'H:i' }} – {{ period.gio_ket_thuc|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
         {% endif %}
         {% if schedule_error %}<div class="tvt-period-note">{{ schedule_error }}</div>{% elif locked and page_state != 'done' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
       </section>
       <aside class="tvt-checkin-stats">
         <h2>{% if page_state == 'done' %}TỔNG KẾT HÔM NAY{% else %}THỐNG KÊ CA LÀM VIỆC{% endif %}</h2>
-        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ BẮT ĐẦU</small><strong>{% if today_record.check_in %}{{ today_record.check_in|time:'H:i:s' }}{% else %}Chưa ghi nhận{% endif %}</strong></div></article>
-        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ KẾT THÚC</small><strong>{% if today_record.check_out %}{{ today_record.check_out|time:'H:i:s' }}{% else %}—{% endif %}</strong></div></article>
-        <article class="tvt-stat-card tvt-stat-total"><span class="tvt-stat-icon" aria-hidden="true">⌛</span><div><small>TỔNG THỜI GIAN</small><strong>{% if today_record.check_out %}{{ elapsed_hours|floatformat:2 }} giờ{% elif today_record.check_in %}<span data-elapsed data-checkin="{{ today_record.check_in|time:'H:i:s' }}">00:00:00</span>{% else %}00:00:00{% endif %}</strong></div></article>
+        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ BẮT ĐẦU</small><strong>{% if today_record.gio_vao %}{{ today_record.gio_vao|time:'H:i:s' }}{% else %}Chưa ghi nhận{% endif %}</strong></div></article>
+        <article class="tvt-stat-card"><span class="tvt-stat-icon" aria-hidden="true">◷</span><div><small>GIỜ KẾT THÚC</small><strong>{% if today_record.gio_ra %}{{ today_record.gio_ra|time:'H:i:s' }}{% else %}—{% endif %}</strong></div></article>
+        <article class="tvt-stat-card tvt-stat-total"><span class="tvt-stat-icon" aria-hidden="true">⌛</span><div><small>TỔNG THỜI GIAN</small><strong>{% if today_record.gio_ra %}{{ elapsed_hours|floatformat:2 }} giờ{% elif today_record.gio_vao %}<span data-elapsed data-checkin="{{ today_record.gio_vao|time:'H:i:s' }}">00:00:00</span>{% else %}00:00:00{% endif %}</strong></div></article>
       </aside>
     </div>
   {% endif %}

@@ -196,7 +196,7 @@ def employee_edit(request, employee_id):
             periods = PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id')
             for period in periods:
                 attendance = period.attendance_period
-                error = refresh_employee_payroll(request.user, employee.pk, attendance.year, attendance.month)
+                error = refresh_employee_payroll(request.user, employee.pk, attendance.nam, attendance.thang)
                 if error:
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')

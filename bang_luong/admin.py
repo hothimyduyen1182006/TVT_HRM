@@ -24,8 +24,8 @@ class InputAdmin(admin.ModelAdmin):
 
     @transaction.atomic
     def save_model(self, request, obj, form, change):
-        from bang_cong.models import AttendancePeriod
-        AttendancePeriod.objects.select_for_update().get(pk=obj.period.attendance_period_id)
+        from bang_cong.models import KyCong
+        KyCong.objects.select_for_update().get(pk=obj.period.attendance_period_id)
         super().save_model(request, obj, form, change)
         obj.period.attendance_revision = 0
         obj.period.save(update_fields=['attendance_revision'])
@@ -33,20 +33,20 @@ class InputAdmin(admin.ModelAdmin):
                                       reason='Cập nhật đầu vào; cần tính lại lương', snapshot=[])
         from .services.calculations import refresh_employee_payroll
         attendance = obj.period.attendance_period
-        error = refresh_employee_payroll(request.user, obj.employee_id, attendance.year, attendance.month)
+        error = refresh_employee_payroll(request.user, obj.employee_id, attendance.nam, attendance.thang)
         if error:
             from django.contrib import messages
             self.message_user(request, error, level=messages.WARNING)
 
     @transaction.atomic
     def delete_model(self, request, obj):
-        from bang_cong.models import AttendancePeriod
-        AttendancePeriod.objects.select_for_update().get(pk=obj.period.attendance_period_id)
+        from bang_cong.models import KyCong
+        KyCong.objects.select_for_update().get(pk=obj.period.attendance_period_id)
         attendance = obj.period.attendance_period
         employee_id = obj.employee_id
         super().delete_model(request, obj)
         from .services.calculations import refresh_employee_payroll
-        error = refresh_employee_payroll(request.user, employee_id, attendance.year, attendance.month)
+        error = refresh_employee_payroll(request.user, employee_id, attendance.nam, attendance.thang)
         if error:
             from django.contrib import messages
             self.message_user(request, error, level=messages.WARNING)

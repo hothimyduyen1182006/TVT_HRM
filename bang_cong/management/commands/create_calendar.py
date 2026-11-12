@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from bang_cong.models import AttendancePeriod, WorkCalendarDay
+from bang_cong.models import KyCong, LichLamViec
 
 
 class Command(BaseCommand):
@@ -29,14 +29,14 @@ class Command(BaseCommand):
                 raise ValueError
         except ValueError:
             raise CommandError('Tháng/năm, workdays hoặc holidays không hợp lệ.')
-        if AttendancePeriod.objects.filter(year=year, month=month, status='approved').exists():
+        if KyCong.objects.filter(nam=year, thang=month, trang_thai='approved').exists():
             raise CommandError('Kỳ đã duyệt, không được sửa lịch.')
-        if WorkCalendarDay.objects.filter(date__year=year, date__month=month).exists():
+        if LichLamViec.objects.filter(ngay__year=year, ngay__month=month).exists():
             raise CommandError('Tháng đã có lịch. Chỉnh từng ngày trong quản trị; không ghi đè tự động.')
         rows = []
         for number in range(1, calendar.monthrange(year, month)[1] + 1):
             day = date(year, month, number)
             kind = 'holiday' if day in holidays else ('work' if day.weekday() in workdays else 'rest')
-            rows.append(WorkCalendarDay(date=day, kind=kind, expected_units=Decimal(1 if kind == 'work' else 0)))
-        WorkCalendarDay.objects.bulk_create(rows)
+            rows.append(LichLamViec(ngay=day, loai_ngay=kind, cong_chuan=Decimal(1 if kind == 'work' else 0)))
+        LichLamViec.objects.bulk_create(rows)
         self.stdout.write(self.style.SUCCESS(f'Created {len(rows)} calendar days. Review the calendar and confirm policy before approval.'))

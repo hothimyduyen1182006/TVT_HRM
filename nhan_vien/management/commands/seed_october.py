@@ -44,14 +44,14 @@ class Command(BaseCommand):
         existing_roles = {u.pk: set(u.groups.values_list('pk', flat=True)) for u in User.objects.all()}
         new_names = [person[0] for person in PEOPLE if not User.objects.filter(username=person[0]).exists()]
         password = secrets.token_urlsafe(16)
-        if apps.get_model('attendance', 'OvertimeApproval').objects.exists():
+        if apps.get_model('attendance', 'LichSuTangCa').objects.exists():
             raise CommandError('Không thể đặt lại dữ liệu vì cần bảo toàn lịch sử OT.')
         with transaction.atomic():
             order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.PayrollRecord',
                 'payroll.PayrollAdjustment', 'payroll.PayrollInput', 'payroll.PayrollPeriod',
-                'attendance.AttendanceAuditLog', 'attendance.EmployeeAttendanceApproval',
-                'attendance.OvertimeApproval', 'attendance.AttendanceRecord', 'leaves.LeaveRequest',
-                'leaves.LeaveDay', 'bonuses.Bonus', 'attendance.AttendancePeriod', 'attendance.WorkCalendarDay',
+                'attendance.NhatKyCong', 'attendance.ChotBangCong',
+                'attendance.LichSuTangCa', 'attendance.ChamCong', 'leaves.LeaveRequest',
+                'leaves.LeaveDay', 'bonuses.Bonus', 'attendance.KyCong', 'attendance.LichLamViec',
                 'employees.Education', 'employees.LaborContract']
             for label in order:
                 apps.get_model(label).objects.all().delete()

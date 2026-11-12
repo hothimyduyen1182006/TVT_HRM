@@ -210,6 +210,14 @@ def review_leave(request, pk, action):
             item.reviewed_by = request.user
             item.reviewed_at = timezone.now()
             item.save(update_fields=['status', 'review_note', 'reviewed_by', 'reviewed_at'])
+            if action == 'approve':
+                from bang_cong.models import KyCong
+                from bang_cong.services.summaries import refresh_summary
+                for period in KyCong.objects.filter(
+                    nam__gte=item.start_date.year, nam__lte=item.end_date.year,
+                ):
+                    if (item.start_date.year, item.start_date.month) <= (period.nam, period.thang) <= (item.end_date.year, item.end_date.month):
+                        refresh_summary(item.employee, period)
     except ValidationError as exc:
         messages.error(request, '; '.join(exc.messages))
     except IntegrityError:

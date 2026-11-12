@@ -25,15 +25,15 @@ class LeaveDay(models.Model):
 
     def clean(self):
         if self.approved and self.employee_id:
-            from bang_cong.models import AttendancePeriod, EmployeeAttendanceApproval
-            periods = AttendancePeriod.objects.filter(
-                year=self.date.year,
-                month=self.date.month,
+            from bang_cong.models import KyCong, ChotBangCong
+            periods = KyCong.objects.filter(
+                nam=self.date.year,
+                thang=self.date.month,
             )
-            period_is_approved = periods.filter(status='approved').exists()
-            employee_is_approved = EmployeeAttendanceApproval.objects.filter(
-                period__in=periods,
-                employee_id=self.employee_id,
+            period_is_approved = periods.filter(trang_thai='approved').exists()
+            employee_is_approved = ChotBangCong.objects.filter(
+                ky_cong__in=periods,
+                nhan_vien_id=self.employee_id,
             ).exists()
             if period_is_approved or employee_is_approved:
                 raise ValidationError('Kỳ công đã duyệt. Cần mở lại trước khi sửa nghỉ phép.')

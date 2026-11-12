@@ -3,7 +3,7 @@ from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from django.urls import reverse
 from nhan_vien.models import Department, Employee
-from bang_cong.models import AttendancePeriod, AttendanceRecord
+from bang_cong.models import KyCong, ChamCong
 
 
 class DashboardTests(TestCase):
@@ -21,10 +21,10 @@ class DashboardTests(TestCase):
                 department=department, gender=gender, hire_date=date(2020, 1, 1), base_salary=10000000))
         a.manager = self.people[0]
         a.save()
-        AttendancePeriod.objects.create(year=2026, month=1, start_time=time(8), lunch_start=time(12),
-            lunch_end=time(13), end_time=time(17), standard_hours=8)
+        KyCong.objects.create(nam=2026, thang=1, gio_bat_dau=time(8), bat_dau_nghi_trua=time(12),
+            ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8)
         for employee, hour in [(self.people[0], 8), (self.people[1], 9)]:
-            AttendanceRecord.objects.create(employee=employee, date=date(2026, 1, 5), check_in=time(hour), status='incomplete')
+            ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5), gio_vao=time(hour), trang_thai='incomplete')
 
     def test_statistics_use_actual_checkin_even_before_checkout(self):
         self.client.force_login(self.hr)
@@ -33,7 +33,7 @@ class DashboardTests(TestCase):
         self.assertEqual(response.context['total_employees'], 3)
         self.assertEqual(response.context['attendance_counts'], {'ontime': 1, 'late': 1, 'unchecked': 1})
         self.assertEqual([item['count'] for item in response.context['genders']], [1, 1, 1])
-        self.assertEqual(AttendanceRecord.objects.count(), 2)
+        self.assertEqual(ChamCong.objects.count(), 2)
 
     def test_manager_scope_and_department_tampering(self):
         self.client.force_login(self.manager)

@@ -13,7 +13,7 @@ from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 
 from nhan_vien.models import Department, Employee
 from nhan_vien import test_personal_records as personal_fixtures
-from bang_cong.models import AttendancePeriod
+from bang_cong.models import KyCong
 from bang_luong.models import PayrollRecord, PayrollPeriod
 
 
@@ -44,8 +44,8 @@ class HomePageTests(TestCase):
     def test_latest_salary_is_selected_only_for_current_user(self):
         employee=self.people[3]
         for owner,year in [(employee,2027),(self.people[0],2028)]:
-            attendance=AttendancePeriod.objects.create(year=year,month=2,start_time=time(8),lunch_start=time(12),
-                lunch_end=time(13),end_time=time(17),standard_hours=8)
+            attendance=KyCong.objects.create(nam=year,thang=2,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
+                ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
             period=PayrollPeriod.objects.create(attendance_period=attendance)
             record=PayrollRecord.objects.get(employee=owner)
             record.pk=None

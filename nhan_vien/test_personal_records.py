@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from nhan_vien.models import Employee, Department
-from bang_cong.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
+from bang_cong.models import KyCong, ChamCong, LichLamViec
 from bang_luong.models import PayrollPeriod, PayrollRecord
 
 
@@ -20,13 +20,13 @@ class ManagementPersonalRecordsTests(TestCase):
             self.people.append(employee)
         self.team.manager = self.people[2]
         self.team.save()
-        self.period = AttendancePeriod.objects.create(year=2026, month=1, start_time=time(8),
-            lunch_start=time(12), lunch_end=time(13), end_time=time(17), standard_hours=8)
-        WorkCalendarDay.objects.create(date=date(2026, 1, 5), kind='work', expected_units=1)
+        self.period = KyCong.objects.create(nam=2026, thang=1, gio_bat_dau=time(8),
+            bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8)
+        LichLamViec.objects.create(ngay=date(2026, 1, 5), loai_ngay='work', cong_chuan=1)
         payroll = PayrollPeriod.objects.create(attendance_period=self.period)
         for employee in self.people:
-            AttendanceRecord.objects.create(employee=employee, date=date(2026, 1, 5),
-                status='present', check_in=time(8), check_out=time(17), paid_units=1, actual_units=1, work_hours=8)
+            ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
+                trang_thai='present', gio_vao=time(8), gio_ra=time(17), tong_cong=1, cong_thuc_te=1, so_gio_lam=8)
             values = dict(employee=employee, period=payroll, employee_code=employee.code,
                 employee_name=employee.full_name, department_id_snapshot=self.department.pk,
                 department_name=self.department.name, base_salary=10000000, standard_units=1,

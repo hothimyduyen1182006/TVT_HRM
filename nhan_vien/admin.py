@@ -16,7 +16,7 @@ class EmployeeAdmin(admin.ModelAdmin):
             from bang_luong.services.calculations import refresh_employee_payroll
             for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
                 attendance = period.attendance_period
-                error = refresh_employee_payroll(request.user, obj.pk, attendance.year, attendance.month)
+                error = refresh_employee_payroll(request.user, obj.pk, attendance.nam, attendance.thang)
                 if error:
                     from django.contrib import messages
                     self.message_user(request, error, level=messages.WARNING)

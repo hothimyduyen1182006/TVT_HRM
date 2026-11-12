@@ -34,8 +34,8 @@ def record_list(request):
             row.approval_error = record_approval_error(row) if row.status == 'pending' else ''
     period = None
     if form.is_valid():
-        period = PayrollPeriod.objects.filter(attendance_period__month=form.cleaned_data['month'],
-                                               attendance_period__year=form.cleaned_data['year']).first()
+        period = PayrollPeriod.objects.filter(attendance_period__thang=form.cleaned_data['month'],
+                                               attendance_period__nam=form.cleaned_data['year']).first()
     context = {'form': form, 'rows': rows, 'period': period,
                   'has_approved_records': period.records.filter(status='approved').exists() if period else False,
                   'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value(),
@@ -48,8 +48,8 @@ def personal(request):
     form = PayslipFilter(request.GET)
     row = None
     if form.is_valid():
-        row = employee_records(request.user).filter(period__attendance_period__month=form.cleaned_data['month'],
-            period__attendance_period__year=form.cleaned_data['year']).first()
+        row = employee_records(request.user).filter(period__attendance_period__thang=form.cleaned_data['month'],
+            period__attendance_period__nam=form.cleaned_data['year']).first()
     context = payslip_context(row) if row else {}
     context.update({'form': form, 'row': row, 'personal': True,
                     'month_label': str(form['month'].value()).zfill(2), 'year_label': form['year'].value(),
@@ -64,10 +64,10 @@ def detail(request, pk):
         employee__in=visible_employees(request.user)) if can_view_team else employee_records(request.user)
     row = get_object_or_404(queryset, pk=pk)
     period = row.period.attendance_period
-    form = PayslipFilter({'month': period.month, 'year': period.year})
+    form = PayslipFilter({'month': period.thang, 'year': period.nam})
     context = payslip_context(row)
-    context.update({'form': form, 'personal': not can_view_team, 'month_label': f'{period.month:02}',
-                    'year_label': period.year, 'requires_approval': False})
+    context.update({'form': form, 'personal': not can_view_team, 'month_label': f'{period.thang:02}',
+                    'year_label': period.nam, 'requires_approval': False})
     return render(request, 'payroll/detail.html', context)
 
 
@@ -84,7 +84,7 @@ def approve_employee_payroll(request, pk):
     else:
         messages.success(request, f'Đã duyệt bảng lương của {row.employee_name}.')
     attendance = row.period.attendance_period
-    return redirect(reverse('bang_luong:list') + '?' + urlencode({'month': attendance.month, 'year': attendance.year}))
+    return redirect(reverse('bang_luong:list') + '?' + urlencode({'month': attendance.thang, 'year': attendance.nam}))
 
 
 @login_required
@@ -103,7 +103,7 @@ def transition(request, pk):
     else:
         messages.success(request, 'Đã cập nhật bảng lương.')
     return redirect(reverse('bang_luong:list') + '?' + urlencode({
-        'month': period.attendance_period.month, 'year': period.attendance_period.year}))
+        'month': period.attendance_period.thang, 'year': period.attendance_period.nam}))
 
 
 @login_required
@@ -174,9 +174,9 @@ def edit_input(request, kind, pk=None, employee_id=None):
             if getattr(value, 'payroll_error', ''):
                 messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + value.payroll_error)
             at = value.period.attendance_period
-            return redirect(reverse('employee_detail', args=[value.employee_id]) + '?' + urlencode({'month': at.month, 'year': at.year}) + '#payroll-settings')
+            return redirect(reverse('employee_detail', args=[value.employee_id]) + '?' + urlencode({'month': at.thang, 'year': at.nam}) + '#payroll-settings')
     selected_period = obj.period if obj else initial.get('period')
-    back_query = urlencode({'month': selected_period.attendance_period.month, 'year': selected_period.attendance_period.year}) if selected_period else ''
+    back_query = urlencode({'month': selected_period.attendance_period.thang, 'year': selected_period.attendance_period.nam}) if selected_period else ''
     selected_employee = obj.employee if obj else initial.get('employee')
     back_url = reverse('employee_detail', args=[selected_employee.pk]) + ('?' + back_query if back_query else '') + '#payroll-settings' if selected_employee else reverse('employees')
     return render(request, 'payroll/input_form.html', {'form': form, 'kind': kind, 'locked': obj.is_locked if obj else False,

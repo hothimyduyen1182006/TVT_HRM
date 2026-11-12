@@ -1,45 +1,39 @@
 from django.contrib import admin
 from nhan_vien.admin_utils import ReadOnlyAdmin, CalendarLockedAdmin
-from .models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval, AttendanceAuditLog
-from .models import EmployeeAttendanceApproval
+from .models import KyCong, ChamCong, LichLamViec, NhatKyCong
+from .models import ChotBangCong
 
 
-@admin.register(AttendancePeriod)
+@admin.register(KyCong)
 class PeriodAdmin(admin.ModelAdmin):
-    list_display = ('month', 'year', 'status', 'revision')
-    readonly_fields = ('status', 'revision', 'employee_ids', 'approved_by', 'approved_at')
+    list_display = ('thang', 'nam', 'trang_thai', 'phien_ban')
+    readonly_fields = ('trang_thai', 'phien_ban', 'ds_nhan_vien', 'nguoi_duyet', 'ngay_duyet')
     actions = None
 
     def has_change_permission(self, request, obj=None):
-        return (obj is None or (obj.status == 'pending' and not obj.employee_approvals.exists())) and super().has_change_permission(request, obj)
+        return (obj is None or (obj.trang_thai == 'pending' and not obj.employee_approvals.exists())) and super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
         return False
 
 
-@admin.register(WorkCalendarDay)
+@admin.register(LichLamViec)
 class CalendarAdmin(CalendarLockedAdmin):
-    list_display = ('date', 'kind', 'expected_units', 'name')
-    list_filter = ('kind',)
-    date_hierarchy = 'date'
+    list_display = ('ngay', 'loai_ngay', 'cong_chuan', 'ghi_chu')
+    list_filter = ('loai_ngay',)
+    date_hierarchy = 'ngay'
 
 
-@admin.register(OvertimeApproval)
-class OvertimeAdmin(ReadOnlyAdmin):
-    list_display = ('employee', 'date', 'hours', 'multiplier', 'approved')
-    readonly_fields = ('approved_by', 'approved_at')
-
-
-@admin.register(AttendanceRecord)
+@admin.register(ChamCong)
 class RecordAdmin(ReadOnlyAdmin):
-    list_display = ('employee', 'date', 'status', 'work_hours', 'paid_units')
+    list_display = ('nhan_vien', 'ngay', 'trang_thai', 'so_gio_lam', 'tong_cong')
 
 
-@admin.register(AttendanceAuditLog)
+@admin.register(NhatKyCong)
 class AuditAdmin(ReadOnlyAdmin):
-    list_display = ('created_at', 'actor', 'action', 'reason')
+    list_display = ('ngay_tao', 'nguoi_thuc_hien', 'hanh_dong', 'ly_do')
 
 
-@admin.register(EmployeeAttendanceApproval)
+@admin.register(ChotBangCong)
 class EmployeeApprovalAdmin(ReadOnlyAdmin):
-    list_display = ('employee', 'period', 'approved_by', 'approved_at')
+    list_display = ('nhan_vien', 'ky_cong', 'nguoi_duyet', 'ngay_duyet')

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.db.models import Sum, Count, Q
 
-from bang_cong.models import AttendanceRecord
+from bang_cong.models import ChamCong
 from bang_luong.models import PayrollRecord
 
 
@@ -26,12 +26,12 @@ def payslip_context(record):
     metrics = {'actual': None, 'absent': None, 'late_count': None}
     period = record.period
     attendance = period.attendance_period
-    employee_approved = attendance.employee_approvals.filter(employee_id=record.employee_id).exists()
-    if attendance.status == 'approved' or employee_approved:
-        data = AttendanceRecord.objects.filter(employee_id=record.employee_id,
-            date__year=attendance.year, date__month=attendance.month).aggregate(
-                actual=Sum('actual_units'), absent=Count('pk', filter=Q(status='absent')),
-                late_count=Count('pk', filter=Q(late_minutes__gt=0)))
+    employee_approved = attendance.employee_approvals.filter(nhan_vien_id=record.employee_id).exists()
+    if attendance.trang_thai == 'approved' or employee_approved:
+        data = ChamCong.objects.filter(nhan_vien_id=record.employee_id,
+            ngay__year=attendance.nam, ngay__month=attendance.thang).aggregate(
+                actual=Sum('cong_thuc_te'), absent=Count('pk', filter=Q(trang_thai='absent')),
+                late_count=Count('pk', filter=Q(so_phut_tre__gt=0)))
         metrics = data
     return {'row': record, 'income_total': total_income, 'historical_overtime': historical_overtime,
             'deductions_total': total_deductions,
@@ -47,8 +47,8 @@ def scoped_records(user, form):
         return PayrollRecord.objects.none()
     data = form.cleaned_data
     rows = PayrollRecord.objects.select_related('period__attendance_period').filter(
-        employee__in=form.employee_scope(user), period__attendance_period__month=data['month'],
-        period__attendance_period__year=data['year'])
+        employee__in=form.employee_scope(user), period__attendance_period__thang=data['month'],
+        period__attendance_period__nam=data['year'])
     if data.get('q'):
         rows = rows.filter(Q(employee_name__icontains=data['q']) | Q(employee_code__icontains=data['q']))
     if data.get('status'):

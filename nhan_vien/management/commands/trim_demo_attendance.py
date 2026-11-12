@@ -3,7 +3,7 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from bang_cong.models import AttendancePeriod, AttendanceRecord, EmployeeAttendanceApproval, AttendanceAuditLog
+from bang_cong.models import KyCong, ChamCong, ChotBangCong, NhatKyCong
 from nghi_phep.models import LeaveDay
 from bang_luong.models import PayrollPeriod, PayrollRecord, PayrollAuditLog
 
@@ -17,11 +17,11 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         cutoff = options['from_date']
-        records = AttendanceRecord.objects.filter(employee__code__startswith='DEMO-',
-            date__gte=cutoff, note__startswith='DEMO:')
-        periods = list(AttendancePeriod.objects.select_for_update().filter(
-            year__gte=cutoff.year))
-        periods = [p for p in periods if (p.year, p.month) >= (cutoff.year, cutoff.month)]
+        records = ChamCong.objects.filter(nhan_vien__code__startswith='DEMO-',
+            ngay__gte=cutoff, ghi_chu__startswith='DEMO:')
+        periods = list(KyCong.objects.select_for_update().filter(
+            nam__gte=cutoff.year))
+        periods = [p for p in periods if (p.nam, p.thang) >= (cutoff.year, cutoff.month)]
         actor = get_user_model().objects.filter(username='demo_hr').first()
         if not actor:
             raise CommandError('Không tìm thấy tài khoản demo_hr.')
@@ -43,19 +43,19 @@ class Command(BaseCommand):
                 payroll.attendance_revision = 0
                 payroll.save()
         for period in periods:
-            approvals = EmployeeAttendanceApproval.objects.filter(period=period, employee__code__startswith='DEMO-')
+            approvals = ChotBangCong.objects.filter(ky_cong=period, nhan_vien__code__startswith='DEMO-')
             if approvals.exists():
-                AttendanceAuditLog.objects.create(actor=actor, action='trim_demo',
-                    reason=f'Gỡ duyệt công demo cả tháng sau khi xóa công từ {cutoff}',
-                    before={'employee_ids': list(approvals.values_list('employee_id', flat=True))},
-                    after={'period': period.pk, 'status': 'pending'})
+                NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='trim_demo',
+                    ly_do=f'Gỡ duyệt công demo cả tháng sau khi xóa công từ {cutoff}',
+                    du_lieu_cu={'employee_ids': list(approvals.values_list('nhan_vien_id', flat=True))},
+                    du_lieu_moi={'period': period.pk, 'status': 'pending'})
                 approvals.delete()
-            if period.status == 'approved' and not period.employee_approvals.exists():
-                period.status = 'pending'
-                period.approved_by = None
-                period.approved_at = None
-                period.employee_ids = []
-            period.revision += 1
+            if period.trang_thai == 'approved' and not period.employee_approvals.exists():
+                period.trang_thai = 'pending'
+                period.nguoi_duyet = None
+                period.ngay_duyet = None
+                period.ds_nhan_vien = []
+            period.phien_ban += 1
             period.save()
         count = records.count()
         records.delete()

@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from bang_cong.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay, OvertimeApproval
+from bang_cong.models import KyCong, ChamCong, LichLamViec, LichSuTangCa
 from bang_cong.services import calculations as attendance_calculations
 from bang_cong.services.workflow import save_record, approve_employee
 from thuong.models import Bonus
@@ -38,8 +38,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if getattr(attendance_calculations, 'OT_POLICY', '') != 'automatic-checkout-1700-v1':
             raise CommandError('Cần bản OT tự động từ check-out trước khi chuẩn bị bộ dữ liệu này.')
-        if PayrollAuditLog.objects.filter(action=MARKER, period__attendance_period__year=YEAR,
-                                         period__attendance_period__month=MONTH).exists():
+        if PayrollAuditLog.objects.filter(action=MARKER, period__attendance_period__nam=YEAR,
+                                         period__attendance_period__thang=MONTH).exists():
             self.stdout.write('Bộ tình huống tháng 10/2026 đã có; giữ nguyên mọi thao tác bạn đã thực hiện.')
             return
         self._require_empty_month()
@@ -56,52 +56,52 @@ class Command(BaseCommand):
         try:
             with transaction.atomic():
                 self._require_empty_month()
-                period = AttendancePeriod(year=YEAR,month=MONTH,start_time=time(8),lunch_start=time(12),
-                    lunch_end=time(13),end_time=time(17),standard_hours=8)
+                period = KyCong(nam=YEAR,thang=MONTH,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
+                    ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
                 period.full_clean(); period.save()
                 for number in range(1,32):
                     day = date(YEAR,MONTH,number)
-                    WorkCalendarDay.objects.create(date=day,kind='work' if day.weekday()<5 else 'rest',
-                        expected_units=1 if day.weekday()<5 else 0,name='' if day.weekday()<5 else 'Nghỉ hằng tuần')
+                    LichLamViec.objects.create(ngay=day,loai_ngay='work' if day.weekday()<5 else 'rest',
+                        cong_chuan=1 if day.weekday()<5 else 0,ghi_chu='' if day.weekday()<5 else 'Nghỉ hằng tuần')
                 self._leaves(people, hr)
                 for code, employee in sorted(people.items()):
-                    for calendar_day in WorkCalendarDay.objects.filter(date__year=YEAR,date__month=MONTH,kind='work').order_by('date'):
-                        day = calendar_day.date
-                        values = dict(employee=employee,date=day,status='present',
-                            check_in=time(7,55+day.day%3),check_out=time(17),note='')
+                    for calendar_day in LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH,loai_ngay='work').order_by('ngay'):
+                        day = calendar_day.ngay
+                        values = dict(nhan_vien=employee,ngay=day,trang_thai='present',
+                            gio_vao=time(7,55+day.day%3),gio_ra=time(17),ghi_chu='')
                         if code=='NV02' and day.day in [5,16]:
-                            values.update(check_in=time(8,20 if day.day==5 else 45),note='Đi trễ, tính theo thời gian thực tế')
+                            values.update(gio_vao=time(8,20 if day.day==5 else 45),ghi_chu='Đi trễ, tính theo thời gian thực tế')
                         if code=='NV03' and day.day in [7,19]:
-                            values.update(check_in=time(8),check_out=time(19) if day.day==7 else time(18,30),
-                                note='Hoàn thành đơn hàng sản xuất, giữ giờ ra thực tế')
+                            values.update(gio_vao=time(8),gio_ra=time(19) if day.day==7 else time(18,30),
+                                ghi_chu='Hoàn thành đơn hàng sản xuất, giữ giờ ra thực tế')
                         if code=='NV04' and day.day==12:
-                            values.update(status='leave',check_in=None,check_out=None,note='Nghỉ phép năm đã được duyệt')
+                            values.update(trang_thai='leave',gio_vao=None,gio_ra=None,ghi_chu='Nghỉ phép năm đã được duyệt')
                         if code=='NV04' and day.day==30:
-                            values.update(status='incomplete',check_in=None,check_out=None,note='Đang chờ xử lý đơn nghỉ phép; cần cập nhật chấm công sau khi có kết quả')
+                            values.update(trang_thai='incomplete',gio_vao=None,gio_ra=None,ghi_chu='Đang chờ xử lý đơn nghỉ phép; cần cập nhật chấm công sau khi có kết quả')
                         if code=='NV05' and day.day==14:
-                            values.update(status='absent',check_in=None,check_out=None,note='Nghỉ không phép, không tính công ngày này')
+                            values.update(trang_thai='absent',gio_vao=None,gio_ra=None,ghi_chu='Nghỉ không phép, không tính công ngày này')
                         if code=='NV05' and day.day==21:
-                            values.update(status='incomplete',check_in=time(8),check_out=None,note='Thiếu check-out; cần đối chiếu giờ ra trước khi duyệt')
+                            values.update(trang_thai='incomplete',gio_vao=time(8),gio_ra=None,ghi_chu='Thiếu check-out; cần đối chiếu giờ ra trước khi duyệt')
                         if code=='NV05' and day.day==20:
-                            values.update(check_out=time(18),note='Hoàn tất hồ sơ nhân sự cuối ngày')
+                            values.update(gio_ra=time(18),ghi_chu='Hoàn tất hồ sơ nhân sự cuối ngày')
                         if code=='NV06' and day.day==15:
-                            values.update(status='leave',check_in=None,check_out=None,note='Nghỉ không lương đã được duyệt')
+                            values.update(trang_thai='leave',gio_vao=None,gio_ra=None,ghi_chu='Nghỉ không lương đã được duyệt')
                         if code=='NV06' and day.day==16:
-                            values.update(check_out=time(16),note='Về sớm một giờ, tính công theo thời gian thực tế')
+                            values.update(gio_ra=time(16),ghi_chu='Về sớm một giờ, tính công theo thời gian thực tế')
                         if code=='NV06' and day.day==8:
-                            values.update(check_out=time(18),note='Bảo trì hệ thống sau giờ làm việc')
+                            values.update(gio_ra=time(18),ghi_chu='Bảo trì hệ thống sau giờ làm việc')
                         if code=='NV07' and day.day==9:
-                            values.update(check_in=time(8),check_out=time(12),note='Làm buổi sáng, nghỉ phép hưởng lương nửa ngày buổi chiều')
+                            values.update(gio_vao=time(8),gio_ra=time(12),ghi_chu='Làm buổi sáng, nghỉ phép hưởng lương nửa ngày buổi chiều')
                         if code=='NV07' and day.day==13:
-                            values.update(check_in=time(9),note='Đi trễ một giờ; không tạo khoản phạt tiền riêng')
-                        record = save_record(hr,AttendanceRecord(**values),'Nhập dữ liệu chấm công tháng 10/2026')
+                            values.update(gio_vao=time(9),ghi_chu='Đi trễ một giờ; không tạo khoản phạt tiền riêng')
+                        record = save_record(hr,ChamCong(**values),'Nhập dữ liệu chấm công tháng 10/2026')
                         if code=='NV01' and day.day==9:
-                            record.check_in=time(8,12)
+                            record.gio_vao=time(8,12)
                             save_record(hr,record,'Ghi nhận ban đầu cần đối chiếu máy chấm công')
-                            record.check_in=time(7,58)
+                            record.gio_vao=time(7,58)
                             save_record(hr,record,'Đã đối chiếu log máy, điều chỉnh đúng giờ vào thực tế')
-                save_record(hr,AttendanceRecord(employee=people['NV03'],date=date(YEAR,MONTH,24),
-                    status='present',check_in=time(8),check_out=time(12),note='Sản xuất bổ sung sáng thứ Bảy; không cộng công thường'),
+                save_record(hr,ChamCong(nhan_vien=people['NV03'],ngay=date(YEAR,MONTH,24),
+                    trang_thai='present',gio_vao=time(8),gio_ra=time(12),ghi_chu='Sản xuất bổ sung sáng thứ Bảy; không cộng công thường'),
                     'Ghi nhận giờ làm thực tế ngày nghỉ tuần')
                 for code in ['NV02','NV03','NV06']:
                     approve_employee(hr,people[code],period.pk)
@@ -124,10 +124,10 @@ class Command(BaseCommand):
 
     def _require_empty_month(self):
         checks = [
-            AttendancePeriod.objects.filter(year=YEAR,month=MONTH),
-            AttendanceRecord.objects.filter(date__year=YEAR,date__month=MONTH),
-            WorkCalendarDay.objects.filter(date__year=YEAR,date__month=MONTH),
-            OvertimeApproval.objects.filter(date__year=YEAR,date__month=MONTH),
+            KyCong.objects.filter(nam=YEAR,thang=MONTH),
+            ChamCong.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
+            LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
+            LichSuTangCa.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             Bonus.objects.filter(year=YEAR,month=MONTH),
             LeaveDay.objects.filter(date__year=YEAR,date__month=MONTH),
             LeaveRequest.objects.filter(start_date__lte=date(YEAR,MONTH,31),end_date__gte=date(YEAR,MONTH,1)),
@@ -179,9 +179,9 @@ class Command(BaseCommand):
                 row.full_clean();row.save()
 
     def _inputs(self, people, attendance, payroll, hr):
-        standard=sum(WorkCalendarDay.objects.filter(date__year=YEAR,date__month=MONTH).values_list('expected_units',flat=True),Decimal(0))
+        standard=sum(LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH).values_list('cong_chuan',flat=True),Decimal(0))
         for code,employee in sorted(people.items()):
-            rate=(employee.base_salary/standard/attendance.standard_hours).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
+            rate=(employee.base_salary/standard/attendance.gio_chuan).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
             basis=('Dữ liệu thực hành 10/2026: giả định cá nhân cư trú, 0 người phụ thuộc; giảm trừ bản thân '
                    '15.500.000đ, BH 10,5% lương cơ bản; thu nhập tính thuế bậc đầu không quá 10 triệu, thuế suất 5%. '
                    'Phụ cấp ăn trưa giả định đủ điều kiện loại khỏi thu nhập chịu thuế. Các nhân viên có OT '

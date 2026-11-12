@@ -1,3 +1,18 @@
+## Tên model và trường Bảng công
+
+App `bang_cong` dùng các model `KyCong`, `LichLamViec`, `ChamCong`, `TongHopCong`,
+`ChotBangCong`, `NhatKyCong`, `LichSuDieuChinhCong` và `LichSuTangCa`.
+Ví dụ: `month/year` → `thang/nam`, `check_in/check_out` → `gio_vao/gio_ra`,
+`employee` → `nhan_vien`, `paid_units` → `tong_cong`, `status` → `trang_thai`.
+Các model ngoài Bảng công giữ tên trường hiện tại; các tham chiếu tới Bảng công đã cập nhật.
+
+Migration `attendance.0009_vietnamese_attendance_names` đổi tên model/cột và giữ ID,
+dữ liệu, quan hệ, quyền nhóm/tài khoản. Máy khác cần chạy `python manage.py migrate`
+trước khi khởi động server. Không sửa hoặc xóa các migration trước đó.
+Khóa JSON trong lịch sử và snapshot lương, mã trạng thái, app label, tên template/static
+và tham số URL tháng/năm giữ nguyên để tương thích dữ liệu và giao diện hiện có.
+`LichSuTangCa` chỉ lưu lịch sử, không tham gia công thức OT hiện tại.
+
 ## Tên app Bảng công
 
 Các app nghiệp vụ: `bang_cong` (attendance), `nhan_vien` (employees), `bang_luong` (payroll), `nghi_phep` (leaves), `thuong` (bonuses).
@@ -6,14 +21,24 @@ Mỗi AppConfig giữ label tiếng Anh cũ để không đổi bảng, migratio
 `BangCongConfig` giữ `label = 'attendance'` để bảo toàn migration, bảng dữ liệu và quyền hiện có.
 URL `/bang_cong/`, namespace `bang_cong`; đường dẫn template/static và tham chiếu model trong migration giữ nguyên.
 Sau khi lấy bản đổi tên, khởi động lại server; kiểm thử app bằng `python manage.py test bang_cong --noinput`.
-Không đổi tên bảng database hoặc tạo lại dữ liệu.
+Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên model/cột được quản lý bằng migration ở phần trên.
 
-## OT tự động từ chấm công
+## Cấu trúc dữ liệu Bảng công
+
+- `ChamCong` → bảng `Cham_cong`: giờ vào/ra, công ngày và kết quả OT; công thức vẫn nằm trong services.
+- `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
+- `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
+- `LichSuDieuChinhCong` → `Lich_su_dieu_chinh_cong`: một dòng cho mỗi trường thay đổi, liên kết nhật ký JSON gốc.
+- `KyCong`, `LichLamViec` và lịch sử OT cũ tiếp tục được giữ. Không thêm quy trình phản hồi hoặc duyệt OT.
+- Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
+- Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
+
+## Quy tắc OT
 
 - Áp dụng tất cả phòng ban. Ngày làm việc: OT = max(0, check-out − max(17:00, check-in)), khi có bản ghi Có mặt hợp lệ và lịch ngày.
 - Ngày nghỉ/lễ: tính giờ làm thực tế trừ nghỉ trưa; không sinh công thường. Hệ số ban ngày: 1,5 ngày thường; 2 nghỉ tuần; 3 lễ.
-- Cùng một hàm `automatic_overtime()` phục vụ Bảng công, lịch sử chỉnh sửa và nguồn lương. Giờ OT là thuộc tính suy ra từ giờ vào/ra, giữ 4 chữ số thập phân; không cần cột mới, migration hoặc backfill.
-- Không còn gửi yêu cầu, duyệt/từ chối hoặc quyền OT theo phòng. URL cũ trả 404. `OvertimeApproval` và cờ phòng cũ giữ trong schema để bảo toàn lịch sử, không tham gia tính; admin lịch sử chỉ đọc.
+- Cùng một hàm `automatic_overtime()` phục vụ Bảng công, lịch sử chỉnh sửa và nguồn lương. Giờ OT được suy ra từ giờ vào/ra, giữ 4 chữ số thập phân; cột `so_gio_tang_ca` lưu kết quả trong lần cập nhật công, không tạo thêm công thức OT.
+- Không còn gửi yêu cầu, duyệt/từ chối hoặc quyền OT theo phòng. URL cũ trả 404. `LichSuTangCa` và cờ phòng cũ giữ trong schema để bảo toàn lịch sử, không tham gia tính; admin lịch sử chỉ đọc.
 - Lương OT = lương giờ căn cứ HR xác nhận × giờ OT tự động × hệ số. Không tự dùng thưởng/tiền ăn làm căn cứ. Tính lại thay snapshot chờ duyệt; không cộng vào tiền OT đã lưu trước đó.
 - Phiếu đã chi trả giữ nguyên snapshot. Phiếu cũ chưa chi trả có nguồn OT cũ cần mở lại theo quyền và tính lại trước khi duyệt/chi trả/xuất.
 - Check-out thực tế không bị cắt. Vượt 50% giờ chuẩn/ngày, tổng 12 giờ/ngày, 40 giờ/tháng hoặc ngưỡng mặc định 200 giờ/năm được cảnh báo; không tự cắt giờ/tiền đã làm. Công ty cần kiểm tra điều kiện ngoại lệ 300 giờ nếu áp dụng.

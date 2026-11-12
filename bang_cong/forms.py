@@ -1,6 +1,6 @@
 from django import forms
 from nhan_vien.access import visible_employees
-from .models import AttendanceRecord
+from .models import ChamCong
 from nhan_vien.filters import PeriodFilter
 from django.contrib.auth import get_user_model
 
@@ -58,7 +58,7 @@ class HistoryFilter(forms.Form):
 
     def __init__(self, data, logs):
         super().__init__(data)
-        self.fields['actor'].queryset = get_user_model().objects.filter(pk__in=logs.values('actor_id')).order_by('username')
+        self.fields['actor'].queryset = get_user_model().objects.filter(pk__in=logs.values('nguoi_thuc_hien_id')).order_by('username')
 
     def clean(self):
         data = super().clean()
@@ -71,15 +71,26 @@ class AttendanceForm(forms.ModelForm):
     reason = forms.CharField(label='Lý do tạo/chỉnh sửa', widget=forms.Textarea)
 
     class Meta:
-        model = AttendanceRecord
-        fields = ['employee', 'date', 'check_in', 'check_out', 'status', 'note']
-        widgets = {'date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-                   'check_in': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
-                   'check_out': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M')}
+        model = ChamCong
+        fields = ['nhan_vien', 'ngay', 'gio_vao', 'gio_ra', 'trang_thai', 'ghi_chu']
+        widgets = {'ngay': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'gio_vao': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+                   'gio_ra': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M')}
 
     def __init__(self, user, *args, **kwargs):
+        # Nhận cả tên POST/initial cũ để các liên kết, biểu mẫu đang mở vẫn dùng được.
+        aliases = {'employee': 'nhan_vien', 'date': 'ngay', 'check_in': 'gio_vao',
+                   'check_out': 'gio_ra', 'status': 'trang_thai', 'note': 'ghi_chu'}
+        if args and args[0] is not None:
+            data = args[0].copy()
+            for old, new in aliases.items():
+                if old in data and new not in data:
+                    data[new] = data[old]
+            args = (data, *args[1:])
+        if kwargs.get('initial'):
+            kwargs['initial'] = {aliases.get(key, key): value for key, value in kwargs['initial'].items()}
         super().__init__(*args, **kwargs)
-        self.fields['employee'].queryset = visible_employees(user)
+        self.fields['nhan_vien'].queryset = visible_employees(user)
         if self.instance.pk:
-            self.fields['employee'].disabled = True
-            self.fields['date'].disabled = True
+            self.fields['nhan_vien'].disabled = True
+            self.fields['ngay'].disabled = True

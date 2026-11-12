@@ -20,12 +20,13 @@ class CalendarLockedAdmin(admin.ModelAdmin):
     def locked(self, obj):
         if obj is None:
             return False
-        from bang_cong.models import AttendancePeriod, EmployeeAttendanceApproval
-        periods = AttendancePeriod.objects.filter(year=obj.date.year, month=obj.date.month)
-        approvals = EmployeeAttendanceApproval.objects.filter(period__in=periods)
+        from bang_cong.models import KyCong, ChotBangCong, LichLamViec
+        day = obj.ngay if isinstance(obj, LichLamViec) else obj.date
+        periods = KyCong.objects.filter(nam=day.year, thang=day.month)
+        approvals = ChotBangCong.objects.filter(ky_cong__in=periods)
         if hasattr(obj, 'employee_id'):
-            approvals = approvals.filter(employee_id=obj.employee_id)
-        return periods.filter(status='approved').exists() or approvals.exists()
+            approvals = approvals.filter(nhan_vien_id=obj.employee_id)
+        return periods.filter(trang_thai='approved').exists() or approvals.exists()
 
     def has_change_permission(self, request, obj=None):
         return not self.locked(obj) and super().has_change_permission(request, obj)

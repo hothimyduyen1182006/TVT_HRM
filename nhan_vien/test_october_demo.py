@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command, CommandError
 from unittest.mock import patch
 from django.test import TestCase
-from bang_cong.models import AttendancePeriod, AttendanceRecord
+from bang_cong.models import KyCong, ChamCong
 from bang_luong.models import PayrollRecord
 
 
@@ -15,8 +15,8 @@ class OctoberDemoTests(TestCase):
         user.refresh_from_db()
         self.assertEqual(user.password, password_hash)
         self.assertEqual(user.employee.user_id, user.pk)
-        self.assertEqual(list(AttendancePeriod.objects.values_list('month', flat=True)), [10])
-        self.assertFalse(AttendanceRecord.objects.exclude(date__month=10).exists())
+        self.assertEqual(list(KyCong.objects.values_list('thang', flat=True)), [10])
+        self.assertFalse(ChamCong.objects.exclude(ngay__month=10).exists())
         self.assertEqual(PayrollRecord.objects.count(), 8)
         self.assertEqual(User.objects.filter(username='demo_hr').count(), 1)
 
@@ -29,7 +29,7 @@ class OctoberDemoTests(TestCase):
         self.assertEqual(Employee.objects.exclude(gender__in=['Nam', 'Nữ']).count(), 0)
         self.assertEqual(LaborContract.objects.count(), 8)
         self.assertEqual(LeaveRequest.objects.count(), 5)
-        self.assertEqual(AttendanceRecord.objects.count(), 176)
+        self.assertEqual(ChamCong.objects.count(), 176)
         self.assertEqual(PayrollRecord.objects.count(), 8)
         with self.assertRaises(CommandError):
             call_command('seed_october', stdout=StringIO())
@@ -40,4 +40,4 @@ class OctoberDemoTests(TestCase):
         self.assertEqual(dict(User.objects.values_list('pk', 'password')), before)
         user.refresh_from_db()
         self.assertEqual(user.password, old_hash)
-        self.assertEqual(AttendanceRecord.objects.count(), 176)
+        self.assertEqual(ChamCong.objects.count(), 176)

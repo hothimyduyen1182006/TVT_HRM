@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command, CommandError
 from django.test import TestCase, Client
 
-from bang_cong.models import AttendancePeriod, AttendanceRecord, EmployeeAttendanceApproval, WorkCalendarDay, OvertimeApproval
+from bang_cong.models import KyCong, ChamCong, ChotBangCong, LichLamViec, LichSuTangCa
 from bang_cong.services.workflow import save_record, approve_employee
 from thuong.models import Bonus, payroll_bonus_records
 from nhan_vien.models import Employee, Department, Education, LaborContract, Position
@@ -37,60 +37,60 @@ class OctoberTrainingTests(TestCase):
         for model, rows in before.items():
             self.assertEqual(list(model.objects.order_by('pk').values()),rows)
         people=self.people()
-        self.assertEqual(WorkCalendarDay.objects.count(),31)
-        self.assertEqual(WorkCalendarDay.objects.filter(kind='work').count(),22)
-        self.assertFalse(WorkCalendarDay.objects.filter(kind='holiday').exists())
-        self.assertEqual(AttendanceRecord.objects.count(),177)
-        self.assertEqual(AttendanceRecord.objects.filter(status='incomplete').count(),2)
-        self.assertEqual(AttendanceRecord.objects.filter(status='absent').count(),1)
+        self.assertEqual(LichLamViec.objects.count(),31)
+        self.assertEqual(LichLamViec.objects.filter(loai_ngay='work').count(),22)
+        self.assertFalse(LichLamViec.objects.filter(loai_ngay='holiday').exists())
+        self.assertEqual(ChamCong.objects.count(),177)
+        self.assertEqual(ChamCong.objects.filter(trang_thai='incomplete').count(),2)
+        self.assertEqual(ChamCong.objects.filter(trang_thai='absent').count(),1)
         self.assertEqual(LeaveRequest.objects.count(),5)
         self.assertEqual(LeaveDay.objects.count(),3)
         self.assertEqual(set(Bonus.objects.values_list('status',flat=True)),{'draft','pending','approved','rejected'})
         self.assertEqual(PayrollInput.objects.count(),8)
         self.assertEqual(PayrollInput.objects.filter(verified=False).get().employee.code,'NV08')
         self.assertEqual(PayrollAdjustment.objects.filter(name='Phụ cấp ăn trưa',amount=450000,approved=True).count(),8)
-        self.assertEqual(set(EmployeeAttendanceApproval.objects.values_list('employee__code',flat=True)),{'NV02','NV03','NV06'})
-        self.assertEqual(AttendancePeriod.objects.get().status,'pending')
+        self.assertEqual(set(ChotBangCong.objects.values_list('nhan_vien__code',flat=True)),{'NV02','NV03','NV06'})
+        self.assertEqual(KyCong.objects.get().trang_thai,'pending')
         self.assertEqual(PayrollPeriod.objects.get().status,'pending')
         self.assertEqual(PayrollRecord.objects.count(),3)
         self.assertEqual(PayrollRecord.objects.get(status='approved').employee.code,'NV02')
         self.assertFalse(PayrollRecord.objects.filter(status='paid').exists())
-        self.assertFalse(OvertimeApproval.objects.exists())
+        self.assertFalse(LichSuTangCa.objects.exists())
         self.assertEqual(PayrollRecord.objects.get(employee=people['NV03']).ot_hours,Decimal('7.5'))
-        self.assertEqual(AttendanceRecord.objects.get(employee=people['NV03'],date=date(2026,10,24)).paid_units,0)
-        self.assertEqual(AttendanceRecord.objects.get(employee=people['NV07'],date=date(2026,10,9)).paid_units,1)
+        self.assertEqual(ChamCong.objects.get(nhan_vien=people['NV03'],ngay=date(2026,10,24)).tong_cong,0)
+        self.assertEqual(ChamCong.objects.get(nhan_vien=people['NV07'],ngay=date(2026,10,9)).tong_cong,1)
         for row in PayrollRecord.objects.all():
             amount=sum(payroll_bonus_records(Bonus.objects.filter(employee=row.employee,year=2026,month=10)).values_list('amount',flat=True),Decimal(0))
             self.assertEqual(row.bonus_pay,amount)
 
     def test_repeated_command_preserves_user_edits_and_other_months(self):
-        other=AttendancePeriod.objects.create(year=2026,month=9,start_time=time(8),lunch_start=time(12),
-            lunch_end=time(13),end_time=time(17),standard_hours=8)
-        before=AttendancePeriod.objects.values().get(pk=other.pk)
+        other=KyCong.objects.create(nam=2026,thang=9,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
+            ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
+        before=KyCong.objects.values().get(pk=other.pk)
         self.prepare()
         people=self.people()
-        record=AttendanceRecord.objects.get(employee=people['NV01'],date=date(2026,10,23))
-        record.check_out=time(18)
+        record=ChamCong.objects.get(nhan_vien=people['NV01'],ngay=date(2026,10,23))
+        record.gio_ra=time(18)
         save_record(people['NV05'].user,record,'Người dùng thử chỉnh sửa giờ ra')
-        models=[AttendancePeriod,AttendanceRecord,WorkCalendarDay,Bonus,PayrollPeriod,PayrollRecord,
+        models=[KyCong,ChamCong,LichLamViec,Bonus,PayrollPeriod,PayrollRecord,
                 PayrollInput,PayrollAdjustment,LeaveDay,LeaveRequest]
         snapshots={model:list(model.objects.order_by('pk').values()) for model in models}
         self.prepare()
         for model,rows in snapshots.items():
             self.assertEqual(list(model.objects.order_by('pk').values()),rows)
-        self.assertEqual(AttendancePeriod.objects.values().get(pk=other.pk),before)
+        self.assertEqual(KyCong.objects.values().get(pk=other.pk),before)
 
     def test_conflicting_existing_data_is_never_overwritten(self):
-        day=WorkCalendarDay.objects.create(date=date(2026,10,1),kind='work',expected_units=1)
+        day=LichLamViec.objects.create(ngay=date(2026,10,1),loai_ngay='work',cong_chuan=1)
         with self.assertRaises(CommandError): self.prepare()
-        self.assertEqual(WorkCalendarDay.objects.count(),1)
-        self.assertEqual(WorkCalendarDay.objects.get().pk,day.pk)
-        self.assertFalse(AttendanceRecord.objects.exists())
+        self.assertEqual(LichLamViec.objects.count(),1)
+        self.assertEqual(LichLamViec.objects.get().pk,day.pk)
+        self.assertFalse(ChamCong.objects.exists())
         self.assertFalse(PayrollPeriod.objects.exists())
 
     def test_dry_run_rolls_back_every_business_record(self):
         self.prepare(dry_run=True)
-        for model in [AttendancePeriod,AttendanceRecord,WorkCalendarDay,Bonus,PayrollPeriod,PayrollRecord,LeaveRequest,LeaveDay]:
+        for model in [KyCong,ChamCong,LichLamViec,Bonus,PayrollPeriod,PayrollRecord,LeaveRequest,LeaveDay]:
             self.assertFalse(model.objects.exists())
         self.assertEqual(Employee.objects.count(),8)
 
@@ -119,8 +119,8 @@ class OctoberTrainingTests(TestCase):
     def test_roles_csrf_and_edit_lock_are_enforced(self):
         self.prepare()
         people=self.people()
-        locked=AttendanceRecord.objects.filter(employee=people['NV02']).first()
-        editable=AttendanceRecord.objects.get(employee=people['NV01'],date=date(2026,10,23))
+        locked=ChamCong.objects.filter(nhan_vien=people['NV02']).first()
+        editable=ChamCong.objects.get(nhan_vien=people['NV01'],ngay=date(2026,10,23))
         client=Client(enforce_csrf_checks=True)
         client.force_login(people['NV05'].user)
         self.assertEqual(client.get(f'/bang_cong/{locked.pk}/edit/').status_code,403)
@@ -131,7 +131,7 @@ class OctoberTrainingTests(TestCase):
         response=client.post(url,{**values,'csrfmiddlewaretoken':client.cookies['csrftoken'].value})
         self.assertEqual(response.status_code,302)
         editable.refresh_from_db()
-        self.assertEqual(editable.late_minutes,10)
+        self.assertEqual(editable.so_phut_tre,10)
         client.force_login(people['NV02'].user)
         self.assertEqual(client.get(f'/bang_cong/employee/{people["NV03"].pk}/?month=10&year=2026').status_code,200)
         self.assertEqual(client.get(f'/bang_cong/employee/{people["NV04"].pk}/?month=10&year=2026').status_code,404)
@@ -155,11 +155,11 @@ class OctoberTrainingTests(TestCase):
         self.assertEqual(client.post(reverse('nghi_phep:review',args=[request.pk,'approve'])).status_code,302)
         request.refresh_from_db()
         self.assertEqual(request.status,'approved')
-        record=AttendanceRecord.objects.get(employee=people['NV04'],date=date(2026,10,30))
-        record.status='leave'
+        record=ChamCong.objects.get(nhan_vien=people['NV04'],ngay=date(2026,10,30))
+        record.trang_thai='leave'
         save_record(hr,record,'Cập nhật công sau khi phép đã duyệt')
-        record=AttendanceRecord.objects.get(employee=people['NV05'],date=date(2026,10,21))
-        record.status='present';record.check_out=time(17)
+        record=ChamCong.objects.get(nhan_vien=people['NV05'],ngay=date(2026,10,21))
+        record.trang_thai='present';record.gio_ra=time(17)
         save_record(hr,record,'Đối chiếu và bổ sung giờ ra')
         inputs=PayrollInput.objects.get(employee=people['NV08'])
         inputs.verified=True
@@ -167,7 +167,7 @@ class OctoberTrainingTests(TestCase):
         for code in ['NV01','NV04','NV05','NV07','NV08']:
             approve_employee(hr,people[code],attendance.pk)
         attendance.refresh_from_db()
-        self.assertEqual(attendance.status,'approved')
+        self.assertEqual(attendance.trang_thai,'approved')
         calculate_payroll(hr,period.pk,'Tính lương sau khi xử lý đủ dữ liệu')
         self.assertEqual(PayrollRecord.objects.count(),8)
         change_payroll(director,period.pk,'approve','Đã đối chiếu đủ dữ liệu')

@@ -6,7 +6,7 @@ from django.db import models
 
 
 class PayrollPeriod(models.Model):
-    attendance_period = models.OneToOneField('attendance.AttendancePeriod', on_delete=models.PROTECT)
+    attendance_period = models.OneToOneField('attendance.KyCong', on_delete=models.PROTECT)
     status = models.CharField(max_length=10, default='pending',
                               choices=[('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt'), ('paid', 'Đã chi trả')])
     attendance_revision = models.PositiveIntegerField(default=0)

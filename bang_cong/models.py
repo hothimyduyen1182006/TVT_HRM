@@ -2,102 +2,124 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
-class AttendancePeriod(models.Model):
+class KyCong(models.Model):
     # Ca làm việc và lịch áp dụng cho một tháng.
-    month = models.PositiveSmallIntegerField(
+    thang = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(12)],
     )
-    year = models.PositiveSmallIntegerField(
+    nam = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(2000), MaxValueValidator(2100)],
     )
-    start_time = models.TimeField('Bắt đầu làm')
-    lunch_start = models.TimeField('Bắt đầu nghỉ trưa')
-    lunch_end = models.TimeField('Kết thúc nghỉ trưa')
-    end_time = models.TimeField('Kết thúc làm')
-    standard_hours = models.DecimalField(
+    gio_bat_dau = models.TimeField('Bắt đầu làm')
+    bat_dau_nghi_trua = models.TimeField('Bắt đầu nghỉ trưa')
+    ket_thuc_nghi_trua = models.TimeField('Kết thúc nghỉ trưa')
+    gio_ket_thuc = models.TimeField('Kết thúc làm')
+    gio_chuan = models.DecimalField(
         'Giờ/công', max_digits=5, decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))],
     )
-    status = models.CharField(
+    trang_thai = models.CharField(
         max_length=10,
         choices=[('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt')],
         default='pending',
     )
-    revision = models.PositiveIntegerField(default=1)
-    employee_ids = models.JSONField(default=list, blank=True)
-    approved_by = models.ForeignKey(
+    phien_ban = models.PositiveIntegerField(default=1)
+    ds_nhan_vien = models.JSONField(default=list, blank=True)
+    nguoi_duyet = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
     )
-    approved_at = models.DateTimeField(null=True, blank=True)
+    ngay_duyet = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['year', 'month'], name='unique_attendance_period',
+                fields=['nam', 'thang'], name='unique_attendance_period',
             ),
         ]
-        ordering = ['-year', '-month']
+        ordering = ['-nam', '-thang']
 
     def clean(self):
-        if any(value is None for value in [
-            self.start_time, self.lunch_start, self.lunch_end, self.end_time,
-        ]):
+        gio_lam_viec = (
+            self.gio_bat_dau,
+            self.bat_dau_nghi_trua,
+            self.ket_thuc_nghi_trua,
+            self.gio_ket_thuc,
+        )
+        if any(gio is None for gio in gio_lam_viec):
             return
-        if not self.start_time < self.lunch_start < self.lunch_end < self.end_time:
+        if not (
+            self.gio_bat_dau
+            < self.bat_dau_nghi_trua
+            < self.ket_thuc_nghi_trua
+            < self.gio_ket_thuc
+        ):
             raise ValidationError('Thứ tự giờ làm/nghỉ trưa không hợp lệ.')
 
     def __str__(self):
-        return f'{self.month:02}/{self.year}'
+        return f'{self.thang:02}/{self.nam}'
 
 
-class EmployeeAttendanceApproval(models.Model):
+class ChotBangCong(models.Model):
     # Một nhân viên chỉ có một kết quả duyệt trong mỗi kỳ.
-    period = models.ForeignKey(
-        AttendancePeriod, on_delete=models.PROTECT, related_name='employee_approvals',
+    ky_cong = models.ForeignKey(
+        KyCong, on_delete=models.PROTECT, related_name='employee_approvals',
     )
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
-    approved_by = models.ForeignKey(
+    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    tong_hop = models.OneToOneField(
+        'TongHopCong', on_delete=models.PROTECT,
+        null=True, blank=True, related_name='approval', verbose_name='Bản tổng hợp công',
+    )
+    nguoi_duyet = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
     )
-    approved_at = models.DateTimeField(auto_now_add=True)
+    ngay_duyet = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = 'Chot_bang_cong'
         constraints = [
             models.UniqueConstraint(
-                fields=['period', 'employee'],
+                fields=['ky_cong', 'nhan_vien'],
                 name='unique_employee_attendance_approval',
             ),
         ]
 
+    def clean(self):
+        if not self.tong_hop_id:
+            return
+        khoa_tong_hop = (self.tong_hop.ky_cong_id, self.tong_hop.nhan_vien_id)
+        khoa_ban_chot = (self.ky_cong_id, self.nhan_vien_id)
+        if khoa_tong_hop != khoa_ban_chot:
+            raise ValidationError('Bản chốt phải thuộc đúng nhân viên và kỳ tổng hợp.')
 
-class WorkCalendarDay(models.Model):
-    date = models.DateField('Ngày', unique=True)
-    kind = models.CharField(
+
+class LichLamViec(models.Model):
+    ngay = models.DateField('Ngày', unique=True)
+    loai_ngay = models.CharField(
         'Loại ngày', max_length=10,
         choices=[('work', 'Làm việc'), ('rest', 'Nghỉ tuần'), ('holiday', 'Lễ')],
     )
-    expected_units = models.DecimalField(
+    cong_chuan = models.DecimalField(
         'Công chuẩn', max_digits=5, decimal_places=4,
         validators=[MinValueValidator(0), MaxValueValidator(1)],
     )
-    name = models.CharField('Ghi chú', max_length=150, blank=True)
+    ghi_chu = models.CharField('Ghi chú', max_length=150, blank=True)
 
     def clean(self):
-        if self.kind != 'work' and self.expected_units != 0:
+        if self.loai_ngay != 'work' and self.cong_chuan != 0:
             raise ValidationError('Ngày nghỉ/lễ phải có công chuẩn bằng 0.')
 
 
-class AttendanceRecord(models.Model):
+class ChamCong(models.Model):
     # Dữ liệu gốc của nhân viên trong ngày.
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
-    date = models.DateField('Ngày')
-    check_in = models.TimeField('Check-in', null=True, blank=True)
-    check_out = models.TimeField('Check-out', null=True, blank=True)
-    status = models.CharField(
+    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    ngay = models.DateField('Ngày')
+    gio_vao = models.TimeField('Check-in', null=True, blank=True)
+    gio_ra = models.TimeField('Check-out', null=True, blank=True)
+    trang_thai = models.CharField(
         'Trạng thái', max_length=15,
         choices=[
             ('present', 'Có mặt'),
@@ -108,128 +130,147 @@ class AttendanceRecord(models.Model):
     )
 
     # Kết quả tính công được cập nhật qua services.
-    work_hours = models.DecimalField(max_digits=8, decimal_places=4, default=0)
-    late_minutes = models.PositiveIntegerField(default=0)
-    actual_units = models.DecimalField(max_digits=6, decimal_places=4, default=0)
-    paid_leave_units = models.DecimalField(max_digits=6, decimal_places=4, default=0)
-    paid_units = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    so_gio_lam = models.DecimalField(max_digits=8, decimal_places=4, default=0)
+    so_phut_tre = models.PositiveIntegerField(default=0)
+    cong_thuc_te = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    cong_nghi_co_luong = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    tong_cong = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    so_gio_tang_ca = models.DecimalField(
+        'Giờ tăng ca', db_column='So_gio_tang_ca',
+        max_digits=12, decimal_places=4, default=0,
+    )
 
-    note = models.TextField('Ghi chú', blank=True)
-    updated_by = models.ForeignKey(
+    ghi_chu = models.TextField('Ghi chú', blank=True)
+    nguoi_cap_nhat = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT,
     )
-    updated_at = models.DateTimeField(auto_now=True)
+    ngay_cap_nhat = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-date', 'employee__code']
+        db_table = 'Cham_cong'
+        ordering = ['-ngay', 'nhan_vien__code']
         constraints = [
             models.UniqueConstraint(
-                fields=['employee', 'date'], name='unique_employee_attendance_date',
+                fields=['nhan_vien', 'ngay'], name='unique_employee_attendance_date',
             ),
             models.CheckConstraint(
                 check=(
-                    models.Q(check_out__isnull=True)
-                    | models.Q(check_in__isnull=True)
-                    | models.Q(check_out__gt=models.F('check_in'))
+                    models.Q(gio_ra__isnull=True)
+                    | models.Q(gio_vao__isnull=True)
+                    | models.Q(gio_ra__gt=models.F('gio_vao'))
                 ),
                 name='valid_checkout',
             ),
         ]
 
     def clean(self):
-        if self.employee_id and self.date and self.date < self.employee.hire_date:
+        if self.nhan_vien_id and self.ngay and self.ngay < self.nhan_vien.hire_date:
             raise ValidationError('Ngày công không được trước ngày vào làm.')
-        open_shift = self.status == 'incomplete' and self.check_in and not self.check_out
-        if bool(self.check_in) != bool(self.check_out) and not open_shift:
+        ca_dang_mo = (
+            self.trang_thai == 'incomplete' and self.gio_vao and not self.gio_ra
+        )
+        if bool(self.gio_vao) != bool(self.gio_ra) and not ca_dang_mo:
             raise ValidationError('Cần nhập đủ check-in/check-out hoặc để trống cả hai.')
-        if self.check_in and self.check_out and self.check_out <= self.check_in:
+        if self.gio_vao and self.gio_ra and self.gio_ra <= self.gio_vao:
             raise ValidationError('Check-out phải sau check-in trong cùng ngày.')
-        if self.status == 'present' and not self.check_in:
+        if self.trang_thai == 'present' and not self.gio_vao:
             raise ValidationError('Có mặt cần đủ giờ vào và ra.')
-        if self.status in ('leave', 'absent') and self.check_in:
-            raise ValidationError('Có giờ làm hãy chọn Có mặt; nghỉ một phần ngày lấy từ module nghỉ phép.')
-        if self.status == 'incomplete' and self.check_out:
+        if self.trang_thai in ('leave', 'absent') and self.gio_vao:
+            raise ValidationError(
+                'Có giờ làm hãy chọn Có mặt; nghỉ một phần ngày lấy từ module nghỉ phép.'
+            )
+        if self.trang_thai == 'incomplete' and self.gio_ra:
             raise ValidationError('Có đủ giờ vào và ra hãy chọn Có mặt.')
 
     @property
-    def overtime_hours(self):
+    def gio_tang_ca(self):
         from .services.calculations import automatic_overtime
 
         return automatic_overtime(self)['hours']
 
 
-class OvertimeApproval(models.Model):
-    """Read-only archive of the retired request/review workflow, excluded from bang_luong."""
-    start_time = models.TimeField('Bắt đầu OT', null=True, blank=True)
-    end_time = models.TimeField('Kết thúc OT', null=True, blank=True)
-    department = models.ForeignKey(
-        'employees.Department', null=True, blank=True, on_delete=models.PROTECT,
-        related_name='overtime_requests', verbose_name='Phòng ban khi gửi',
+class NhatKyCong(models.Model):
+    nguoi_thuc_hien = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    ngay_tao = models.DateTimeField(auto_now_add=True)
+    hanh_dong = models.CharField(max_length=30)
+    ly_do = models.TextField()
+    du_lieu_cu = models.JSONField(default=dict)
+    du_lieu_moi = models.JSONField(default=dict)
+
+
+class TongHopCong(models.Model):
+    """Kết quả tổng hợp một nhân viên/tháng; chỉ cập nhật qua services."""
+
+    ky_cong = models.ForeignKey(
+        KyCong, on_delete=models.CASCADE, related_name='summaries',
     )
-    status = models.CharField(
-        'Trạng thái yêu cầu', max_length=10, default='legacy',
+    nhan_vien = models.ForeignKey(
+        'employees.Employee', on_delete=models.CASCADE,
+        related_name='attendance_summaries',
+    )
+    thang = models.PositiveSmallIntegerField()
+    nam = models.PositiveSmallIntegerField()
+    cong_chuan = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    cong_thuc_te = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    cong_nghi_co_luong = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    so_ngay_khong_phep = models.PositiveIntegerField(default=0)
+    tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    so_gio_lam = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    gio_tang_ca = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    so_lan_tre = models.PositiveIntegerField(default=0)
+    so_phut_tre = models.PositiveIntegerField(default=0)
+    trang_thai = models.CharField(
+        max_length=12, default='pending',
         choices=[
-            ('legacy', 'Dữ liệu cũ'),
             ('pending', 'Chờ duyệt'),
             ('approved', 'Đã duyệt'),
-            ('rejected', 'Từ chối'),
+            ('incomplete', 'Cần kiểm tra'),
+            ('empty', 'Chưa có dữ liệu'),
         ],
     )
-    requested_hours = models.DecimalField(
-        'Giờ OT đề nghị', max_digits=6, decimal_places=2, null=True, blank=True,
-        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(24)],
-    )
-    request_reason = models.TextField('Lý do tăng ca', blank=True)
-    requested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
-        related_name='submitted_overtime',
-    )
-    requested_at = models.DateTimeField(null=True, blank=True)
-    reviewed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
-        related_name='reviewed_overtime',
-    )
-    reviewed_at = models.DateTimeField(null=True, blank=True)
-    rejection_reason = models.TextField('Lý do từ chối', blank=True)
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
-    date = models.DateField('Ngày OT')
-    hours = models.DecimalField(
-        'Giờ được duyệt', max_digits=6, decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(24)],
-    )
-    multiplier = models.DecimalField(
-        'Hệ số', max_digits=5, decimal_places=2,
-        validators=[MinValueValidator(1)],
-    )
-    approved = models.BooleanField('Đã duyệt', default=False)
-    approved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT,
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
+    ngay_cap_nhat = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = 'Tong_hop_cong'
         constraints = [
             models.UniqueConstraint(
-                fields=['employee', 'date', 'start_time', 'end_time'],
-                name='unique_employee_ot_interval',
+                fields=['nhan_vien', 'nam', 'thang'],
+                name='unique_employee_month_summary',
+            ),
+            models.UniqueConstraint(
+                fields=['ky_cong', 'nhan_vien'],
+                name='unique_employee_period_summary',
             ),
         ]
 
-    def save(self, *args, **kwargs):
-        from django.core.exceptions import PermissionDenied
-
-        raise PermissionDenied('Lịch sử OT chỉ đọc. OT hiện tại tính tự động từ chấm công.')
-
-    def delete(self, *args, **kwargs):
-        from django.core.exceptions import PermissionDenied
-
-        raise PermissionDenied('Không được xóa lịch sử OT.')
+    def clean(self):
+        if self.ky_cong_id and (self.nam, self.thang) != (self.ky_cong.nam, self.ky_cong.thang):
+            raise ValidationError('Tháng/năm tổng hợp phải khớp kỳ công.')
 
 
-class AttendanceAuditLog(models.Model):
-    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    created_at = models.DateTimeField(auto_now_add=True)
-    action = models.CharField(max_length=30)
-    reason = models.TextField()
-    before = models.JSONField(default=dict)
-    after = models.JSONField(default=dict)
+class LichSuDieuChinhCong(models.Model):
+    """Một dòng cho một trường thay đổi; giữ liên kết nhật ký gốc để đối chiếu."""
+
+    nhat_ky = models.ForeignKey(
+        NhatKyCong, on_delete=models.CASCADE, related_name='adjustments',
+    )
+    cham_cong = models.ForeignKey(
+        ChamCong, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='adjustments',
+    )
+    nguoi_thuc_hien = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    truong_dieu_chinh = models.CharField('Trường điều chỉnh', max_length=40)
+    gia_tri_cu = models.TextField('Giá trị cũ', blank=True)
+    gia_tri_moi = models.TextField('Giá trị mới', blank=True)
+    ly_do = models.TextField('Lý do')
+    ngay_dieu_chinh = models.DateTimeField('Ngày điều chỉnh')
+
+    class Meta:
+        db_table = 'Lich_su_dieu_chinh_cong'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['nhat_ky', 'truong_dieu_chinh'],
+                name='unique_audit_changed_field',
+            ),
+        ]
+

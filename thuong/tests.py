@@ -7,7 +7,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from bang_cong.models import AttendancePeriod, AttendanceRecord, WorkCalendarDay
+from bang_cong.models import KyCong, ChamCong, LichLamViec
 from nhan_vien.models import Department, Employee
 from .models import Bonus
 
@@ -33,15 +33,15 @@ class AutomaticBonusPostTests(TestCase):
         cls.hr.groups.add(Group.objects.get_or_create(name='Nhân sự')[0])
         cls.director = get_user_model().objects.create_user('director')
         cls.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
-        AttendancePeriod.objects.create(month=1, year=2026, start_time=time(8),
-            lunch_start=time(12), lunch_end=time(13), end_time=time(17),
-            standard_hours=8, status='approved',
-            employee_ids=[employee.pk for employee in cls.people.values()])
-        WorkCalendarDay.objects.create(date=date(2026, 1, 5), kind='work', expected_units=1)
+        KyCong.objects.create(thang=1, nam=2026, gio_bat_dau=time(8),
+            bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17),
+            gio_chuan=8, trang_thai='approved',
+            ds_nhan_vien=[employee.pk for employee in cls.people.values()])
+        LichLamViec.objects.create(ngay=date(2026, 1, 5), loai_ngay='work', cong_chuan=1)
         for employee in cls.people.values():
-            AttendanceRecord.objects.create(employee=employee, date=date(2026, 1, 5),
-                status='present', check_in=time(8), check_out=time(17),
-                work_hours=8, actual_units=1, paid_units=1)
+            ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
+                trang_thai='present', gio_vao=time(8), gio_ra=time(17),
+                so_gio_lam=8, cong_thuc_te=1, tong_cong=1)
 
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True)

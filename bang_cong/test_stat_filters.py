@@ -1,7 +1,6 @@
 from datetime import date, time
 from decimal import Decimal
 from django.test import TestCase
-from django.utils import timezone
 from nghi_phep.models import LeaveDay
 from .tests import AttendanceTests
 from .services.workflow import save_record
@@ -12,19 +11,19 @@ class StatFilterTests(TestCase):
     record = AttendanceTests.record
 
     def test_cards_filter_daily_rows_and_preserve_period(self):
-        regular = save_record(self.hr, self.record(check_out=time(19)), 'Ngày làm')
-        late = save_record(self.hr, self.record(date=date(2026, 1, 6), check_in=time(9)), 'Đi trễ')
+        regular = save_record(self.hr, self.record(gio_ra=time(19)), 'Ngày làm')
+        late = save_record(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Đi trễ')
         LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 7), units=1,
                                 paid=True, approved=True, reason='Phép')
-        leave = save_record(self.hr, self.record(date=date(2026, 1, 7), check_in=None,
-                            check_out=None, status='leave'), 'Nghỉ phép')
-        absent = save_record(self.hr, self.record(date=date(2026, 1, 8), check_in=None,
-                             check_out=None, status='absent'), 'Vắng')
+        leave = save_record(self.hr, self.record(ngay=date(2026, 1, 7), gio_vao=None,
+                            gio_ra=None, trang_thai='leave'), 'Nghỉ phép')
+        absent = save_record(self.hr, self.record(ngay=date(2026, 1, 8), gio_vao=None,
+                             gio_ra=None, trang_thai='absent'), 'Vắng')
         self.client.force_login(self.hr)
         url = f'/bang_cong/employee/{self.emp.pk}/'
-        expected = {'actual': [regular.date, late.date], 'paid_leave': [leave.date],
-                    'paid': [regular.date, late.date, leave.date], 'absent': [absent.date],
-                    'late': [late.date], 'ot': [regular.date]}
+        expected = {'actual': [regular.ngay, late.ngay], 'paid_leave': [leave.ngay],
+                    'paid': [regular.ngay, late.ngay, leave.ngay], 'absent': [absent.ngay],
+                    'late': [late.ngay], 'ot': [regular.ngay]}
         for state, dates in expected.items():
             with self.subTest(state=state):
                 response = self.client.get(url, {'month': 1, 'year': 2026, 'state': state,

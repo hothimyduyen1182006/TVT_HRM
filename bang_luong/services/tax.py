@@ -37,7 +37,7 @@ def calculate_tax(inputs, attendance, wage, overtime_pay, bonus, insurance, adju
         raise ValidationError('Chưa hỗ trợ tự tính cho chế độ thuế này. Cần đối soát riêng, không mặc định thuế bằng 0.')
     if not inputs.verified or not inputs.tax_basis.strip():
         raise ValidationError('HR cần xác nhận đủ hồ sơ và căn cứ tính thuế trước khi tính lương.')
-    if attendance.year != 2026 or attendance.month < 7:
+    if attendance.nam != 2026 or attendance.thang < 7:
         raise ValidationError('Chế độ tự tính hiện hỗ trợ 07–12/2026. Kỳ khác cần cấu hình chính sách phù hợp.')
     allowances = [row for row in adjustments if row.kind=='allowance']
     allowance = sum((row.amount for row in allowances), ZERO)
@@ -82,8 +82,8 @@ def tax_source_error(record):
         employee=record_employee(record)
         inputs=employee_input(employee,record.period)
         adjustments=employee_adjustments(employee,record.period)
-        bonuses = payroll_bonus_records(Bonus.objects.filter(employee=record.employee, year=attendance.year, month=attendance.month))
-        overtime = payroll_overtime(record.employee, attendance.year, attendance.month)
+        bonuses = payroll_bonus_records(Bonus.objects.filter(employee=record.employee, year=attendance.nam, month=attendance.thang))
+        overtime = payroll_overtime(record.employee, attendance.nam, attendance.thang)
         insurance = sum((inputs.insurance_base * Decimal(str(rate)) for rate in inputs.insurance_rates.values()), ZERO)
         exact_wage = Decimal(record.breakdown['attendance_pay_exact'])
         exact_ot = sum((Decimal(item['amount']) for item in record.breakdown.get('ot', [])), ZERO)

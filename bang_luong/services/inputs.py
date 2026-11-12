@@ -4,7 +4,7 @@ from django.db import transaction
 from django.forms.models import model_to_dict
 from nhan_vien.access import require_role, HR, DIRECTOR
 from bang_luong.models import PayrollPeriod, PayrollAuditLog
-from bang_cong.models import AttendancePeriod
+from bang_cong.models import KyCong
 from .source_data import canonical
 
 
@@ -73,7 +73,7 @@ def save_employee_settings(actor, employee, settings):
         return employee
     employee.payroll_settings={**settings,'_updated_by':actor.pk,'_updated_at':timezone.now().isoformat()}
     employee.save(update_fields=['payroll_settings'])
-    period=PayrollPeriod.objects.filter(records__employee=employee).order_by('-attendance_period__year','-attendance_period__month').first()
+    period=PayrollPeriod.objects.filter(records__employee=employee).order_by('-attendance_period__nam','-attendance_period__thang').first()
     if period:
         PayrollAuditLog.objects.create(period=period,actor=actor,action='employee_settings',
             reason=f'Cập nhật thiết lập tính lương dùng chung của {employee.code}',
@@ -81,7 +81,7 @@ def save_employee_settings(actor, employee, settings):
     from .calculations import refresh_employee_payroll
     for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
         attendance=period.attendance_period
-        error=refresh_employee_payroll(actor,employee.pk,attendance.year,attendance.month)
+        error=refresh_employee_payroll(actor,employee.pk,attendance.nam,attendance.thang)
         if error: employee.payroll_errors.append(error)
     return employee
 
@@ -97,7 +97,7 @@ def input_snapshot(value):
 def save_input(actor, value):
     require_role(actor, HR, DIRECTOR)
     link = PayrollPeriod.objects.get(pk=value.period_id)
-    AttendancePeriod.objects.select_for_update().get(pk=link.attendance_period_id)
+    KyCong.objects.select_for_update().get(pk=link.attendance_period_id)
     period = PayrollPeriod.objects.select_for_update().get(pk=value.period_id)
     value.period = period
     if value.is_locked:
@@ -116,5 +116,5 @@ def save_input(actor, value):
         reason='Nhân sự cập nhật dữ liệu đầu vào theo kỳ lương', snapshot=[{'before': before, 'after': input_snapshot(value)}])
     from .calculations import refresh_employee_payroll
     attendance = period.attendance_period
-    value.payroll_error = refresh_employee_payroll(actor, value.employee_id, attendance.year, attendance.month)
+    value.payroll_error = refresh_employee_payroll(actor, value.employee_id, attendance.nam, attendance.thang)
     return value, True

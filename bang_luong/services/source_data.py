@@ -1,7 +1,9 @@
 """Bản chụp dữ liệu tính lương; bỏ qua thời gian, người duyệt và ghi chú."""
+
+from django.db.models import F
 from datetime import date, time
 from decimal import Decimal
-from bang_cong.models import WorkCalendarDay
+from bang_cong.models import LichLamViec
 from nghi_phep.models import LeaveDay
 
 
@@ -23,14 +25,18 @@ def source_data(employee, attendance, inputs, records, overtime, bonuses, adjust
                         list(adjustments.order_by('pk').values('id','kind','amount','tax_category')))
     data = {
         'base_salary': employee.base_salary,
-        'schedule': [attendance.start_time, attendance.lunch_start, attendance.lunch_end,
-                     attendance.end_time, attendance.standard_hours],
-        'calendar': list(WorkCalendarDay.objects.filter(date__year=attendance.year,
-            date__month=attendance.month).order_by('date').values('date', 'kind', 'expected_units')),
-        'attendance': list(records.order_by('date').values('date', 'check_in', 'check_out', 'status',
-            'work_hours', 'late_minutes', 'actual_units', 'paid_leave_units', 'paid_units')),
-        'leave': list(LeaveDay.objects.filter(employee=employee, date__year=attendance.year,
-            date__month=attendance.month, approved=True).order_by('date').values('date', 'units', 'paid')),
+        'schedule': [attendance.gio_bat_dau, attendance.bat_dau_nghi_trua, attendance.ket_thuc_nghi_trua,
+                     attendance.gio_ket_thuc, attendance.gio_chuan],
+        'calendar': list(LichLamViec.objects.filter(ngay__year=attendance.nam,
+            ngay__month=attendance.thang).order_by('ngay').values(**{'date': F('ngay'), 'kind': F('loai_ngay'), 'expected_units': F('cong_chuan')})),
+        'attendance': list(records.order_by('ngay').values(**{
+            'date': F('ngay'), 'check_in': F('gio_vao'), 'check_out': F('gio_ra'),
+            'status': F('trang_thai'), 'work_hours': F('so_gio_lam'),
+            'late_minutes': F('so_phut_tre'), 'actual_units': F('cong_thuc_te'),
+            'paid_leave_units': F('cong_nghi_co_luong'), 'paid_units': F('tong_cong'),
+        })),
+        'leave': list(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
+            date__month=attendance.thang, approved=True).order_by('date').values('date', 'units', 'paid')),
         'overtime': [{key: row[key] for key in ['id','date','start','end','hours','multiplier']} for row in overtime],
         'overtime_policy': 'automatic-checkout-1700-v1',
         'overtime_hourly_rate': inputs.overtime_hourly_rate,

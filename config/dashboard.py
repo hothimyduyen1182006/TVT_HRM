@@ -5,7 +5,7 @@ from django.db.models import Count
 from django.utils import timezone
 from nhan_vien.access import visible_employees
 from nhan_vien.models import Department
-from bang_cong.models import AttendanceRecord, AttendancePeriod
+from bang_cong.models import ChamCong, KyCong
 from nghi_phep.models import LeaveDay
 
 
@@ -24,16 +24,16 @@ class DashboardFilter(forms.Form):
 def dashboard_context(user, form):
     day = form.cleaned_data['date']
     employees = visible_employees(user).filter(is_active=True, hire_date__lte=day)
-    period = AttendancePeriod.objects.filter(year=day.year, month=day.month).first()
-    records = {r.employee_id: r for r in AttendanceRecord.objects.filter(employee__in=employees, date=day)}
+    period = KyCong.objects.filter(nam=day.year, thang=day.month).first()
+    records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
     leaves = set(LeaveDay.objects.filter(employee__in=employees, date=day, approved=True).values_list('employee_id', flat=True))
     counts = {'ontime': 0, 'late': 0, 'unchecked': 0}
     rows = []
     for employee in employees.select_related('department', 'position').order_by('code'):
         record = records.get(employee.pk)
-        if record and record.check_in:
+        if record and record.gio_vao:
             if period:
-                state, label = ('late', 'Đi trễ') if record.check_in > period.start_time else ('ontime', 'Đúng giờ')
+                state, label = ('late', 'Đi trễ') if record.gio_vao > period.gio_bat_dau else ('ontime', 'Đúng giờ')
                 counts[state] += 1
             else:
                 state, label = 'recorded', 'Đã check-in · chưa có ca cấu hình'
@@ -41,7 +41,7 @@ def dashboard_context(user, form):
             counts['unchecked'] += 1
             if employee.pk in leaves:
                 state, label = 'leave', 'Nghỉ phép đã duyệt'
-            elif record and record.status == 'absent':
+            elif record and record.trang_thai == 'absent':
                 state, label = 'absent', 'Nghỉ không phép đã ghi nhận'
             else:
                 state, label = 'unchecked', 'Chưa chấm công'
