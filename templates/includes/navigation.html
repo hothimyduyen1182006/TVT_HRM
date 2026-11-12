@@ -9,11 +9,11 @@
   <div class="at-navlinks">
     {% if can_view_dashboard %}<a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active" aria-current="page"{% endif %}>DASHBOARD</a>{% endif %}
     {% if can_view_dashboard %}<a href="{% url 'employees' %}" {% if request.resolver_match.url_name == 'employees' or '/admin/employees/' in request.path %}class="active" aria-current="page"{% endif %}>NHÂN VIÊN</a>{% endif %}
-    <a href="{% url 'attendance:clock' %}" {% if request.resolver_match.url_name == 'clock' %}class="active" aria-current="page"{% endif %}>CHẤM CÔNG</a>
-    <a href="{% url 'attendance:list' %}" {% if request.resolver_match.namespace == 'attendance' and request.resolver_match.url_name != 'clock' or '/admin/attendance/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG CÔNG</a>
-    {% if bonus_menu %}<a href="{% if user.is_superuser %}{% url 'admin:bonuses_bonus_changelist' %}{% else %}{% url 'bonuses:list' %}{% endif %}" {% if '/admin/bonuses/' in request.path or request.resolver_match.namespace == 'bonuses' %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
-    <a href="{% if can_view_dashboard %}{% url 'payroll:list' %}{% else %}{% url 'payroll:personal' %}{% endif %}" {% if request.resolver_match.namespace == 'payroll' or '/admin/payroll/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG LƯƠNG</a>
-    <a href="{% url 'leaves:list' %}" {% if request.resolver_match.namespace == 'leaves' or '/admin/leaves/' in request.path %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>
+    <a href="{% url 'bang_cong:clock' %}" {% if request.resolver_match.url_name == 'clock' %}class="active" aria-current="page"{% endif %}>CHẤM CÔNG</a>
+    <a href="{% url 'bang_cong:list' %}" {% if request.resolver_match.namespace == 'bang_cong' and request.resolver_match.url_name != 'clock' or '/admin/attendance/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG CÔNG</a>
+    {% if bonus_menu %}<a href="{% if user.is_superuser %}{% url 'admin:bonuses_bonus_changelist' %}{% else %}{% url 'thuong:list' %}{% endif %}" {% if '/admin/bonuses/' in request.path or request.resolver_match.namespace == 'thuong' %}class="active" aria-current="page"{% endif %}>BẢNG THƯỞNG</a>{% endif %}
+    <a href="{% if can_view_dashboard %}{% url 'bang_luong:list' %}{% else %}{% url 'bang_luong:personal' %}{% endif %}" {% if request.resolver_match.namespace == 'bang_luong' or '/admin/payroll/' in request.path %}class="active" aria-current="page"{% endif %}>BẢNG LƯƠNG</a>
+    <a href="{% url 'nghi_phep:list' %}" {% if request.resolver_match.namespace == 'nghi_phep' or '/admin/leaves/' in request.path %}class="active" aria-current="page"{% endif %}>NGHỈ PHÉP</a>
   </div>
   {% if user.is_authenticated %}
   <details class="at-account">

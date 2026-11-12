@@ -10,11 +10,11 @@ Không sửa template cha, Navbar, CSS chung, model, migration hoặc công th�
 
 ## Điều hướng
 
-- /payroll/: Nhân sự, Giám đốc, superuser thấy bảng tổng hợp; Trưởng phòng thấy danh sách
+- /bang_luong/: Nhân sự, Giám đốc, superuser thấy bảng tổng hợp; Trưởng phòng thấy danh sách
   trong phòng được quản lý và không có thao tác tính/điều chỉnh/xuất.
 - Nhân viên vào cùng URL thấy phiếu cá nhân, chỉ có bộ chọn tháng/năm.
-- /payroll/personal/: phiếu của tài khoản đang đăng nhập; không nhận bộ lọc nhân viên khác.
-- /payroll/<pk>/: dùng chung thiết kế phiếu, vẫn kiểm tra quyền theo nhân viên/phòng ở backend.
+- /bang_luong/personal/: phiếu của tài khoản đang đăng nhập; không nhận bộ lọc nhân viên khác.
+- /bang_luong/<pk>/: dùng chung thiết kế phiếu, vẫn kiểm tra quyền theo nhân viên/phòng ở backend.
 - Tính lương mở hộp thoại yêu cầu lý do rồi POST vào workflow có sẵn. Chưa có kỳ thì hướng
   dẫn tạo qua Admin, không tự tạo kỳ hoặc lương khi xem trang.
 - Điều chỉnh mở trang đầu vào có sẵn, lọc theo kỳ đã chọn. Kỳ đã duyệt vẫn khóa theo service.
@@ -23,7 +23,7 @@ Không sửa template cha, Navbar, CSS chung, model, migration hoặc công th�
 ## Cập nhật: duyệt riêng phiếu từng nhân viên
 
 Giám đốc (demo_director) và superuser có nút Duyệt bảng lương tại cột Tác vụ của từng dòng.
-POST /payroll/<pk>/approve/ chỉ đổi trạng thái phiếu được chọn; lưu người/thời gian và audit.
+POST /bang_luong/<pk>/approve/ chỉ đổi trạng thái phiếu được chọn; lưu người/thời gian và audit.
 Các vai trò khác không có nút và bị từ chối khi gọi trực tiếp endpoint. Không tự chuyển sang Đã chi trả.
 Kỳ tổng hợp chuyển Đã duyệt khi tất cả phiếu trong kỳ đã duyệt; xác nhận chi trả vẫn qua
 workflow có bằng chứng thanh toán. Nút duyệt toàn kỳ không còn hiển thị trong giao diện.
@@ -51,7 +51,7 @@ Kiểm tra khi xem trang không ghi dữ liệu, không cập nhật số tiền
 
 ## Dữ liệu đầu vào theo kỳ lương
 
-/payroll/inputs/ luôn chọn tháng/năm, có lọc tên/mã, phòng ban và tình trạng thuế/BH.
+/bang_luong/inputs/ luôn chọn tháng/năm, có lọc tên/mã, phòng ban và tình trạng thuế/BH.
 Hiển thị cả nhân viên thiếu đầu vào; không tự tạo khoản thuế, bảo hiểm hoặc kỳ lương.
 Hai phần riêng: Thuế và bảo hiểm (một bộ/nhân viên/kỳ), Phụ cấp và khấu trừ khác (nhiều khoản).
 Các nút thêm/sửa giữ đúng kỳ và nhân viên đã chọn. Phiếu đã duyệt/chi trả chỉ được xem dữ liệu.
@@ -110,13 +110,13 @@ mẫu vào database dự án. Đã xuất thử PDF A4 một trang và kiểm tr
 - payroll/services/presentation.py
 - payroll/templatetags/__init__.py
 - payroll/templatetags/payroll_display.py
-- payroll/static/payroll/payroll.css
-- payroll/static/payroll/payroll.js
-- templates/payroll/base.html
-- templates/payroll/list.html
-- templates/payroll/personal.html
-- templates/payroll/detail.html
-- templates/payroll/empty_icon.html
+- payroll/static/bang_luong/payroll.css
+- payroll/static/bang_luong/payroll.js
+- templates/bang_luong/base.html
+- templates/bang_luong/list.html
+- templates/bang_luong/personal.html
+- templates/bang_luong/detail.html
+- templates/bang_luong/empty_icon.html
 - payroll/tests.py
 - docs/payroll-interface.md
 

@@ -25,7 +25,7 @@
 .bd-reject-buttons{display:flex;justify-content:center;gap:10px;margin-top:14px}.bd-table{width:100%;table-layout:fixed}.bd-table th,.bd-table td{overflow-wrap:anywhere}.bd-table th:nth-child(1),.bd-table td:nth-child(1){width:5%}.bd-table th:nth-child(2),.bd-table td:nth-child(2){width:18%}.bd-table th:nth-child(3),.bd-table td:nth-child(3){width:12%;white-space:nowrap}.bd-table th:nth-child(4),.bd-table td:nth-child(4){width:30%;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(5),.bd-table td:nth-child(5){width:17%;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(6),.bd-table td:nth-child(6){width:18%}.bd-table td:nth-child(4){text-align:left}.bd-row-actions{display:flex;justify-content:center;align-items:center;gap:5px;flex-wrap:wrap}.bd-row-actions form{margin:0}.bd-row-actions .btn{white-space:nowrap}.bd-table{width:100%;min-width:0;table-layout:fixed}.bd-table th,.bd-table td{box-sizing:border-box;min-width:0;white-space:normal!important;overflow-wrap:anywhere;word-break:normal}.bd-table th:nth-child(1),.bd-table td:nth-child(1){width:5%}.bd-table th:nth-child(2),.bd-table td:nth-child(2){width:20%}.bd-table th:nth-child(3),.bd-table td:nth-child(3){width:12%}.bd-table th:nth-child(4),.bd-table td:nth-child(4){width:28%}.bd-table th:nth-child(5),.bd-table td:nth-child(5){width:17%}.bd-table th:nth-child(6),.bd-table td:nth-child(6){width:18%}.bd-table td:nth-child(3){white-space:nowrap!important}</style>{% endblock %}
 {% block content %}
 <main class="bd">
-  <a class="bd-back" href="{% url 'bonuses:list' %}">← Quay lại quản lý thưởng</a>
+  <a class="bd-back" href="{% url 'thuong:list' %}">← Quay lại quản lý thưởng</a>
   <h1 class="h3 bd-title mt-2">CHI TIẾT THƯỞNG</h1>
 
   <div class="bd-info">
@@ -58,9 +58,9 @@
               {% if item.automatic %}
                 <span class="text-secondary">🔒 Tự động tính</span>
               {% else %}
-                {% if item.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'bonuses:proposal-edit' item.id %}">Sửa</a>{% endif %}
+                {% if item.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'thuong:proposal-edit' item.id %}">Sửa</a>{% endif %}
                 {% if item.can_delete %}
-                  <form method="post" action="{% url 'bonuses:proposal-delete' item.id %}" onsubmit="return confirm('Xóa khoản thưởng này?')">
+                  <form method="post" action="{% url 'thuong:proposal-delete' item.id %}" onsubmit="return confirm('Xóa khoản thưởng này?')">
                     {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
                   </form>
                 {% endif %}

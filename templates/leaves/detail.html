@@ -4,7 +4,7 @@
 {% block extra_head %}<link rel="stylesheet" href="{% static 'leaves/leave.css' %}?v=20261112-cleanup">{% endblock %}
 {% block content %}
 <main class="leave-detail-page">
-  <a class="leave-back-link" href="{% url 'leaves:list' %}?view={{ back_view }}">← Quay lại danh sách đơn</a>
+  <a class="leave-back-link" href="{% url 'nghi_phep:list' %}?view={{ back_view }}">← Quay lại danh sách đơn</a>
   <section class="leave-review-sheet">
     <span class="leave-sheet-mark">TVT · NHÂN SỰ</span>
     <h1>CHI TIẾT ĐƠN NGHỈ PHÉP</h1>
@@ -19,7 +19,7 @@
       <div class="detail-wide leave-evidence-detail">
         <p class="detail-inline-row"><b>Minh chứng:</b>
           {% if evidence_available %}
-            <a class="leave-sheet-evidence" href="{% url 'leaves:evidence' item.pk %}" target="_blank" rel="noopener">
+            <a class="leave-sheet-evidence" href="{% url 'nghi_phep:evidence' item.pk %}" target="_blank" rel="noopener">
               {{ item.evidence.name|cut:'leave_evidence/'|cut:'/' }} · Mở tệp ↗
             </a>
           {% elif item.evidence %}
@@ -30,7 +30,7 @@
         </p>
       </div>
       {% if can_attach_evidence %}
-        <form method="post" enctype="multipart/form-data" class="leave-attach-evidence" action="{% url 'leaves:attach_evidence' item.pk %}">
+        <form method="post" enctype="multipart/form-data" class="leave-attach-evidence" action="{% url 'nghi_phep:attach_evidence' item.pk %}">
           {% csrf_token %}
           <label for="leave-evidence-file">Bổ sung ảnh minh chứng</label>
           <input id="leave-evidence-file" type="file" name="evidence" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/jpeg,image/png,image/webp,image/gif,application/pdf" required>
@@ -52,13 +52,13 @@
       {% endif %}
     </div>
     {% if can_review and item.status == 'pending' %}
-      <form method="post" class="leave-sheet-actions" action="{% url 'leaves:review' item.pk 'approve' %}">
+      <form method="post" class="leave-sheet-actions" action="{% url 'nghi_phep:review' item.pk 'approve' %}">
         {% csrf_token %}
         <label for="review_note">Ghi chú xử lý <span>(bắt buộc nếu từ chối)</span></label>
         <textarea id="review_note" name="review_note" maxlength="1000" placeholder="Nhập ghi chú hoặc lý do từ chối"></textarea>
         <div class="leave-sheet-buttons">
           <button class="leave-button approve-button" type="submit">Duyệt đơn</button>
-          <button class="leave-button reject-button" type="submit" formaction="{% url 'leaves:review' item.pk 'reject' %}">Từ chối đơn</button>
+          <button class="leave-button reject-button" type="submit" formaction="{% url 'nghi_phep:review' item.pk 'reject' %}">Từ chối đơn</button>
         </div>
       </form>
     {% else %}
