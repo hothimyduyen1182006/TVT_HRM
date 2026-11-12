@@ -1,21 +1,33 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from .access import DIRECTOR, HR, MANAGER, has_role, visible_employees
-from .forms import EducationForm, EmployeeForm, LaborContractForm, DashboardEmployeeFilter, PersonalProfileForm, SalarySettingsForm
+from .forms import (
+    DashboardEmployeeFilter,
+    EducationForm,
+    EmployeeForm,
+    LaborContractForm,
+    PersonalProfileForm,
+    SalarySettingsForm,
+)
 from .models import Education, Employee, LaborContract
 
 
 def payroll_settings_context(request, employee):
-    if not employee or not (employee.user_id==request.user.pk or has_role(request.user,HR,DIRECTOR)):
+    if not employee or not (
+        employee.user_id == request.user.pk or has_role(request.user, HR, DIRECTOR)
+    ):
         return {}
-    settings=employee.payroll_settings
-    return {'shared_salary_settings':settings,'can_manage_salary':has_role(request.user,HR,DIRECTOR),
-            'salary_form':SalarySettingsForm(employee)}
+    return {
+        'shared_salary_settings': employee.payroll_settings,
+        'can_manage_salary': has_role(request.user, HR, DIRECTOR),
+        'salary_form': SalarySettingsForm(employee),
+    }
 
 
 @login_required
@@ -23,12 +35,14 @@ def payroll_settings_edit(request, employee_id, kind, record_id=None):
     if not has_role(request.user,HR,DIRECTOR):
         return _forbidden(request)
     get_object_or_404(visible_employees(request.user),pk=employee_id)
-    from django.http import Http404
-    from payroll.models import PayrollInput,PayrollAdjustment
-    if kind not in ['tax','adjustment']: raise Http404
+    from payroll.models import PayrollAdjustment, PayrollInput
+
+    if kind not in ('tax', 'adjustment'):
+        raise Http404
     if record_id is not None:
-        get_object_or_404(PayrollInput if kind=='tax' else PayrollAdjustment,pk=record_id,employee_id=employee_id)
-    return redirect('employee_edit',employee_id=employee_id)
+        model = PayrollInput if kind == 'tax' else PayrollAdjustment
+        get_object_or_404(model, pk=record_id, employee_id=employee_id)
+    return redirect('employee_edit', employee_id=employee_id)
 
 
 MANAGEMENT_ROLES = (HR, DIRECTOR)
@@ -65,8 +79,11 @@ def employee_list(request):
         'hire_to': request.GET.get('hire_to', '').strip(),
     }
     if filters['q']:
-        rows = rows.filter(Q(code__icontains=filters['q']) | Q(full_name__icontains=filters['q']) |
-                           Q(user__username__icontains=filters['q']))
+        rows = rows.filter(
+            Q(code__icontains=filters['q'])
+            | Q(full_name__icontains=filters['q'])
+            | Q(user__username__icontains=filters['q'])
+        )
     if filters['department'].isdigit():
         rows = rows.filter(department_id=filters['department'])
     if filters['position'].isdigit():
@@ -146,7 +163,11 @@ def employee_create(request):
             save_employee_settings(request.user,employee,salary_form.settings_data())
         messages.success(request, 'Thêm mới nhân viên thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
-    return render(request, 'employees/employee_form.html', {'form': form, 'salary_form':salary_form,'is_create': True})
+    return render(request, 'employees/employee_form.html', {
+        'form': form,
+        'salary_form': salary_form,
+        'is_create': True,
+    })
 
 
 @login_required
@@ -180,7 +201,11 @@ def employee_edit(request, employee_id):
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
-    return render(request, 'employees/employee_form.html', {'form': form,'salary_form':salary_form,'employee': employee})
+    return render(request, 'employees/employee_form.html', {
+        'form': form,
+        'salary_form': salary_form,
+        'employee': employee,
+    })
 
 
 def _can_edit_employee_records(user, employee):
@@ -206,8 +231,12 @@ def _record_form(request, employee_id, record_id, model, form_class, kind, title
         messages.success(request, f'{title} đã được lưu.')
         return _employee_profile_redirect(request, employee)
     return render(request, 'employees/record_form.html', {
-        'form': form, 'employee': employee, 'record': record, 'kind': kind,
-        'title': title, 'is_edit': record is not None,
+        'form': form,
+        'employee': employee,
+        'record': record,
+        'kind': kind,
+        'title': title,
+        'is_edit': record is not None,
         'personal_view': employee.user_id == request.user.pk,
     })
 
