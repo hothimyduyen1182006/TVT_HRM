@@ -8,7 +8,7 @@ from nhan_vien.access import require_role, HR, DIRECTOR
 from bang_luong.models import PayrollExportLog, PayrollPeriod
 
 FIELDS = ['employee_code', 'employee_name', 'department_name', 'base_salary', 'standard_units',
-          'leave_units', 'paid_units', 'attendance_pay', 'bonus_pay', 'late_minutes',
+          'leave_units', 'paid_units', 'attendance_pay', 'bonus_pay', 'late_minutes', 'late_penalty',
           'allowance', 'insurance', 'tax', 'deductions', 'net_pay']
 
 

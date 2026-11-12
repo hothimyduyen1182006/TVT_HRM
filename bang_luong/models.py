@@ -131,6 +131,15 @@ class PayrollRecord(models.Model):
     breakdown = models.JSONField()
     calculated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def late_penalty(self):
+        # Phiếu lịch sử chưa áp dụng quy tắc này vẫn hiển thị bằng 0.
+        return Decimal(self.breakdown.get('late_penalty', {}).get('amount', '0'))
+
+    @property
+    def other_deductions(self):
+        return self.deductions - self.late_penalty
+
     class Meta:
         constraints = [models.UniqueConstraint(fields=['period', 'employee'], name='unique_payroll_record')]
         ordering = ['employee_code']

@@ -15,8 +15,7 @@ def payslip_context(record):
         rate = rates.get(name)
         insurance.append({'name': name, 'amount': Decimal(str(amount)),
                           'percent': Decimal(str(rate)) * 100 if rate is not None else None})
-    # Model hiện không phân loại riêng phạt đi trễ. Không lấy tổng deductions giả làm phạt.
-    # Giữ tổng khấu trừ đã lưu; chi tiết khoản được duyệt nằm trong breakdown.adjustments.
+    # Hiển thị khoản phạt từ snapshot; không tính lại phiếu lịch sử khi xem.
     total_income = record.attendance_pay + record.bonus_pay + record.allowance
     historical_overtime = bool((record.ot_hours or record.ot_pay) and
         record.breakdown.get('source_data',{}).get('overtime_policy')!='automatic-checkout-1700-v1')

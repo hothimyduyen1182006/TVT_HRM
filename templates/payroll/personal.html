@@ -31,10 +31,10 @@
    <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ income_total|money }} đ</dd></dl>
   </section>
   <section class="pr-deductions"><h3>↘ &nbsp;KHOẢN KHẤU TRỪ</h3>
-   <dl class="pr-line"><dt>Phạt đi trễ <span>({% if metrics.late_count != None %}{{ metrics.late_count }} lần / {% endif %}{{ row.late_minutes }} phút)</span><small>Chưa có khoản phạt tách riêng; không tự tính thêm.</small></dt><dd>—</dd></dl>
+   <dl class="pr-line"><dt>Phạt đi trễ <span>({% if metrics.late_count != None %}{{ metrics.late_count }} lần / {% endif %}{{ row.late_minutes }} phút)</span><small>{% if row.breakdown.late_penalty %}Mô phỏng: 100.000đ/giờ, tính theo phút đi trễ.{% else %}Phiếu này chưa áp dụng khoản phạt mô phỏng.{% endif %}</small></dt><dd>{% if row.late_penalty %}− {% endif %}{{ row.late_penalty|money }}</dd></dl>
    {% for item in insurance_lines %}<dl class="pr-line"><dt>{{ item.name }}{% if item.percent != None %} <span>({{ item.percent|units }}%)</span>{% endif %}</dt><dd>− {{ item.amount|money }}</dd></dl>{% empty %}<dl class="pr-line"><dt>Bảo hiểm <span>(tổng đã lưu)</span></dt><dd>{% if row.insurance %}− {% endif %}{{ row.insurance|money }}</dd></dl>{% endfor %}
    <dl class="pr-line"><dt>Thuế TNCN</dt><dd>{% if row.tax %}− {% endif %}{{ row.tax|money }}</dd></dl>
-   <dl class="pr-line"><dt>Khấu trừ khác đã duyệt</dt><dd>{% if row.deductions %}− {% endif %}{{ row.deductions|money }}</dd></dl>
+   <dl class="pr-line"><dt>Khấu trừ khác đã duyệt</dt><dd>{% if row.other_deductions %}− {% endif %}{{ row.other_deductions|money }}</dd></dl>
    <dl class="pr-total"><dt>TỔNG KHẤU TRỪ</dt><dd>{% if deductions_total %}− {% endif %}{{ deductions_total|money }} đ</dd></dl>
   </section>
  </div>

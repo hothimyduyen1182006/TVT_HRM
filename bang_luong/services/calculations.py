@@ -12,6 +12,7 @@ from .source_data import source_data, canonical
 from .tax import calculate_tax
 
 ZERO = Decimal(0)
+SIMULATED_LATE_HOURLY_RATE = Decimal('100000')
 
 
 def total(queryset, field):
@@ -139,7 +140,12 @@ def payroll_values(employee, attendance, period, standard=None):
     bonus = sum((Decimal(line['amount']) for line in bonus_lines), ZERO)
     adjustments = employee_adjustments(employee,period)
     allowance = sum((row.amount for row in adjustments if row.kind=='allowance'),ZERO)
-    deductions = sum((row.amount for row in adjustments if row.kind=='deduction'),ZERO)
+    late_minutes = total(records, 'so_phut_tre')
+    # Quy tắc mô phỏng đồ án, tách riêng với phần lương giảm do thiếu công.
+    late_penalty = (SIMULATED_LATE_HOURLY_RATE * late_minutes / Decimal(60)).quantize(
+        Decimal('1'), rounding=ROUND_HALF_UP,
+    )
+    deductions = sum((row.amount for row in adjustments if row.kind=='deduction'),ZERO) + late_penalty
     insurance_lines = {name: str(inputs.insurance_base * Decimal(str(rate)))
                        for name, rate in inputs.insurance_rates.items()}
     insurance = sum((Decimal(value) for value in insurance_lines.values()), ZERO)
@@ -152,10 +158,12 @@ def payroll_values(employee, attendance, period, standard=None):
         base_salary=employee.base_salary, standard_units=standard, paid_units=paid,
         leave_units=total(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
                                                  date__month=attendance.thang, approved=True), 'units'),
-        late_minutes=total(records, 'so_phut_tre'), ot_hours=sum((row['hours'] for row in overtime),ZERO), attendance_pay=wage,
+        late_minutes=late_minutes, ot_hours=sum((row['hours'] for row in overtime),ZERO), attendance_pay=wage,
         ot_pay=ot_pay, bonus_pay=bonus, allowance=allowance, insurance=insurance, tax=tax,
         deductions=deductions, net_pay=net.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
         breakdown={'attendance_revision': attendance.phien_ban,
+                   'late_penalty': {'amount': str(late_penalty), 'minutes': int(late_minutes),
+                                    'hourly_rate': str(SIMULATED_LATE_HOURLY_RATE), 'simulation': True},
                    'ot': ot_lines, 'overtime_warnings': [warning for row in overtime for warning in row['warnings']], 'bonuses': bonus_lines, 'insurance': insurance_lines,
                    'overtime_hourly_rate':str(ot_rate),'overtime_basis':inputs.overtime_basis,
                    'insurance_base': str(inputs.insurance_base), 'insurance_rates': inputs.insurance_rates,
