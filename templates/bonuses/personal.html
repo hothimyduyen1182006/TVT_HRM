@@ -26,17 +26,18 @@
   .bp-no-data{display:inline-block;width:.7rem;height:1px;border-radius:1px;background:#aeb8c4;vertical-align:middle}
   .bp-empty{text-align:center;padding:3rem!important;color:#718198}
   .bp-total{text-align:right;color:#17385e;font-size:14px;font-weight:700;margin-top:1rem}
-  .bp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0 0 28px;padding:0 14px;border:1px solid #e0e5ec;border-radius:10px;background:#fff;box-shadow:0 2px 8px #1736540a}
-  .bp-summary-card{min-width:0;padding:13px 16px;border:0;border-radius:0;background:#fff}
+  .bp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0 0 28px;padding:0 8px;border:1px solid #e0e5ec;border-radius:10px;background:#fff;box-shadow:0 2px 8px #1736540a}
+  .bp-summary-card{display:block;min-width:0;padding:9px 12px;border:0;border-radius:0;background:#fff;color:inherit;text-align:left;text-decoration:none;transition:box-shadow .15s}
+  .bp-summary-card:hover{color:inherit;text-decoration:none;box-shadow:inset 0 0 0 2px #d8a319}
+  .bp-summary-card:focus-visible{outline:3px solid #d8a319;outline-offset:-3px}
+  .bp-summary-card.is-selected{box-shadow:inset 0 0 0 2px #d8a319}
   .bp-summary-card+.bp-summary-card{border-left:1px solid #e5e9ef}
-  .bp-summary-card:first-child{margin:0 0 0 -14px;border-radius:9px 0 0 9px;background:#17385e}
-  .bp-summary-card:first-child .bp-summary-label,.bp-summary-card:first-child .bp-summary-value,.bp-summary-card:first-child .bp-summary-note{color:#fff}
-  .bp-summary-value{color:#17385e;font-size:24px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums}
-  .bp-summary-label{margin-top:0;color:#596a7c;font-size:13px}
-  .bp-summary-note{margin-top:2px;color:#718198;font-size:11px}
+  .bp-summary-card:first-child{margin:0;border-radius:9px 0 0 9px;background:#fff}
+  .bp-summary-value{color:#17385e;text-align:left;font-size:21px;font-weight:750;line-height:1.2;font-variant-numeric:tabular-nums}
+  .bp-summary-label{margin-top:0;color:#596a7c;font-size:12px;line-height:1.3}
   .bp-detail-link{display:inline-flex;align-items:center;justify-content:center;padding:4px 20px;border:1px solid #17385e;border-radius:20px;background:#edf2f8;color:#17385e;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap}
   .bp-detail-link:hover{background:#e4edf9;color:#17385e}
-  @media(max-width:700px){.bp-page{padding:0 .55rem}.bp-title{font-size:25px}.bp-filter{width:100%;justify-content:flex-start;padding:.8rem}.bp-field{flex:1 1 130px}.bp-field select{width:100%;min-width:0}.bp-summary{grid-template-columns:1fr;padding:0}.bp-summary-card{padding:11px 14px}.bp-summary-card+.bp-summary-card{border-left:0;border-top:1px solid #e5e9ef}.bp-summary-card:first-child{margin:0;border-radius:9px 9px 0 0}.bp-summary-value{font-size:21px}}
+  @media(max-width:700px){.bp-page{padding:0 .55rem}.bp-title{font-size:25px}.bp-filter{width:100%;justify-content:flex-start;padding:.8rem}.bp-field{flex:1 1 130px}.bp-field select{width:100%;min-width:0}.bp-summary{grid-template-columns:1fr;padding:0}.bp-summary-card{padding:12px 14px}.bp-summary-card+.bp-summary-card{border-left:0;border-top:1px solid #e5e9ef}.bp-summary-card:first-child{margin:0;border-radius:9px 9px 0 0}}
 </style>
 {% endblock %}
 {% block content %}
@@ -49,9 +50,15 @@
   </form>
   {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
   <section class="bp-summary" aria-label="Tổng hợp thưởng cá nhân">
-    <article class="bp-summary-card bp-summary-received"><div class="bp-summary-label">{{ received_label }}</div><div class="bp-summary-value">{{ total_received|money }} ₫</div><div class="bp-summary-note">&#272;&#227; duy&#7879;t v&#224; th&#7921;c t&#7871;</div></article>
-    <article class="bp-summary-card bp-summary-pending"><div class="bp-summary-label">Đang chờ duyệt</div><div class="bp-summary-value">{{ pending_total|money }} ₫</div></article>
-    <article class="bp-summary-card bp-summary-month"><div class="bp-summary-label">{{ summary_label }}</div><div class="bp-summary-value">{{ total_amount|money }} ₫</div></article>
+    <a class="bp-summary-card bp-summary-received {% if form.status.value == 'approved' and not form.month.value %}is-selected{% endif %}" href="{{ received_filter_url }}" title="Xem các khoản đã duyệt trong năm">
+      <div class="bp-summary-label">{{ received_label }}</div><div class="bp-summary-value">{{ total_received|money }} ₫</div>
+    </a>
+    <a class="bp-summary-card bp-summary-highest" href="{{ highest_month_url }}" title="Xem tháng có tổng thưởng đã duyệt cao nhất">
+      <div class="bp-summary-label">Tháng nhận thưởng cao nhất</div><div class="bp-summary-value">{{ highest_month_total|money }} ₫</div>
+    </a>
+    <a class="bp-summary-card bp-summary-month" href="{{ latest_month_url }}" title="Xem thưởng đã duyệt trong tháng gần nhất">
+      <div class="bp-summary-label">Thưởng tháng gần nhất</div><div class="bp-summary-value">{{ latest_month_total|money }} ₫</div>
+    </a>
   </section>
   <h2 class="h5 fw-bold text-uppercase mb-3" style="color:#17385e">Thông tin thưởng cá nhân</h2>
   <div class="table-responsive bg-white rounded">
