@@ -4,7 +4,7 @@ from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from nhan_vien.models import Employee, Department
 from bang_cong.models import KyCong, ChamCong, LichLamViec
-from bang_luong.models import PayrollPeriod, PayrollRecord
+from bang_luong.models import PayrollPeriod, Luong
 
 
 class ManagementPersonalRecordsTests(TestCase):
@@ -27,13 +27,13 @@ class ManagementPersonalRecordsTests(TestCase):
         for employee in self.people:
             ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
                 trang_thai='present', gio_vao=time(8), gio_ra=time(17), tong_cong=1, cong_thuc_te=1, so_gio_lam=8)
-            values = dict(employee=employee, period=payroll, employee_code=employee.code,
-                employee_name=employee.full_name, department_id_snapshot=self.department.pk,
-                department_name=self.department.name, base_salary=10000000, standard_units=1,
-                paid_units=1, leave_units=0, late_minutes=0, ot_hours=0, attendance_pay=10000000,
-                ot_pay=0, bonus_pay=0, allowance=0, insurance=0, tax=0, deductions=0,
-                net_pay=10000000, breakdown={})
-            PayrollRecord.objects.create(**values)
+            values = dict(nhan_vien=employee, ky_luong=payroll, ma_nhan_vien=employee.code,
+                ten_nhan_vien=employee.full_name, ma_phong_ban_luu=self.department.pk,
+                ten_phong_ban=self.department.name, luong_co_ban=10000000, cong_chuan=1,
+                cong_huong_luong=1, cong_nghi_phep=0, so_phut_tre=0, so_gio_tang_ca=0, luong_theo_cong=10000000,
+                luong_tang_ca=0, tong_tien_thuong=0, phu_cap=0, tong_bao_hiem=0, thue_tncn=0, tong_khau_tru=0,
+                luong_thuc_linh=10000000, chi_tiet={})
+            Luong.objects.create(**values)
 
     def test_management_roles_can_switch_to_own_records(self):
         for employee in self.people[:3]:
@@ -44,14 +44,14 @@ class ManagementPersonalRecordsTests(TestCase):
                     response = self.client.get(path, params)
                     self.assertEqual(response.status_code, 200)
                     self.assertContains(response, 'của tôi')
-                response = self.client.get('/bang_cong/personal/', params)
+                response = self.client.get('/bang_cong/ca-nhan/', params)
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.context['employee'], employee)
                 self.assertTrue(response.context['personal'])
                 self.assertFalse(response.context['can_approve'])
                 self.assertFalse(response.context['can_edit'])
                 self.assertEqual(response.context['summary']['paid'], Decimal(1))
-                self.assertEqual(self.client.get(f'/bang_cong/employee/{employee.pk}/history/', params).status_code, 200)
+                self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{employee.pk}/lich-su/', params).status_code, 200)
                 response = self.client.get('/bang_luong/personal/', params)
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.context['row'].employee, employee)
@@ -60,16 +60,16 @@ class ManagementPersonalRecordsTests(TestCase):
     def test_personal_attendance_ignores_other_employee_query(self):
         employee = self.people[2]
         self.client.force_login(employee.user)
-        response = self.client.get('/bang_cong/personal/', {'month': 1, 'year': 2026,
+        response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026,
             'employee': self.people[0].pk, 'department': self.team.pk})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['employee'], employee)
         # Quyền xem bản thân không mở rộng quyền xem nhân viên phòng khác.
-        self.assertEqual(self.client.get(f'/bang_cong/employee/{self.people[0].pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.people[0].pk}/').status_code, 404)
 
     def test_employee_has_no_management_scope_switch(self):
         self.client.force_login(self.people[3].user)
-        response = self.client.get('/bang_cong/personal/', {'month': 1, 'year': 2026})
+        response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026})
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'class="record-scope')
 
@@ -95,7 +95,7 @@ class ManagementPersonalRecordsTests(TestCase):
         for employee in self.people:
             with self.subTest(user=employee.user.username):
                 self.client.force_login(employee.user)
-                response = self.client.get('/bang_cong/personal/', {'month': 1, 'year': 2026})
+                response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026})
                 path = '/bang_luong/personal/' if employee == self.people[3] else '/bang_luong/'
                 self.assertContains(response, f'<a href="{path}" >BẢNG LƯƠNG</a>', html=True)
                 destination = self.client.get(path, {'month': 1, 'year': 2026})

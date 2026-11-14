@@ -1,3 +1,22 @@
+## Cấu trúc Bảng lương
+
+`bang_luong.models.Luong` lưu trong bảng `Luong`, có mã nghiệp vụ `ma_luong`
+duy nhất và giữ `id` nội bộ để bảo toàn URL, liên kết và lịch sử.
+Mỗi phiếu liên kết một `TongHopCong` và một `thuong.models.TongThuong` của đúng
+nhân viên/kỳ. Tổng thưởng lưu các khoản thưởng nguồn đã dùng; không có thưởng
+thì tổng bằng 0. Không thêm trang giao diện quản lý tổng thưởng riêng.
+
+Các cột thành tiền dùng tên tiếng Việt: `luong_co_ban`, `luong_theo_cong`,
+`luong_tang_ca`, `tong_tien_thuong`, `khau_tru_di_tre`, `khau_tru_bhxh`,
+`khau_tru_bhyt`, `khau_tru_bhtn`, `khau_tru_khac`, `thue_tncn`, `luong_thuc_linh`.
+`phu_cap` giữ phụ cấp hiện có; `tong_bao_hiem` và `tong_khau_tru` giữ tổng đã lưu.
+Độ chính xác tiền hiện tại và khóa JSON lịch sử được giữ để không đổi phiếu cũ.
+Trạng thái lưu `pending/approved/paid`, hiển thị Chờ duyệt/Đã duyệt/Đã chi trả.
+
+Migration `bonuses.0004_tong_thuong` và `payroll.0007_luong_structure` đổi tên,
+chuyển dữ liệu và áp dụng các liên kết bắt buộc, không tính lại tiền lương.
+Máy khác cần sao lưu database và chạy `python manage.py migrate` sau khi lấy code.
+
 ## Tên model và trường Bảng công
 
 App `bang_cong` dùng các model `KyCong`, `LichLamViec`, `ChamCong`, `TongHopCong`,
@@ -76,10 +95,10 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 
 - Nhân sự/Giám đốc/Trưởng phòng mở /bang_cong/ để xem tổng hợp một dòng mỗi nhân viên,
   tìm theo mã/họ tên và lọc phòng, trạng thái, tháng/năm trong phạm vi quyền.
-- Chọn Xem chi tiết để mở /bang_cong/employee/<id>/ với chỉ số tháng và bảng từng ngày.
+- Chọn Xem chi tiết để mở /bang_cong/nhan-vien/<id>/ với chỉ số tháng và bảng từng ngày.
   Có lọc khoảng ngày, tình trạng, đi trễ/nghỉ phép/nghỉ không phép và phân trang.
 - Nhân viên thông thường vào /bang_cong/ sẽ thấy giao diện công cá nhân.
-- Lịch sử tại /bang_cong/employee/<id>/history/ hiển thị từng trường trước/sau, người sửa,
+- Lịch sử tại /bang_cong/nhan-vien/<id>/lich-su/ hiển thị từng trường trước/sau, người sửa,
   lý do; lọc theo thời gian điều chỉnh, trường và người. Chỉ hiển thị lần sửa thực sự;
   không đưa tạo mới, lưu không đổi, duyệt hoặc tính lại tự động vào lịch sử điều chỉnh.
 - Nhân sự/Giám đốc xuất công và lịch sử theo bộ lọc bằng CSV UTF-8 mở được bằng Excel,
@@ -119,7 +138,7 @@ python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
    hệ thống không tự suy đoán ngày lễ. Nếu lịch nguồn thiếu ngày, chưa xác nhận hoặc có
    nhiều quy tắc khác nhau cho cùng thứ trong tuần, hệ thống báo cần HR xác định lịch.
    Tạo kỳ tháng mới không tự tạo dữ liệu chấm công, duyệt công hoặc tính lương.
-7. Nhân sự ghi công tại /bang_cong/new/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
+7. Nhân sự ghi công tại /bang_cong/them/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.
 8. Check-out sau 17:00 tự có OT theo giờ thực tế, không cần gửi/duyệt. Mở Bảng công hoặc chi tiết ngày để xem; sửa giờ ra sẽ tính lại OT. Giữ nguyên quy trình duyệt/khóa Bảng công.

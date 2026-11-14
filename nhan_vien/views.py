@@ -35,13 +35,8 @@ def payroll_settings_edit(request, employee_id, kind, record_id=None):
     if not has_role(request.user,HR,DIRECTOR):
         return _forbidden(request)
     get_object_or_404(visible_employees(request.user),pk=employee_id)
-    from bang_luong.models import PayrollAdjustment, PayrollInput
-
-    if kind not in ('tax', 'adjustment'):
+    if kind not in ('tax', 'adjustment') or record_id is not None:
         raise Http404
-    if record_id is not None:
-        model = PayrollInput if kind == 'tax' else PayrollAdjustment
-        get_object_or_404(model, pk=record_id, employee_id=employee_id)
     return redirect('employee_edit', employee_id=employee_id)
 
 
@@ -159,8 +154,8 @@ def employee_create(request):
     if request.method == 'POST' and form.is_valid() and (not salary_form.is_bound or salary_form.is_valid()):
         employee = form.save()
         if salary_form.is_bound:
-            from bang_luong.services.inputs import save_employee_settings
-            save_employee_settings(request.user,employee,salary_form.settings_data())
+            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            luu_thiet_lap_luong(request.user,employee,salary_form.settings_data())
         messages.success(request, 'Thêm mới nhân viên thành công.')
         return redirect('employee_detail', employee_id=employee.pk)
     return render(request, 'employees/employee_form.html', {
@@ -180,23 +175,23 @@ def employee_edit(request, employee_id):
     salary_form=SalarySettingsForm(employee,request.POST if request.method=='POST' and any(key.startswith('salary-') for key in request.POST) else None)
     if request.method=='POST' and request.POST.get('action')=='save_salary':
         if salary_form.is_bound and salary_form.is_valid():
-            from bang_luong.services.inputs import save_employee_settings
-            employee=save_employee_settings(request.user,employee,salary_form.settings_data())
+            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            employee=luu_thiet_lap_luong(request.user,employee,salary_form.settings_data())
             messages.success(request,'Đã lưu thiết lập tính lương dùng chung của nhân viên.')
             for error in employee.payroll_errors: messages.warning(request,error)
             return redirect('employee_detail',employee_id=employee.pk)
     elif request.method == 'POST' and form.is_valid() and (not salary_form.is_bound or salary_form.is_valid()):
         form.save()
         if salary_form.is_bound:
-            from bang_luong.services.inputs import save_employee_settings
-            employee=save_employee_settings(request.user,employee,salary_form.settings_data())
+            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            employee=luu_thiet_lap_luong(request.user,employee,salary_form.settings_data())
         if set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
             from bang_luong.models import PayrollPeriod
-            from bang_luong.services.calculations import refresh_employee_payroll
+            from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
             periods = PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id')
             for period in periods:
                 attendance = period.attendance_period
-                error = refresh_employee_payroll(request.user, employee.pk, attendance.nam, attendance.thang)
+                error = cap_nhat_luong_nhan_vien(request.user, employee.pk, attendance.nam, attendance.thang)
                 if error:
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')

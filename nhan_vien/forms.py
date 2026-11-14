@@ -53,11 +53,11 @@ class SalarySettingsForm(forms.Form):
         return data
 
     def settings_data(self):
-        from bang_luong.services.source_data import canonical
+        from bang_luong.services.tinh_toan import chuan_hoa_du_lieu
         data=dict(self.cleaned_data)
         data['insurance_rates']={key.upper():format((data.pop(key)/100).normalize(),'f') for key in ['bhxh','bhyt','bhtn']}
         data['tax_dependents']=0
-        return canonical(data)
+        return chuan_hoa_du_lieu(data)
 
 
 class EmployeeForm(forms.ModelForm):

@@ -1,5 +1,5 @@
 {% extends 'attendance/base.html' %}{% block attendance_content %}
-<div class="at-breadcrumb"><a href="{% url 'bang_cong:employee-month' row.nhan_vien_id %}?month={{ row.ngay.month }}&year={{ row.ngay.year }}">‹ Chi tiết chấm công tháng {{ row.ngay.month }}/{{ row.ngay.year }}</a></div>
+<div class="at-breadcrumb"><a href="{% url 'bang_cong:cong-nhan-vien' row.nhan_vien_id %}?month={{ row.ngay.month }}&year={{ row.ngay.year }}">‹ Chi tiết chấm công tháng {{ row.ngay.month }}/{{ row.ngay.year }}</a></div>
 <article class="at-day-detail">
   <header class="at-day-heading">
     <div><p class="at-day-eyebrow">CHI TIẾT CHẤM CÔNG</p><h1>{{ row.nhan_vien }}</h1><p class="at-day-date">Ngày {{ row.ngay|date:'d/m/Y' }}</p></div>
@@ -13,14 +13,14 @@
     <div class="at-day-wide"><dt>Ghi chú</dt><dd class="at-day-note">{{ row.ghi_chu|default:'—' }}</dd></div>
   </dl>
   <section class="at-day-ot" aria-labelledby="ot-title">
-    <h2 id="ot-title">Tăng ca tự động</h2>
+    <h2 id="ot-title">Tăng ca</h2>
     <p>Giờ OT: <strong>{{ automatic_ot.hours|floatformat:'-4' }} giờ</strong>. Ngày thường tính sau 17:00, không cộng vào công bình thường.</p>
     {% if automatic_ot.error %}<p class="at-muted">{{ automatic_ot.error }}</p>{% endif %}
     {% for warning in automatic_ot.warnings %}<p class="at-muted">{{ warning }}</p>{% endfor %}
   </section>
   <footer class="at-day-footer">
     <p>Cập nhật bởi <strong>{{ row.nguoi_cap_nhat|default:'—' }}</strong><span>{{ row.ngay_cap_nhat|date:'H:i · d/m/Y' }}</span></p>
-    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'bang_cong:edit' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
+    {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'bang_cong:sua' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
   </footer>
 </article>
 {% endblock %}

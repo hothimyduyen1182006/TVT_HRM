@@ -11,17 +11,17 @@ from django.db import transaction
 from django.utils import timezone
 
 from bang_cong.models import KyCong, ChamCong, LichLamViec, LichSuTangCa
-from bang_cong.services import calculations as attendance_calculations
-from bang_cong.services.workflow import save_record, approve_employee
+from bang_cong.services import tinh_toan as attendance_calculations
+from bang_cong.services.quy_trinh import luu_cham_cong, duyet_cong_nhan_vien
 from thuong.models import Bonus
 from thuong.views import calculate_automatic
 from nhan_vien.access import has_role, HR, DIRECTOR
 from nhan_vien.models import Employee
 from nghi_phep.models import LeaveRequest, LeaveDay
-from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment, PayrollRecord, PayrollAuditLog
-from bang_luong.services.calculations import calculate_payroll
-from bang_luong.services.inputs import save_input
-from bang_luong.services.workflow import approve_record
+from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment, Luong, PayrollAuditLog
+from bang_luong.services.tinh_toan import tinh_bang_luong
+from bang_luong.services.quy_trinh import save_input
+from bang_luong.services.quy_trinh import duyet_phieu_luong
 
 
 YEAR, MONTH = 2026, 10
@@ -36,7 +36,7 @@ class Command(BaseCommand):
         parser.add_argument('--dry-run', action='store_true', help='Kiểm tra bằng transaction rồi hoàn tác toàn bộ.')
 
     def handle(self, *args, **options):
-        if getattr(attendance_calculations, 'OT_POLICY', '') != 'automatic-checkout-1700-v1':
+        if getattr(attendance_calculations, 'CHINH_SACH_OT', '') != 'automatic-checkout-1700-v1':
             raise CommandError('Cần bản OT tự động từ check-out trước khi chuẩn bị bộ dữ liệu này.')
         if PayrollAuditLog.objects.filter(action=MARKER, period__attendance_period__nam=YEAR,
                                          period__attendance_period__thang=MONTH).exists():
@@ -99,22 +99,22 @@ class Command(BaseCommand):
                             )
                         if code=='NV07' and day.day==13:
                             values.update(gio_vao=time(9),ghi_chu='Đi trễ một giờ; không tạo khoản phạt tiền riêng')
-                        record = save_record(hr,ChamCong(**values),'Nhập dữ liệu chấm công tháng 10/2026')
+                        record = luu_cham_cong(hr,ChamCong(**values),'Nhập dữ liệu chấm công tháng 10/2026')
                         if code=='NV01' and day.day==9:
                             record.gio_vao=time(8,12)
-                            save_record(hr,record,'Ghi nhận ban đầu cần đối chiếu máy chấm công')
+                            luu_cham_cong(hr,record,'Ghi nhận ban đầu cần đối chiếu máy chấm công')
                             record.gio_vao=time(7,58)
-                            save_record(hr,record,'Đã đối chiếu log máy, điều chỉnh đúng giờ vào thực tế')
-                save_record(hr,ChamCong(nhan_vien=people['NV03'],ngay=date(YEAR,MONTH,24),
+                            luu_cham_cong(hr,record,'Đã đối chiếu log máy, điều chỉnh đúng giờ vào thực tế')
+                luu_cham_cong(hr,ChamCong(nhan_vien=people['NV03'],ngay=date(YEAR,MONTH,24),
                     trang_thai='present',gio_vao=time(8),gio_ra=time(12),ghi_chu='Sản xuất bổ sung sáng thứ Bảy; không cộng công thường'),
                     'Ghi nhận giờ làm thực tế ngày nghỉ tuần')
                 for code in ['NV02','NV03','NV06']:
-                    approve_employee(hr,people[code],period.pk)
+                    duyet_cong_nhan_vien(hr,people[code],period.pk)
                 self._bonuses(people,hr,director)
                 payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
                 self._inputs(people,period,payroll,hr)
-                calculate_payroll(hr,payroll.pk,'Chuẩn bị phiếu lương tháng 10 từ công đã duyệt và thưởng hợp lệ')
-                approve_record(director,PayrollRecord.objects.get(period=payroll,employee=people['NV02']).pk)
+                tinh_bang_luong(hr,payroll.pk,'Chuẩn bị phiếu lương tháng 10 từ công đã duyệt và thưởng hợp lệ')
+                duyet_phieu_luong(director,Luong.objects.get(ky_luong=payroll,nhan_vien=people['NV02']).pk)
                 PayrollAuditLog.objects.create(period=payroll,actor=hr,action=MARKER,
                     reason='Chuẩn bị dữ liệu thực hành; không thực hiện thanh toán',
                     snapshot=[{'version':VERSION,'year':YEAR,'month':MONTH,'employees':sorted(people)}])

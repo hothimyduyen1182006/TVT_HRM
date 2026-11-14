@@ -103,6 +103,11 @@ def bonus_list(request):
     form = BonusFilter(request.user, request.GET, default_current_period=True)
     if not form.is_valid() and {'employee', 'department'} & set(form.errors):
         return access_denied(request)
+    if form.is_valid() and has_role(request.user, HR):
+        period = form.cleaned_data
+        if period.get('month') and period.get('year'):
+            for employee in form.employee_scope(request.user):
+                sync_automatic_bonuses(employee, period['month'], period['year'])
     source_rows = bonus_rows(request.user, form)
     rows = grouped_bonuses(source_rows)
     if form.is_valid() and form.cleaned_data.get('status'):
@@ -269,6 +274,31 @@ def calculate_automatic(employee, month, year):
     except ValidationError as exc:
         return results, exc
     return results, None
+
+
+@transaction.atomic
+def sync_automatic_bonuses(employee, month, year):
+    """Refresh editable source-derived bonuses without changing approval decisions."""
+    Employee.objects.select_for_update().get(pk=employee.pk)
+    automatic, attendance_error = calculate_automatic(employee, month, year)
+    for bonus_type, name, amount, reason in automatic:
+        rows = Bonus.objects.filter(
+            employee=employee, month=month, year=year, bonus_type=bonus_type)
+        if rows.filter(status__in=['pending', 'approved']).exists():
+            continue
+        bonus = rows.first()
+        if bonus is None:
+            Bonus.objects.create(
+                employee=employee, month=month, year=year, bonus_type=bonus_type,
+                name=name, amount=amount, reason=reason,
+                proposed_at=timezone.now(), status='draft')
+        elif bonus.amount != amount or bonus.reason != reason or bonus.name != name:
+            rows.filter(pk=bonus.pk).update(name=name, amount=amount, reason=reason)
+    if attendance_error:
+        # An old draft must not remain eligible after its source becomes incomplete.
+        Bonus.objects.filter(
+            employee=employee, month=month, year=year, bonus_type='attendance',
+            status__in=['draft', 'rejected']).delete()
 
 
 @login_required
@@ -533,8 +563,8 @@ def decision_period(request, year, month):
 
     employee_ids = list(rows.values_list('employee_id', flat=True).distinct())
     rows.update(status='approved', approved_by=request.user, approved_at=timezone.now(), rejection_reason='')
-    from bang_luong.services.calculations import refresh_employee_payroll
-    payroll_errors = [refresh_employee_payroll(request.user, employee_id, year, month)
+    from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+    payroll_errors = [cap_nhat_luong_nhan_vien(request.user, employee_id, year, month)
                       for employee_id in employee_ids]
     payroll_errors = [error for error in payroll_errors if error]
     if payroll_errors:

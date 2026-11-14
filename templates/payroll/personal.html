@@ -6,7 +6,7 @@
 <div class="pr-personal-heading pr-no-print">
  <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
  <form class="pr-period-form" method="get" action="{% if personal %}{% url 'bang_luong:personal' %}{% else %}{% url 'bang_luong:list' %}{% endif %}">
-  <label class="pr-sr-only" for="id_month">Tháng</label>{{ form.month }}<label class="pr-sr-only" for="id_year">Năm</label>{{ form.year }}<button class="pr-button">Xem</button>
+  <label class="pr-sr-only" for="id_month">Tháng</label>{{ form.month }}<label class="pr-sr-only" for="id_year">Năm</label>{{ form.year }}<button class="pr-button">Lọc</button>
  </form>
 </div>
 {% if form.errors %}<div class="pr-errors pr-no-print">{{ form.errors }}</div>{% endif %}
@@ -15,47 +15,32 @@
 <article class="pr-slip" id="payroll-slip" aria-label="Phiếu thanh toán lương">
  <header class="pr-slip-header">
   <div class="pr-slip-period"><p>PHIẾU THANH TOÁN LƯƠNG</p><h2>THÁNG {{ month_label }}/{{ year_label }}</h2></div>
-  <div class="pr-slip-employee"><h3>{{ row.employee_name }}</h3><p>Mã NV: {{ row.employee_code }} <span>|</span> {{ row.department_name }}</p>
-   <p class="pr-attendance-meta">Công chuẩn: {{ row.standard_units|units }} <span>|</span> Thực tế: {{ metrics.actual|units }} <span>|</span> Phép: {{ row.leave_units|units }} <span>|</span> Không phép: {{ metrics.absent|default_if_none:'—' }}</p>
+  <div class="pr-slip-employee"><h3>{{ row.ten_nhan_vien }}</h3><p>Mã NV: {{ row.ma_nhan_vien }} <span>|</span> {{ row.ten_phong_ban }}</p>
+   <p class="pr-attendance-meta">Công chuẩn: {{ row.cong_chuan|units }} <span>|</span> Thực tế: {{ metrics.actual|units }} <span>|</span> Phép: {{ row.cong_nghi_phep|units }} <span>|</span> Không phép: {{ metrics.absent|default_if_none:'—' }}</p>
   </div>
  </header>
- {% if row.status == 'pending' %}<p class="pr-draft">Bản chờ duyệt — số liệu chưa được phê duyệt, chưa chi trả.</p>{% endif %}
- {% if historical_overtime %}<p class="pr-draft">Phiếu cũ có khoản OT lịch sử đã lưu, chưa có đủ nguồn theo quy trình hiện tại. Không tự sửa phiếu đã chi trả; phiếu chưa chi trả cần đối soát và tính lại.</p>{% endif %}{% for warning in row.breakdown.overtime_warnings %}<p class="pr-draft">{{ warning }}</p>{% endfor %}<div class="pr-slip-columns">
+ {% if row.trang_thai == 'pending' %}<p class="pr-draft">Bản chờ duyệt — số liệu chưa được phê duyệt, chưa chi trả.</p>{% endif %}
+ {% if historical_overtime %}<p class="pr-draft">Phiếu cũ có khoản OT lịch sử đã lưu, chưa có đủ nguồn theo quy trình hiện tại. Không tự sửa phiếu đã chi trả; phiếu chưa chi trả cần đối soát và tính lại.</p>{% endif %}{% for warning in row.chi_tiet.overtime_warnings %}<p class="pr-draft">{{ warning }}</p>{% endfor %}<div class="pr-slip-columns">
   <section class="pr-income"><h3>↗ &nbsp;KHOẢN THU NHẬP</h3>
-   <dl class="pr-line"><dt>Lương cơ bản (Hợp đồng)</dt><dd>{{ row.base_salary|money }}</dd></dl>
-   <dl class="pr-line"><dt>Lương theo ngày công <span>({{ row.paid_units|units }}/{{ row.standard_units|units }} công)</span></dt><dd>{{ row.attendance_pay|money }}</dd></dl>
-   {% if historical_overtime %}<dl class="pr-line"><dt>Khoản tăng ca lịch sử đã lưu <span>({{ row.ot_hours|units }} giờ)</span></dt><dd>{{ row.ot_pay|money }}</dd></dl>{% endif %}
-   {% if row.ot_pay and not historical_overtime %}<dl class="pr-line"><dt>Lương OT tự động <span>({{ row.ot_hours|units }} giờ)</span></dt><dd>{{ row.ot_pay|money }}</dd></dl>{% endif %}
-   <dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.bonus_pay|money }}</dd></dl>
-   {% if row.allowance %}<dl class="pr-line"><dt>Phụ cấp được hưởng</dt><dd>{{ row.allowance|money }}</dd></dl>{% endif %}
+   <dl class="pr-line"><dt>Lương cơ bản (Hợp đồng)</dt><dd>{{ row.luong_co_ban|money }}</dd></dl>
+   <dl class="pr-line"><dt>Lương theo ngày công <span>({{ row.cong_huong_luong|units }}/{{ row.cong_chuan|units }} công)</span></dt><dd>{{ row.luong_theo_cong|money }}</dd></dl>
+   {% if historical_overtime %}<dl class="pr-line"><dt>Khoản tăng ca lịch sử đã lưu <span>({{ row.so_gio_tang_ca|units }} giờ)</span></dt><dd>{{ row.luong_tang_ca|money }}</dd></dl>{% endif %}
+   {% if row.luong_tang_ca and not historical_overtime %}<dl class="pr-line"><dt>Lương OT tự động <span>({{ row.so_gio_tang_ca|units }} giờ)</span></dt><dd>{{ row.luong_tang_ca|money }}</dd></dl>{% endif %}
+   <dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.tong_tien_thuong|money }}</dd></dl>
+   {% if row.phu_cap %}<dl class="pr-line"><dt>Phụ cấp được hưởng</dt><dd>{{ row.phu_cap|money }}</dd></dl>{% endif %}
    <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ income_total|money }} đ</dd></dl>
   </section>
   <section class="pr-deductions"><h3>↘ &nbsp;KHOẢN KHẤU TRỪ</h3>
-   <dl class="pr-line"><dt>Phạt đi trễ <span>({% if metrics.late_count != None %}{{ metrics.late_count }} lần / {% endif %}{{ row.late_minutes }} phút)</span><small>{% if row.breakdown.late_penalty %}Mô phỏng: 100.000đ/giờ, tính theo phút đi trễ.{% else %}Phiếu này chưa áp dụng khoản phạt mô phỏng.{% endif %}</small></dt><dd>{% if row.late_penalty %}− {% endif %}{{ row.late_penalty|money }}</dd></dl>
-   {% for item in insurance_lines %}<dl class="pr-line"><dt>{{ item.name }}{% if item.percent != None %} <span>({{ item.percent|units }}%)</span>{% endif %}</dt><dd>− {{ item.amount|money }}</dd></dl>{% empty %}<dl class="pr-line"><dt>Bảo hiểm <span>(tổng đã lưu)</span></dt><dd>{% if row.insurance %}− {% endif %}{{ row.insurance|money }}</dd></dl>{% endfor %}
-   <dl class="pr-line"><dt>Thuế TNCN</dt><dd>{% if row.tax %}− {% endif %}{{ row.tax|money }}</dd></dl>
-   <dl class="pr-line"><dt>Khấu trừ khác đã duyệt</dt><dd>{% if row.other_deductions %}− {% endif %}{{ row.other_deductions|money }}</dd></dl>
+   <dl class="pr-line"><dt>Phạt đi trễ <span>({% if metrics.late_count != None %}{{ metrics.late_count }} lần / {% endif %}{{ row.so_phut_tre }} phút)</span><small>{% if row.chi_tiet.late_penalty %}100.000đ/giờ, tính theo phút đi trễ.{% else %}Phiếu này chưa áp dụng khoản phạt.{% endif %}</small></dt><dd>{% if row.khau_tru_di_tre %}− {% endif %}{{ row.khau_tru_di_tre|money }}</dd></dl>
+   {% for item in insurance_lines %}<dl class="pr-line"><dt>{{ item.name }}{% if item.percent != None %} <span>({{ item.percent|units }}%)</span>{% endif %}</dt><dd>− {{ item.amount|money }}</dd></dl>{% empty %}<dl class="pr-line"><dt>Bảo hiểm <span>(tổng đã lưu)</span></dt><dd>{% if row.tong_bao_hiem %}− {% endif %}{{ row.tong_bao_hiem|money }}</dd></dl>{% endfor %}
+   <dl class="pr-line"><dt>Thuế TNCN</dt><dd>{% if row.thue_tncn %}− {% endif %}{{ row.thue_tncn|money }}</dd></dl>
+   <dl class="pr-line"><dt>Khấu trừ khác đã duyệt</dt><dd>{% if row.khau_tru_khac %}− {% endif %}{{ row.khau_tru_khac|money }}</dd></dl>
    <dl class="pr-total"><dt>TỔNG KHẤU TRỪ</dt><dd>{% if deductions_total %}− {% endif %}{{ deductions_total|money }} đ</dd></dl>
   </section>
  </div>
- <div class="pr-net"><div><h3>THỰC LĨNH (NET SALARY)</h3><p>{{ payment_label }}</p></div><strong>{{ row.net_pay|money }} VNĐ</strong></div>
+ <div class="pr-net"><div><h3>THỰC LĨNH (NET SALARY)</h3><p>{{ payment_label }}</p></div><strong>{{ row.luong_thuc_linh|money }} VNĐ</strong></div>
  <div class="pr-print-control pr-no-print"><button class="pr-print-button" type="button" data-print-payslip>▧ &nbsp; In phiếu lương</button></div>
 </article>
-<details class="pr-source-details pr-no-print"><summary>Chi tiết nguồn và căn cứ tính lương</summary>
- <p>Căn cứ thuế: {{ row.breakdown.tax_basis }}</p><p>Căn cứ bảo hiểm: {{ row.breakdown.insurance_basis }}</p>
- {% for item in adjustments %}<p>{{ item.name }} · {{ item.amount|money }} · {{ item.basis }}</p>{% endfor %}
- {% for item in row.breakdown.bonuses %}<p>Thưởng: {{ item.name }} · {{ item.amount|money }}</p>{% endfor %}
- {% if row.breakdown.tax_calculation.policy == 'vn-resident-salary-2026-v1' %}
- <p>Thuế TNCN tự động: thu nhập chịu thuế {{ row.breakdown.tax_calculation.taxable_gross|money }}đ;
- BH được trừ {{ row.breakdown.tax_calculation.insurance_deduction|money }}đ;
- giảm trừ bản thân {{ row.breakdown.tax_calculation.personal_deduction|money }}đ;
- {{ row.breakdown.tax_calculation.dependent_count }} người phụ thuộc, giảm trừ {{ row.breakdown.tax_calculation.dependent_deduction|money }}đ;
- thu nhập tính thuế {{ row.breakdown.tax_calculation.taxable_income|money }}đ; thuế {{ row.tax|money }}đ.</p>
- {% for bracket in row.breakdown.tax_calculation.brackets %}<p>Phần thu nhập {{ bracket.income|money }}đ × {{ bracket.rate }} = {{ bracket.tax|money }}đ.</p>{% endfor %}
- {% endif %}
- <p>Số tiền thực lĩnh lấy từ kết quả đã lưu. Lương cơ bản là thông tin tham chiếu, không cộng thêm lần nữa vào tổng thu nhập.</p>
- {% if metrics.actual == None %}<p>Chưa có số công thực tế/nghỉ không phép khớp phiên bản công đã dùng tính lương; các chỉ số này hiển thị “—”.</p>{% endif %}
-</details>
 {% else %}
 <article class="pr-slip pr-empty-slip">
  <div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU PHIẾU LƯƠNG</h2>

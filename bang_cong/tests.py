@@ -9,7 +9,7 @@ from django.test import TestCase, Client
 from nhan_vien.models import Employee, Department
 from nghi_phep.models import LeaveDay
 from .models import ChamCong, KyCong, LichLamViec, NhatKyCong, LichSuTangCa
-from .services.workflow import save_record, change_period
+from .services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from django.core.management.base import CommandError
 
 
@@ -33,7 +33,7 @@ class AutomaticOvertimeTests(TestCase):
                 with self.subTest(employee=employee.code,end=end):
                     row=ChamCong.objects.filter(nhan_vien=employee,ngay=date(2026,10,5)).first() or self.record(nhan_vien=employee)
                     row.gio_ra=end
-                    save_record(self.hr,row,'Kiểm thử tháng 10')
+                    luu_cham_cong(self.hr,row,'Kiểm thử tháng 10')
                     row.refresh_from_db()
                     self.assertEqual(row.gio_tang_ca,expected)
                     self.assertEqual(row.gio_ra,end)
@@ -52,11 +52,11 @@ class AutomaticOvertimeTests(TestCase):
         self.assertEqual(self.record(gio_vao=time(18),gio_ra=time(19)).gio_tang_ca,1)
 
     def test_hr_edit_changes_ot_and_audit_without_changing_history(self):
-        row=save_record(self.hr,self.record(gio_ra=time(19)),'Tạo công')
+        row=luu_cham_cong(self.hr,self.record(gio_ra=time(19)),'Tạo công')
         history=LichSuTangCa.objects.bulk_create([LichSuTangCa(nhan_vien=self.emp,ngay=row.ngay,so_gio_duoc_duyet=9,he_so=3,trang_thai='pending')])[0]
         before=list(LichSuTangCa.objects.values())
         row.gio_ra=time(18)
-        save_record(self.hr,row,'Sửa giờ ra')
+        luu_cham_cong(self.hr,row,'Sửa giờ ra')
         self.assertEqual(row.gio_tang_ca,1)
         self.assertEqual(row.so_gio_lam,8)
         log=NhatKyCong.objects.filter(hanh_dong='edit_record').latest('pk')
@@ -67,7 +67,7 @@ class AutomaticOvertimeTests(TestCase):
             with self.assertRaises(PermissionDenied): operation()
 
     def test_old_urls_are_missing_for_every_role_and_method(self):
-        row=save_record(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
+        row=luu_cham_cong(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
         self.other_user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
         before=list(ChamCong.objects.values())
         for actor in [self.user,self.other_user,self.hr,self.director]:
@@ -81,59 +81,59 @@ class AutomaticOvertimeTests(TestCase):
 
 
     def test_ui_exports_and_personal_scope_share_hours(self):
-        row=save_record(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
+        row=luu_cham_cong(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
         for actor in [self.user,self.hr,self.director]:
             self.client.force_login(actor)
             response=self.client.get(f'/bang_cong/{row.pk}/')
-            self.assertContains(response,'Tăng ca tự động')
+            self.assertContains(response,'Tăng ca')
             for label in ['Gửi yêu cầu duyệt OT','Duyệt OT','Từ chối OT']:
                 self.assertNotContains(response,label)
         self.client.force_login(self.user)
-        response=self.client.get('/bang_cong/personal/?month=10&year=2026')
+        response=self.client.get('/bang_cong/ca-nhan/?month=10&year=2026')
         self.assertEqual(response.context['summary']['ot'],2)
         self.assertNotContains(response,'OT tự động:')
         self.client.force_login(self.other_user)
         self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/').status_code,404)
         self.client.force_login(self.hr)
-        response=self.client.get(f'/bang_cong/employee/{self.emp.pk}/export/?month=10&year=2026')
+        response=self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/?month=10&year=2026')
         self.assertIn('OT tự động (giờ)',response.content.decode('utf-8-sig'))
 
     def test_rest_holiday_and_night_are_handled_separately(self):
-        from .services.calculations import automatic_overtime,payroll_overtime
+        from .services.tinh_toan import tinh_tang_ca_tu_dong,tong_hop_tang_ca_tinh_luong
         day=LichLamViec.objects.get(ngay=date(2026,10,5))
         row=self.record()
         for kind,rate in [('rest',2),('holiday',3)]:
             day.loai_ngay,day.cong_chuan=kind,0
             day.save()
-            row=save_record(self.hr,row,'Ngày đặc biệt')
-            item=automatic_overtime(row,self.period,day)
+            row=luu_cham_cong(self.hr,row,'Ngày đặc biệt')
+            item=tinh_tang_ca_tu_dong(row,self.period,day)
             self.assertEqual(item['hours'],8)
             self.assertEqual(item['multiplier'],rate)
             self.assertEqual(row.tong_cong,0)
         row.gio_ra=time(23)
-        save_record(self.hr,row,'Giữ giờ ra ban đêm')
+        luu_cham_cong(self.hr,row,'Giữ giờ ra ban đêm')
         self.assertEqual(row.gio_ra,time(23))
-        with self.assertRaisesMessage(ValidationError,'ban đêm'): payroll_overtime(self.emp,2026,10)
+        with self.assertRaisesMessage(ValidationError,'ban đêm'): tong_hop_tang_ca_tinh_luong(self.emp,2026,10)
         row.gio_ra=time(2)
-        with self.assertRaises(ValidationError): save_record(self.hr,row,'Ca qua đêm chưa hỗ trợ')
+        with self.assertRaises(ValidationError): luu_cham_cong(self.hr,row,'Ca qua đêm chưa hỗ trợ')
 
     def test_locked_period_still_blocks_changes(self):
-        row=save_record(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
+        row=luu_cham_cong(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
         self.period.trang_thai='approved'
         self.period.save()
         row.gio_ra=time(20)
-        with self.assertRaises(ValidationError): save_record(self.hr,row,'Không vượt khóa')
+        with self.assertRaises(ValidationError): luu_cham_cong(self.hr,row,'Không vượt khóa')
         row.refresh_from_db()
         self.assertEqual(row.gio_ra,time(19))
 
     def test_checkout_punch_immediately_exposes_ot_without_creating_request(self):
         from datetime import datetime
         from unittest.mock import patch
-        from .services.clocking import punch
-        with patch('bang_cong.services.clocking.timezone.localtime',return_value=datetime(2026,10,5,8)):
-            punch(self.user,'in')
-        with patch('bang_cong.services.clocking.timezone.localtime',return_value=datetime(2026,10,5,18,30)):
-            row=punch(self.user,'out')
+        from .services.cham_cong import ghi_nhan_cham_cong
+        with patch('bang_cong.services.cham_cong.timezone.localtime',return_value=datetime(2026,10,5,8)):
+            ghi_nhan_cham_cong(self.user,'in')
+        with patch('bang_cong.services.cham_cong.timezone.localtime',return_value=datetime(2026,10,5,18,30)):
+            row=ghi_nhan_cham_cong(self.user,'out')
         row.refresh_from_db()
         self.assertEqual(row.gio_tang_ca,Decimal('1.5'))
         self.assertEqual(row.gio_ra,time(18,30))
@@ -141,13 +141,13 @@ class AutomaticOvertimeTests(TestCase):
         self.assertFalse(LichSuTangCa.objects.exists())
 
     def test_pending_historical_requests_no_longer_block_attendance_approval(self):
-        from .services.workflow import approve_employee
+        from .services.quy_trinh import duyet_cong_nhan_vien
         for day in LichLamViec.objects.filter(ngay__month=10,loai_ngay='work'):
-            save_record(self.hr,AttendanceTests.record(self,ngay=day.ngay),'Công tháng 10')
+            luu_cham_cong(self.hr,AttendanceTests.record(self,ngay=day.ngay),'Công tháng 10')
         LichSuTangCa.objects.bulk_create([LichSuTangCa(nhan_vien=self.emp,ngay=date(2026,10,5),
             so_gio_duoc_duyet=2,he_so=Decimal('1.5'),trang_thai='pending')])
         before=list(LichSuTangCa.objects.values())
-        approve_employee(self.hr,self.emp,self.period.pk)
+        duyet_cong_nhan_vien(self.hr,self.emp,self.period.pk)
         self.assertTrue(self.period.employee_approvals.filter(nhan_vien=self.emp).exists())
         self.assertEqual(list(LichSuTangCa.objects.values()),before)
 
@@ -180,68 +180,68 @@ class AttendanceTests(TestCase):
         return ChamCong(**values)
 
     def test_lunch_and_regular_hours(self):
-        row = save_record(self.hr, self.record(), 'Kiểm tra')
+        row = luu_cham_cong(self.hr, self.record(), 'Kiểm tra')
         self.assertEqual(row.so_gio_lam, 8)
         self.assertEqual(row.tong_cong, 1)
         self.assertEqual(NhatKyCong.objects.count(), 1)
 
     def test_late_and_half_day(self):
-        row = save_record(self.hr, self.record(gio_vao=time(9)), 'Đi muộn')
+        row = luu_cham_cong(self.hr, self.record(gio_vao=time(9)), 'Đi muộn')
         self.assertEqual(row.so_phut_tre, 60)
         self.assertEqual(row.tong_cong, Decimal('.875'))
         row.gio_vao, row.gio_ra = time(8), time(12)
-        save_record(self.hr, row, 'Nửa ngày')
+        luu_cham_cong(self.hr, row, 'Nửa ngày')
         self.assertEqual(row.cong_thuc_te, Decimal('.5'))
 
     def test_after_hours_does_not_double_normal_work(self):
-        row = save_record(self.hr, self.record(gio_ra=time(20)), 'Kiểm tra')
+        row = luu_cham_cong(self.hr, self.record(gio_ra=time(20)), 'Kiểm tra')
         self.assertEqual(row.so_gio_lam, 8)
         self.assertEqual(row.cong_thuc_te, 1)
 
     def test_invalid_checkout(self):
         for out in [time(7), time(8)]:
             with self.assertRaises(ValidationError):
-                save_record(self.hr, self.record(gio_ra=out), 'Sai giờ')
+                luu_cham_cong(self.hr, self.record(gio_ra=out), 'Sai giờ')
 
     def test_duplicate_database_constraint(self):
-        save_record(self.hr, self.record(), 'Lần 1')
+        luu_cham_cong(self.hr, self.record(), 'Lần 1')
         with self.assertRaises(IntegrityError), transaction.atomic():
             ChamCong.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), trang_thai='absent')
 
     def test_paid_and_unpaid_leave(self):
         leave = LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
                                         reason='Phép', approved=True)
-        row = save_record(self.hr, self.record(gio_vao=None, gio_ra=None, trang_thai='leave'), 'Phép')
+        row = luu_cham_cong(self.hr, self.record(gio_vao=None, gio_ra=None, trang_thai='leave'), 'Phép')
         self.assertEqual(row.tong_cong, 1)
         self.assertEqual(row.cong_thuc_te, 0)
         leave.paid = False
         leave.save()
-        save_record(self.hr, row, 'Không lương')
+        luu_cham_cong(self.hr, row, 'Không lương')
         self.assertEqual(row.tong_cong, 0)
 
     def test_overlap_rejected(self):
         LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
                                 reason='Phép', approved=True)
         with self.assertRaises(ValidationError):
-            save_record(self.hr, self.record(), 'Trùng')
+            luu_cham_cong(self.hr, self.record(), 'Trùng')
 
     def test_ordinary_user_cannot_edit(self):
         with self.assertRaises(PermissionDenied):
-            save_record(self.user, self.record(), 'Không có quyền')
+            luu_cham_cong(self.user, self.record(), 'Không có quyền')
 
     def test_locked_period(self):
         self.period.trang_thai = 'approved'
         self.period.save()
         with self.assertRaises(ValidationError):
-            save_record(self.hr, self.record(), 'Kỳ khóa')
+            luu_cham_cong(self.hr, self.record(), 'Kỳ khóa')
 
     def test_approval_requires_complete_data(self):
         with self.assertRaises(ValidationError):
-            change_period(self.director, self.period.pk, 'approve', 'Thiếu công')
+            xu_ly_trang_thai_ky_cong(self.director, self.period.pk, 'approve', 'Thiếu công')
 
     def test_approved_attendance_blocks_edit_page_and_post(self):
         from .models import ChotBangCong
-        row = save_record(self.hr, self.record(), 'Tạo công')
+        row = luu_cham_cong(self.hr, self.record(), 'Tạo công')
         for lock in ['period', 'employee']:
             if lock == 'period':
                 self.period.trang_thai = 'approved'
@@ -257,10 +257,10 @@ class AttendanceTests(TestCase):
                     response = self.client.get(f'/bang_cong/{row.pk}/')
                     self.assertEqual(response.status_code, 200)
                     self.assertFalse(response.context['can_edit'])
-                    self.assertNotContains(response, f'href="/bang_cong/{row.pk}/edit/"')
-                    self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/edit/').status_code, 403)
+                    self.assertNotContains(response, f'href="/bang_cong/{row.pk}/sua/"')
+                    self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/sua/').status_code, 403)
                     audits = NhatKyCong.objects.count()
-                    response = self.client.post(f'/bang_cong/{row.pk}/edit/', {
+                    response = self.client.post(f'/bang_cong/{row.pk}/sua/', {
                         'employee': self.emp.pk, 'date': '2026-01-05', 'check_in': '09:00',
                         'check_out': '17:00', 'status': 'present', 'note': 'Thay đổi', 'reason': 'Sửa'})
                     self.assertEqual(response.status_code, 403)
@@ -269,7 +269,7 @@ class AttendanceTests(TestCase):
                     self.assertEqual(row.ghi_chu, '')
                     self.assertEqual(NhatKyCong.objects.count(), audits)
                     new_day = 6 if actor == self.hr else 7
-                    response = self.client.post('/bang_cong/new/', {
+                    response = self.client.post('/bang_cong/them/', {
                         'employee': self.emp.pk, 'date': f'2026-01-{new_day:02}', 'check_in': '08:00',
                         'check_out': '17:00', 'status': 'present', 'reason': 'Tạo thêm'})
                     if lock == 'period':
@@ -284,13 +284,13 @@ class AttendanceTests(TestCase):
                                                                        ngay=date(2026, 1, new_day)).exists())
 
     def test_pending_attendance_keeps_edit_link_and_allows_update(self):
-        row = save_record(self.hr, self.record(), 'Tạo công')
+        row = luu_cham_cong(self.hr, self.record(), 'Tạo công')
         self.client.force_login(self.hr)
         response = self.client.get(f'/bang_cong/{row.pk}/')
         self.assertTrue(response.context['can_edit'])
-        self.assertContains(response, f'href="/bang_cong/{row.pk}/edit/"')
-        self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/edit/').status_code, 200)
-        response = self.client.post(f'/bang_cong/{row.pk}/edit/', {
+        self.assertContains(response, f'href="/bang_cong/{row.pk}/sua/"')
+        self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/sua/').status_code, 200)
+        response = self.client.post(f'/bang_cong/{row.pk}/sua/', {
             'employee': self.emp.pk, 'date': '2026-01-05', 'check_in': '09:00',
             'check_out': '17:00', 'status': 'present', 'note': 'Đi muộn', 'reason': 'Điều chỉnh'})
         self.assertEqual(response.status_code, 302)
@@ -298,8 +298,8 @@ class AttendanceTests(TestCase):
         self.assertEqual(row.gio_vao, time(9))
 
     def test_self_and_department_scopes(self):
-        own = save_record(self.hr, self.record(), 'Công')
-        other = save_record(self.hr, self.record(nhan_vien=self.other), 'Công')
+        own = luu_cham_cong(self.hr, self.record(), 'Công')
+        other = luu_cham_cong(self.hr, self.record(nhan_vien=self.other), 'Công')
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(f'/bang_cong/{own.pk}/').status_code, 200)
         self.assertEqual(self.client.get(f'/bang_cong/{other.pk}/').status_code, 404)
@@ -313,19 +313,19 @@ class AttendanceTests(TestCase):
         self.assertEqual(self.client.get('/bang_cong/?month=1&year=2026').status_code, 200)
         response = self.client.get('/bang_cong/?month=13&year=2026')
         self.assertTrue(response.context['form'].errors)
-        response = self.client.post('/bang_cong/new/', {'employee': self.emp.pk, 'date': '2026-01-05',
+        response = self.client.post('/bang_cong/them/', {'employee': self.emp.pk, 'date': '2026-01-05',
             'check_in': '08:00', 'check_out': '17:00', 'status': 'present', 'note': '', 'reason': 'Tạo'})
         self.assertEqual(response.status_code, 302)
 
     def test_full_month_approval_and_audit(self):
         for employee in [self.emp, self.other]:
             for day in LichLamViec.objects.filter(loai_ngay='work'):
-                save_record(self.hr, self.record(nhan_vien=employee, ngay=day.ngay), 'Kiểm tra ngày')
-        change_period(self.director, self.period.pk, 'approve', 'Đủ dữ liệu')
+                luu_cham_cong(self.hr, self.record(nhan_vien=employee, ngay=day.ngay), 'Kiểm tra ngày')
+        xu_ly_trang_thai_ky_cong(self.director, self.period.pk, 'approve', 'Đủ dữ liệu')
         self.period.refresh_from_db()
         self.assertEqual(self.period.trang_thai, 'approved')
         self.assertEqual(set(self.period.ds_nhan_vien), {self.emp.pk, self.other.pk})
-        change_period(self.director, self.period.pk, 'reopen', 'Cần kiểm tra lại')
+        xu_ly_trang_thai_ky_cong(self.director, self.period.pk, 'reopen', 'Cần kiểm tra lại')
         self.period.refresh_from_db()
         self.assertEqual(self.period.phien_ban, 2)
 
@@ -348,9 +348,9 @@ class AttendanceTests(TestCase):
         self.assertNotContains(response, 'NV02')
 
     def test_monthly_summary_groups_employee_and_filters(self):
-        save_record(self.hr, self.record(), 'Ngày 1')
-        save_record(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Ngày 2')
-        save_record(self.hr, self.record(nhan_vien=self.other), 'Phòng khác')
+        luu_cham_cong(self.hr, self.record(), 'Ngày 1')
+        luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Ngày 2')
+        luu_cham_cong(self.hr, self.record(nhan_vien=self.other), 'Phòng khác')
         self.client.force_login(self.hr)
         response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026, 'q': 'NV01'})
         self.assertEqual(response.status_code, 200)
@@ -364,7 +364,7 @@ class AttendanceTests(TestCase):
         self.assertEqual(len(response.context['rows']), 1)
 
     def test_personal_month_and_missing_days(self):
-        save_record(self.hr, self.record(), 'Ngày đủ giờ')
+        luu_cham_cong(self.hr, self.record(), 'Ngày đủ giờ')
         self.client.force_login(self.user)
         response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026})
         self.assertEqual(response.status_code, 200)
@@ -377,9 +377,9 @@ class AttendanceTests(TestCase):
         self.assertEqual(response.context['summary']['absent'], 0)
 
     def test_month_detail_filters_and_pagination(self):
-        save_record(self.hr, self.record(gio_vao=time(9)), 'Đi muộn')
+        luu_cham_cong(self.hr, self.record(gio_vao=time(9)), 'Đi muộn')
         self.client.force_login(self.hr)
-        url = f'/bang_cong/employee/{self.emp.pk}/'
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/'
         response = self.client.get(url, {'month': 1, 'year': 2026, 'state': 'late'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['rows']), 1)
@@ -390,11 +390,11 @@ class AttendanceTests(TestCase):
         self.assertEqual(response.context['page_obj'].number, 2)
 
     def test_history_field_differences_and_filters(self):
-        row = save_record(self.hr, self.record(gio_vao=time(9)), 'Tạo ban đầu')
+        row = luu_cham_cong(self.hr, self.record(gio_vao=time(9)), 'Tạo ban đầu')
         row.gio_vao = time(8, 30)
-        save_record(self.hr, row, 'Đối chiếu máy chấm công')
+        luu_cham_cong(self.hr, row, 'Đối chiếu máy chấm công')
         self.client.force_login(self.hr)
-        url = f'/bang_cong/employee/{self.emp.pk}/history/'
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/lich-su/'
         response = self.client.get(url, {'month': 1, 'year': 2026, 'field': 'check_in'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['rows']), 1)
@@ -406,49 +406,49 @@ class AttendanceTests(TestCase):
         self.assertTrue(response.context['form'].errors)
 
     def test_history_excludes_creation_noop_and_automatic_events(self):
-        from .services.presentation import history_logs, history_rows
-        from .services.workflow import record_values
-        row = save_record(self.hr, self.record(), 'Tạo mới')
-        self.assertEqual(history_rows(history_logs(self.emp, 2026, 1)), [])
+        from .services.hien_thi import lay_nhat_ky_cong, danh_sach_dieu_chinh
+        from .services.quy_trinh import du_lieu_cham_cong
+        row = luu_cham_cong(self.hr, self.record(), 'Tạo mới')
+        self.assertEqual(danh_sach_dieu_chinh(lay_nhat_ky_cong(self.emp, 2026, 1)), [])
         count = NhatKyCong.objects.count()
-        save_record(self.hr, row, 'Lưu mà không thay đổi')
+        luu_cham_cong(self.hr, row, 'Lưu mà không thay đổi')
         self.assertEqual(NhatKyCong.objects.count(), count)
-        before = record_values(row)
+        before = du_lieu_cham_cong(row)
         after = {**before, 'work_hours': '7.0000'}
         for action in ['recalculate', 'approve_employee']:
             NhatKyCong.objects.create(nguoi_thuc_hien=self.hr, hanh_dong=action, ly_do='Tự động', du_lieu_cu=before, du_lieu_moi=after)
         NhatKyCong.objects.create(nguoi_thuc_hien=self.hr, hanh_dong='save_record', ly_do='Bản ghi tạo mới cũ', du_lieu_cu={}, du_lieu_moi=before)
-        self.assertEqual(history_rows(history_logs(self.emp, 2026, 1)), [])
+        self.assertEqual(danh_sach_dieu_chinh(lay_nhat_ky_cong(self.emp, 2026, 1)), [])
         self.client.force_login(self.hr)
-        response = self.client.get(f'/bang_cong/employee/{self.emp.pk}/history/?month=1&year=2026')
+        response = self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/lich-su/?month=1&year=2026')
         self.assertContains(response, 'Chưa có điều chỉnh chấm công')
 
     def test_history_preserves_legacy_manual_edits(self):
-        from .services.presentation import history_logs, history_rows
+        from .services.hien_thi import lay_nhat_ky_cong, danh_sach_dieu_chinh
         values = {'employee_id': str(self.emp.pk), 'date': '2026-01-05', 'check_in': '08:00:00'}
         NhatKyCong.objects.create(nguoi_thuc_hien=self.hr, hanh_dong='save_record', ly_do='Chỉnh sửa phiên bản cũ',
             du_lieu_cu={**values, 'check_in': '09:00:00'}, du_lieu_moi=values)
-        rows = history_rows(history_logs(self.emp, 2026, 1))
+        rows = danh_sach_dieu_chinh(lay_nhat_ky_cong(self.emp, 2026, 1))
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['old'], '09:00:00')
         self.assertEqual(rows[0]['new'], '08:00:00')
 
     def test_new_pages_enforce_department_scope(self):
         self.client.force_login(self.user)
-        for suffix in ['', 'history/']:
-            self.assertEqual(self.client.get(f'/bang_cong/employee/{self.other.pk}/{suffix}').status_code, 404)
-        self.assertEqual(self.client.get(f'/bang_cong/employee/{self.emp.pk}/export/').status_code, 403)
+        for suffix in ['', 'lich-su/']:
+            self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/{suffix}').status_code, 404)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/').status_code, 403)
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
         self.dep.manager = self.emp
         self.dep.save()
-        self.assertEqual(self.client.get(f'/bang_cong/employee/{self.other.pk}/history/').status_code, 404)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/lich-su/').status_code, 404)
 
     def test_attendance_csv_exports_filter_and_escape(self):
-        row = save_record(self.hr, self.record(), 'Tạo')
+        row = luu_cham_cong(self.hr, self.record(), 'Tạo')
         row.ghi_chu = '=HYPERLINK("example")'
-        save_record(self.hr, row, 'Nhân sự sửa ghi chú')
+        luu_cham_cong(self.hr, row, 'Nhân sự sửa ghi chú')
         self.client.force_login(self.hr)
-        url = f'/bang_cong/employee/{self.emp.pk}/export/'
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/'
         response = self.client.get(url, {'month': 1, 'year': 2026, 'start': '2026-01-05', 'end': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
         self.assertIn("'=HYPERLINK", response.content.decode('utf-8-sig'))
@@ -481,8 +481,8 @@ class AttendanceTests(TestCase):
         self.client.force_login(self.hr)
         response = self.client.get('/bang_cong/?month=1&year=2026')
         self.assertNotContains(response, 'attendance-approval-title')
-        response = self.client.get(f'/bang_cong/employee/{self.emp.pk}/?month=1&year=2026')
-        url = f'/bang_cong/employee/{self.emp.pk}/approve/{self.period.pk}/'
+        response = self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/?month=1&year=2026')
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/duyet/{self.period.pk}/'
         self.assertContains(response, f'action="{url}"', count=1)
         html = response.content.decode()
         self.assertLess(html.index('Lịch sử điều chỉnh công'), html.index('>Duyệt bảng công</button>'))
@@ -495,13 +495,13 @@ class AttendanceTests(TestCase):
     def test_approval_post_validates_data_and_records_actor(self):
         from .models import ChotBangCong
         self.client.force_login(self.hr)
-        url = f'/bang_cong/employee/{self.emp.pk}/approve/{self.period.pk}/'
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/duyet/{self.period.pk}/'
         response = self.client.post(url, follow=True)
         self.assertContains(response, 'còn thiếu ngày')
         self.period.refresh_from_db()
         self.assertEqual(self.period.trang_thai, 'pending')
         for day in LichLamViec.objects.filter(loai_ngay='work'):
-            save_record(self.hr, self.record(ngay=day.ngay), 'Đối chiếu')
+            luu_cham_cong(self.hr, self.record(ngay=day.ngay), 'Đối chiếu')
         response = self.client.post(url, follow=True)
         self.assertContains(response, 'Đã duyệt bảng công của')
         self.assertNotContains(response, f'action="{url}"')
@@ -517,10 +517,10 @@ class AttendanceTests(TestCase):
         self.assertEqual(states[self.other.pk], 'empty')
         row = ChamCong.objects.filter(nhan_vien=self.emp).first()
         with self.assertRaises(ValidationError):
-            save_record(self.hr, row, 'Không sửa công đã duyệt riêng')
+            luu_cham_cong(self.hr, row, 'Không sửa công đã duyệt riêng')
         for day in LichLamViec.objects.filter(loai_ngay='work'):
-            save_record(self.hr, self.record(nhan_vien=self.other, ngay=day.ngay), 'Đối chiếu')
-        self.client.post(f'/bang_cong/employee/{self.other.pk}/approve/{self.period.pk}/')
+            luu_cham_cong(self.hr, self.record(nhan_vien=self.other, ngay=day.ngay), 'Đối chiếu')
+        self.client.post(f'/bang_cong/nhan-vien/{self.other.pk}/duyet/{self.period.pk}/')
         self.period.refresh_from_db()
         self.assertEqual(self.period.trang_thai, 'approved')
         self.assertEqual(set(self.period.ds_nhan_vien), {self.emp.pk, self.other.pk})
@@ -535,4 +535,4 @@ class AttendanceTests(TestCase):
         self.assertNotContains(response, 'attendance-approval-title')
         self.assertNotContains(response, 'name="action" value="reopen"')
         with self.assertRaises(ValidationError):
-            change_period(self.director, self.period.pk, 'reopen', 'Không vượt khóa lương')
+            xu_ly_trang_thai_ky_cong(self.director, self.period.pk, 'reopen', 'Không vượt khóa lương')

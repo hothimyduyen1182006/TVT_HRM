@@ -47,7 +47,7 @@ class Command(BaseCommand):
         if apps.get_model('attendance', 'LichSuTangCa').objects.exists():
             raise CommandError('Không thể đặt lại dữ liệu vì cần bảo toàn lịch sử OT.')
         with transaction.atomic():
-            order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.PayrollRecord',
+            order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.Luong',
                 'payroll.PayrollAdjustment', 'payroll.PayrollInput', 'payroll.PayrollPeriod',
                 'attendance.NhatKyCong', 'attendance.ChotBangCong',
                 'attendance.LichSuTangCa', 'attendance.ChamCong', 'leaves.LeaveRequest',

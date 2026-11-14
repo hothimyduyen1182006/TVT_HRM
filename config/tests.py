@@ -14,7 +14,7 @@ from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 from nhan_vien.models import Department, Employee
 from nhan_vien import test_personal_records as personal_fixtures
 from bang_cong.models import KyCong
-from bang_luong.models import PayrollRecord, PayrollPeriod
+from bang_luong.models import Luong, PayrollPeriod
 
 
 class HomePageTests(TestCase):
@@ -26,7 +26,7 @@ class HomePageTests(TestCase):
         self.assertEqual(self.client.post('/').status_code,405)
 
     def test_every_role_has_own_attendance_and_salary_shortcuts(self):
-        before=list(PayrollRecord.objects.values())
+        before=list(Luong.objects.values())
         for employee in self.people:
             with self.subTest(user=employee.user.username):
                 self.client.force_login(employee.user)
@@ -34,12 +34,12 @@ class HomePageTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertContains(response,employee.full_name)
                 self.assertContains(response,'Chào mừng trở lại!')
-                self.assertEqual(response.context['attendance_url'],'/bang_cong/personal/')
+                self.assertEqual(response.context['attendance_url'],'/bang_cong/ca-nhan/')
                 self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=1&year=2026')
                 self.assertEqual(self.client.get(response.context['attendance_url']).status_code,200)
                 self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
                 self.assertEqual(response.context['leave_url'],'/nghi_phep/')
-        self.assertEqual(list(PayrollRecord.objects.values()),before)
+        self.assertEqual(list(Luong.objects.values()),before)
 
     def test_latest_salary_is_selected_only_for_current_user(self):
         employee=self.people[3]
@@ -47,9 +47,9 @@ class HomePageTests(TestCase):
             attendance=KyCong.objects.create(nam=year,thang=2,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
                 ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
             period=PayrollPeriod.objects.create(attendance_period=attendance)
-            record=PayrollRecord.objects.get(employee=owner)
+            record=Luong.objects.get(nhan_vien=owner)
             record.pk=None
-            record.period=period
+            record.ky_luong=period
             record.save()
         self.client.force_login(employee.user)
         response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
@@ -59,7 +59,7 @@ class HomePageTests(TestCase):
 
     def test_employee_without_salary_has_working_empty_payslip_link(self):
         employee=self.people[3]
-        PayrollRecord.objects.filter(employee=employee).delete()
+        Luong.objects.filter(nhan_vien=employee).delete()
         self.client.force_login(employee.user)
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)

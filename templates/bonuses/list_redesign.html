@@ -94,9 +94,9 @@
 .bm-link:hover{background:#e4edf9;color:#17385e}
 .bm-title{display:flex;align-items:center;justify-content:center;gap:10px;margin:6px 0 30px;color:#142f55;font-size:32px;font-weight:750;text-align:left}
 .bm-title-icon{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:46px;border-radius:12px;background:#ce9920;color:#122f47;font-size:29px;font-weight:700;line-height:1}
-.bm-title-text{padding:8px 0;border-bottom:1px solid #ce9920}
+.bm-title-text{padding:8px 0}
 </style>{% endblock %}
-{% block content %}<main class="bm-page"><h1 class="bm-title"><span class="bm-title-icon" aria-hidden="true">▦</span><span class="bm-title-text">QUẢN LÝ THƯỞNG</span></h1>
+{% block content %}<main class="bm-page"><h1 class="bm-title"><span class="bm-title-text">QUẢN LÝ THƯỞNG</span></h1>
 <form method="get" class="bm-filter">
   <div class="bm-field bm-field-search">{{ form.q.label_tag }}{{ form.q }}</div>
   <div class="bm-field">{{ form.department.label_tag }}{{ form.department }}</div>
@@ -111,7 +111,6 @@
 {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
 <div class="bm-actions">
    {% if can_propose %}<a class="btn bm-create" href="{% url 'thuong:propose' %}">Lập/Đề xuất bảng thưởng</a>{% endif %}
-  {% if can_submit %}<form method="post" action="{% url 'thuong:calculate' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endfor %}<button class="btn" type="submit">Tính thưởng chuyên cần &amp; thâm niên</button></form>{% endif %}
   {% if can_export %}<form method="post" action="{% url 'thuong:export' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endfor %}<button class="btn" type="submit">Xuất bảng thưởng</button></form>{% endif %}
 </div>
 <div class="bm-table-wrap"><table class="table table-sm bm-table"><thead><tr><th>Mã thưởng</th><th>Họ và tên</th><th>Phòng ban</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Tác vụ</th></tr></thead><tbody>

@@ -184,9 +184,9 @@ class ChamCong(models.Model):
 
     @property
     def gio_tang_ca(self):
-        from .services.calculations import automatic_overtime
+        from .services.tinh_toan import tinh_tang_ca_tu_dong
 
-        return automatic_overtime(self)['hours']
+        return tinh_tang_ca_tu_dong(self)['hours']
 
 
 class NhatKyCong(models.Model):

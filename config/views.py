@@ -15,7 +15,8 @@ from .dashboard import DashboardFilter, dashboard_context
 from django.urls import reverse
 from django.utils import timezone
 from urllib.parse import urlencode
-from bang_luong.models import PayrollRecord
+from bang_luong.models import Luong
+from bang_luong.services.hien_thi import phieu_luong_ca_nhan
 
 
 @login_required
@@ -24,15 +25,15 @@ def home(request):
     employee=Employee.objects.filter(user=request.user).first()
     can_manage=has_role(request.user,HR,DIRECTOR,MANAGER)
     name=(employee.full_name if employee else '') or request.user.get_full_name() or request.user.get_username()
-    latest=PayrollRecord.objects.filter(employee__user=request.user).select_related('period__attendance_period').order_by(
-        '-period__attendance_period__nam','-period__attendance_period__thang','-calculated_at','-pk').first()
+    latest=phieu_luong_ca_nhan(request.user).order_by(
+        '-ky_luong__attendance_period__nam','-ky_luong__attendance_period__thang','-ngay_tinh','-pk').first()
     today=timezone.localdate()
-    period=latest.period.attendance_period if latest else None
+    period=latest.ky_luong.attendance_period if latest else None
     payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,
         'year':period.nam if period else today.year})
     return render(request,'home.html',{
         'display_name':name,
-        'attendance_url':reverse('bang_cong:personal') if employee else (reverse('bang_cong:list') if can_manage else ''),
+        'attendance_url':reverse('bang_cong:ca-nhan') if employee else (reverse('bang_cong:danh-sach') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
         'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
@@ -47,7 +48,7 @@ def home(request):
 @login_required
 def dashboard(request):
     if not has_role(request.user, HR, DIRECTOR, MANAGER):
-        return redirect('bang_cong:list')
+        return redirect('bang_cong:danh-sach')
     form = DashboardFilter(request.user, request.GET)
     context = dashboard_context(request.user, form) if form.is_valid() else {}
     query = request.GET.copy()

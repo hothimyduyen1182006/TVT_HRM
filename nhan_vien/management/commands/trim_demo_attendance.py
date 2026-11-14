@@ -1,11 +1,13 @@
 """Loại bỏ công mẫu chưa diễn ra, không áp dụng cho nhân viên thật."""
+
+from django.db.models import F
 from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from bang_cong.models import KyCong, ChamCong, ChotBangCong, NhatKyCong
 from nghi_phep.models import LeaveDay
-from bang_luong.models import PayrollPeriod, PayrollRecord, PayrollAuditLog
+from bang_luong.models import PayrollPeriod, Luong, PayrollAuditLog
 
 
 class Command(BaseCommand):
@@ -26,15 +28,15 @@ class Command(BaseCommand):
         if not actor:
             raise CommandError('Không tìm thấy tài khoản demo_hr.')
         payrolls = PayrollPeriod.objects.select_for_update().filter(attendance_period__in=periods)
-        salary = PayrollRecord.objects.filter(period__in=payrolls, employee__code__startswith='DEMO-')
-        if salary.filter(status='paid').exists():
+        salary = Luong.objects.filter(ky_luong__in=payrolls, nhan_vien__code__startswith='DEMO-')
+        if salary.filter(trang_thai='paid').exists():
             raise CommandError('Có lương đã chi trả; không tự sửa dữ liệu này.')
         for payroll in payrolls:
-            rows = salary.filter(period=payroll)
+            rows = salary.filter(ky_luong=payroll)
             if rows.exists():
                 PayrollAuditLog.objects.create(period=payroll, actor=actor, action='trim_demo',
                     reason=f'Gỡ kết quả demo cả tháng: chỉ giữ công trước {cutoff}',
-                    snapshot={'records': list(rows.values('id', 'employee_id', 'status', 'breakdown'))})
+                    snapshot={'records': list(rows.values('id', **{'employee_id': F('nhan_vien_id'), 'status': F('trang_thai'), 'breakdown': F('chi_tiet')}))})
                 rows.delete()
             if not payroll.records.exists():
                 payroll.status = 'pending'

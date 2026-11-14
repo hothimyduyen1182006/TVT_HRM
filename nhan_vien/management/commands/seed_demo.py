@@ -12,12 +12,12 @@ from django.utils import timezone
 
 from nhan_vien.models import Department, Employee
 from bang_cong.models import KyCong, ChamCong, LichLamViec
-from bang_cong.services.workflow import save_record, change_period
+from bang_cong.services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from nghi_phep.models import LeaveDay
 from thuong.models import Bonus
 from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment
-from bang_luong.services.calculations import calculate_payroll
-from bang_luong.services.workflow import change_payroll
+from bang_luong.services.tinh_toan import tinh_bang_luong
+from bang_luong.services.quy_trinh import xu_ly_trang_thai_luong
 
 
 PEOPLE = [
@@ -126,10 +126,10 @@ class Command(BaseCommand):
                         )
                     elif index in [1, 2, 4, 6] and number in [0, 5]:
                         values['gio_vao'] = time(8, 10 + index * 5)
-                    row = save_record(hr, ChamCong(**values), 'DEMO: nhập dữ liệu chấm công minh họa')
+                    row = luu_cham_cong(hr, ChamCong(**values), 'DEMO: nhập dữ liệu chấm công minh họa')
                     if index == 2 and number == 0:
                         row.gio_vao = time(8, 10)
-                        save_record(hr, row, 'DEMO: sửa giờ vào sau khi đối chiếu; xem giá trị trước/sau trong lịch sử')
+                        luu_cham_cong(hr, row, 'DEMO: sửa giờ vào sau khi đối chiếu; xem giá trị trước/sau trong lịch sử')
                 for approved in [True, False]:
                     bonus = Bonus(employee=employee, month=month, year=year,
                         name='DEMO: thưởng đã duyệt' if approved else 'DEMO: thưởng chưa duyệt - không tính lương',
@@ -140,7 +140,7 @@ class Command(BaseCommand):
                         approved_at=timezone.now() if approved else None)
                     bonus.full_clean()
                     bonus.save()
-            change_period(director, period.pk, 'approve', 'DEMO: duyệt kỳ công minh họa; không phải dữ liệu thực tế')
+            xu_ly_trang_thai_ky_cong(director, period.pk, 'approve', 'DEMO: duyệt kỳ công minh họa; không phải dữ liệu thực tế')
             payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
             for index, employee in enumerate(employees):
                 inputs = PayrollInput(period=payroll, employee=employee, insurance_base=employee.base_salary,
@@ -156,14 +156,14 @@ class Command(BaseCommand):
                 if index == 6:
                     PayrollAdjustment.objects.create(period=payroll, employee=employee, kind='deduction',
                         name='DEMO: hoàn ứng', amount=Decimal(100000), basis='DEMO: khấu trừ minh họa, không phải phạt đi trễ', approved=True)
-            calculate_payroll(hr, payroll.pk, 'DEMO: tính bảng lương minh họa bằng service hiện có')
+            tinh_bang_luong(hr, payroll.pk, 'DEMO: tính bảng lương minh họa bằng service hiện có')
             if month in [9, 10]:
-                change_payroll(director, payroll.pk, 'approve', 'DEMO: duyệt bảng lương minh họa')
+                xu_ly_trang_thai_luong(director, payroll.pk, 'approve', 'DEMO: duyệt bảng lương minh họa')
             if month == 10:
-                change_payroll(director, payroll.pk, 'paid', 'DEMO: mô phỏng trạng thái đã trả, không có giao dịch thật',
+                xu_ly_trang_thai_luong(director, payroll.pk, 'paid', 'DEMO: mô phỏng trạng thái đã trả, không có giao dịch thật',
                                f'DEMO-PAY-{year}-10: chứng từ giả lập để thử giao diện, không chuyển tiền thật')
             if month == 11:
-                change_period(director, period.pk, 'reopen',
+                xu_ly_trang_thai_ky_cong(director, period.pk, 'reopen',
                               'DEMO: chuẩn bị kỳ công chờ duyệt để người dùng thử duyệt và tính lại lương')
         self.stdout.write(self.style.SUCCESS('Created 8 DEMO employees. Periods: ' + ', '.join(f'{month:02}/{year}' for month in months)))
         self.stdout.write(f'Year: {year}. Empty-period example: 12/{year}.')

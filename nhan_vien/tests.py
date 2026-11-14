@@ -5,7 +5,7 @@ from django.test import TestCase
 from nhan_vien.models import Employee
 from bang_cong.models import ChamCong
 from bang_cong.models import KyCong
-from bang_luong.models import PayrollPeriod, PayrollRecord
+from bang_luong.models import PayrollPeriod, Luong
 from nghi_phep.models import LeaveRequest
 
 
@@ -20,10 +20,10 @@ class DemoDataTests(TestCase):
         states = dict(PayrollPeriod.objects.values_list('attendance_period__thang', 'status'))
         self.assertEqual(states, {9: 'approved', 10: 'paid', 11: 'pending'})
         self.assertEqual(KyCong.objects.get(nam=2026, thang=11).trang_thai, 'pending')
-        self.assertEqual(PayrollRecord.objects.count(), 24)
+        self.assertEqual(Luong.objects.count(), 24)
         self.assertEqual(PayrollPeriod.objects.filter(attendance_period__thang=12).count(), 0)
-        for row in PayrollRecord.objects.select_related('period__attendance_period'):
-            self.assertLess(row.bonus_pay, 2000000)  # Thưởng chưa duyệt không được cộng.
+        for row in Luong.objects.select_related('ky_luong__attendance_period'):
+            self.assertLess(row.tong_tien_thuong, 2000000)  # Thưởng chưa duyệt không được cộng.
         manager = get_user_model().objects.get(username='demo_manager')
         self.client.force_login(manager)
         response = self.client.get('/bang_luong/?month=9&year=2026')
@@ -37,7 +37,7 @@ class DemoDataTests(TestCase):
         output = StringIO()
         call_command('seed_demo', year=2026, password='DifferentPassword@2026', stdout=output)
         self.assertIn('already exists', output.getvalue())
-        self.assertEqual(PayrollRecord.objects.count(), 24)
+        self.assertEqual(Luong.objects.count(), 24)
         self.assertEqual(ChamCong.objects.count(), before)
         user.refresh_from_db()
         self.assertEqual(user.password, password_hash)
@@ -98,7 +98,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(self.client.get('/thuong/?month=9&year=2026').status_code, 200)
         self.assertEqual(self.client.get('/nghi_phep/?month=9&year=2026').status_code, 200)
         self.assertEqual(self.client.get('/admin/').status_code, 302)
-        salary = PayrollRecord.objects.filter(period__attendance_period__thang=11).first()
+        salary = Luong.objects.filter(ky_luong__attendance_period__thang=11).first()
         self.assertEqual(self.client.post(f'/bang_luong/{salary.pk}/approve/').status_code, 403)
         hr.refresh_from_db()
         self.assertFalse(hr.is_staff)

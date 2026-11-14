@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from nghi_phep.models import LeaveDay
 from .tests import AttendanceTests
-from .services.workflow import save_record
+from .services.quy_trinh import luu_cham_cong
 
 
 class StatFilterTests(TestCase):
@@ -11,16 +11,16 @@ class StatFilterTests(TestCase):
     record = AttendanceTests.record
 
     def test_cards_filter_daily_rows_and_preserve_period(self):
-        regular = save_record(self.hr, self.record(gio_ra=time(19)), 'Ngày làm')
-        late = save_record(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Đi trễ')
+        regular = luu_cham_cong(self.hr, self.record(gio_ra=time(19)), 'Ngày làm')
+        late = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Đi trễ')
         LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 7), units=1,
                                 paid=True, approved=True, reason='Phép')
-        leave = save_record(self.hr, self.record(ngay=date(2026, 1, 7), gio_vao=None,
+        leave = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 7), gio_vao=None,
                             gio_ra=None, trang_thai='leave'), 'Nghỉ phép')
-        absent = save_record(self.hr, self.record(ngay=date(2026, 1, 8), gio_vao=None,
+        absent = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 8), gio_vao=None,
                              gio_ra=None, trang_thai='absent'), 'Vắng')
         self.client.force_login(self.hr)
-        url = f'/bang_cong/employee/{self.emp.pk}/'
+        url = f'/bang_cong/nhan-vien/{self.emp.pk}/'
         expected = {'actual': [regular.ngay, late.ngay], 'paid_leave': [leave.ngay],
                     'paid': [regular.ngay, late.ngay, leave.ngay], 'absent': [absent.ngay],
                     'late': [late.ngay], 'ot': [regular.ngay]}

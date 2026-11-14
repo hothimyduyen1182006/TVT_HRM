@@ -1,3 +1,5 @@
+"""Nhận thao tác chấm công và chuẩn bị dữ liệu hiển thị trong ngày."""
+
 from datetime import datetime, time
 from decimal import Decimal
 
@@ -11,9 +13,8 @@ from django.views.decorators.http import require_http_methods
 from nhan_vien.models import Employee
 
 from .models import ChamCong
-from .services.clocking import punch
-from .services.scheduling import clock_schedule
-from .services.workflow import period_is_locked
+from .services.cham_cong import ghi_nhan_cham_cong, xem_lich_cham_cong
+from .services.quy_trinh import ky_cong_da_khoa
 
 
 def _calculate_work_hours(record, now, period):
@@ -55,57 +56,47 @@ def _calculate_work_hours(record, now, period):
 
 @login_required
 @require_http_methods(['GET', 'POST'])
-def today(request):
-    # Chỉ cho nhân viên đang hoạt động vào trang chấm công cá nhân.
-    employee = Employee.objects.filter(user=request.user, is_active=True).first()
-    if not employee:
+def cham_cong_hom_nay(request):
+    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    if not nhan_vien:
         raise PermissionDenied('Tài khoản chưa liên kết nhân viên đang làm việc.')
+    hien_tai = timezone.localtime().replace(microsecond=0)
+    hom_nay = hien_tai.date()
 
-    now = timezone.localtime().replace(microsecond=0)
-
-    # Xử lý chấm công xong thì quay lại trang để tải trạng thái mới.
     if request.method == 'POST':
-        action = request.POST.get('action')
+        thao_tac = request.POST.get('action')
         try:
-            record = punch(request.user, action, request.POST.get('note', ''))
-            request.session['clock_success'] = {'record': record.pk, 'action': action}
-        except ValidationError as error:
-            messages.error(request, ' '.join(error.messages))
-        return redirect('bang_cong:clock')
+            ban_ghi = ghi_nhan_cham_cong(request.user, thao_tac, request.POST.get('note', ''))
+            request.session['clock_success'] = {'record': ban_ghi.pk, 'action': thao_tac}
+        except ValidationError as loi:
+            messages.error(request, ' '.join(loi.messages))
+        return redirect('bang_cong:cham-cong')
 
-    # Lấy bản ghi hôm nay và lịch làm việc tương ứng.
-    record = ChamCong.objects.filter(nhan_vien=employee, ngay=now.date()).first()
-    schedule = clock_schedule(now.date())
-    period, day = schedule['period'], schedule['day']
-    locked = period_is_locked(period, employee.pk, now.date()) if period and period.pk else False
-    workday = day and day.loai_ngay == 'work'
-    can_punch = bool(
-        not schedule['error']
-        and period
-        and not locked
-        and workday
-        and employee.hire_date <= now.date()
+    ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay=hom_nay).first()
+    ke_hoach = xem_lich_cham_cong(hom_nay)
+    ky_cong, lich_ngay = ke_hoach['period'], ke_hoach['day']
+    da_khoa = ky_cong_da_khoa(ky_cong, nhan_vien.pk, hom_nay) if ky_cong and ky_cong.pk else False
+    duoc_cham_cong = bool(
+        not ke_hoach['error'] and ky_cong and not da_khoa
+        and lich_ngay and lich_ngay.loai_ngay == 'work' and nhan_vien.hire_date <= hom_nay
     )
+    dang_trong_ca = bool(ban_ghi and ban_ghi.gio_vao and not ban_ghi.gio_ra)
+    trang_thai_trang = 'done' if ban_ghi and ban_ghi.gio_ra else (
+        'checkout' if ban_ghi and ban_ghi.gio_vao else 'checkin')
+    thanh_cong = request.session.pop('clock_success', {})
+    if not ban_ghi or thanh_cong.get('record') != ban_ghi.pk:
+        thanh_cong = {}
 
-    # Chỉ hiện thông báo thành công nếu nó thuộc đúng bản ghi đang xem.
-    page_state = 'done' if record and record.gio_ra else (
-        'checkout' if record and record.gio_vao else 'checkin'
-    )
-    success = request.session.pop('clock_success', {})
-    if not record or success.get('record') != record.pk:
-        success = {}
-    hours, elapsed_hours = _calculate_work_hours(record, now, period)
-    minutes = int(hours * 60)
+    so_gio, tong_gio_vao_ra = _calculate_work_hours(ban_ghi, hien_tai, ky_cong)
+    so_phut = int(so_gio * 60)
 
-    # Giữ nguyên các tên context mà trang chấm công hiện đang sử dụng.
     return render(request, 'attendance/checkin.html', {
-        'employee': employee, 'record': record, 'today_record': record,
-        'period': period, 'now': now, 'today': now.date(),
-        'success': success.get('action'), 'page_state': page_state,
-        'can_check_in': can_punch and record is None,
-        'can_check_out': can_punch and bool(record and record.gio_vao and not record.gio_ra),
-        'locked': locked, 'is_late': bool(record and record.so_phut_tre),
-        'schedule_error': schedule['error'],
-        'elapsed_hours': elapsed_hours,
-        'duration': f'{minutes // 60:02}:{minutes % 60:02}',
+        'employee': nhan_vien, 'record': ban_ghi, 'today_record': ban_ghi,
+        'period': ky_cong, 'now': hien_tai, 'today': hom_nay,
+        'success': thanh_cong.get('action'), 'page_state': trang_thai_trang,
+        'can_check_in': duoc_cham_cong and ban_ghi is None,
+        'can_check_out': duoc_cham_cong and dang_trong_ca,
+        'locked': da_khoa, 'is_late': bool(ban_ghi and ban_ghi.so_phut_tre),
+        'schedule_error': ke_hoach['error'], 'elapsed_hours': tong_gio_vao_ra,
+        'duration': f'{so_phut // 60:02}:{so_phut % 60:02}',
     })

@@ -14,8 +14,7 @@
     color:var(--at-navy)
 }
 .at-title>span:last-child{
-    padding:8px 0;
-    border-bottom:1px solid var(--at-gold)
+    padding:8px 0
 }
 .at-icon{
     display:inline-flex;

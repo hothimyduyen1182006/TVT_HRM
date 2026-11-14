@@ -13,10 +13,10 @@ class EmployeeAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if change and set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
             from bang_luong.models import PayrollPeriod
-            from bang_luong.services.calculations import refresh_employee_payroll
+            from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
             for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
                 attendance = period.attendance_period
-                error = refresh_employee_payroll(request.user, obj.pk, attendance.nam, attendance.thang)
+                error = cap_nhat_luong_nhan_vien(request.user, obj.pk, attendance.nam, attendance.thang)
                 if error:
                     from django.contrib import messages
                     self.message_user(request, error, level=messages.WARNING)

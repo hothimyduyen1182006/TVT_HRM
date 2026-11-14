@@ -61,30 +61,54 @@ class AutomaticBonusPostTests(TestCase):
             approved_by=self.director if status == 'approved' else None,
             approved_at=timezone.now() if status == 'approved' else None)
 
-    def test_get_list_never_creates_automatic_bonuses_for_any_role(self):
-        for user in [self.people['employee'].user, self.people['manager'].user, self.hr, self.director]:
+    def test_get_list_only_hr_references_sources(self):
+        for user in [self.people['employee'].user, self.people['manager'].user, self.director]:
             with self.subTest(user=user.username):
                 self.client.force_login(user)
                 response = self.client.get(self.list_url, {'month': 1, 'year': 2026})
                 self.assertEqual(response.status_code, 200)
                 self.assertFalse(Bonus.objects.exists())
 
-    def test_get_preserves_draft_rejected_pending_and_approved_records(self):
-        self.bonus('attendance', 'draft')
-        self.bonus('seniority', 'rejected')
-        self.bonus('other', 'pending')
-        self.bonus('other', 'approved')
-        before = list(Bonus.objects.order_by('pk').values())
-        for user in [self.hr, self.people['manager'].user]:
-            self.client.force_login(user)
-            for filters in [{'month': 1, 'year': 2026}, {'month': 1, 'year': 2026, 'status': 'draft', 'q': 'employee'}]:
-                self.assertEqual(self.client.get(self.list_url, filters).status_code, 200)
-                self.assertEqual(list(Bonus.objects.order_by('pk').values()), before)
-
     def test_get_calculate_is_rejected_without_writing(self):
         self.client.force_login(self.hr)
         self.assertEqual(self.client.get(self.calculate_url, self.data).status_code, 405)
         self.assertFalse(Bonus.objects.exists())
+
+    def test_hr_list_syncs_sources_without_button_and_is_idempotent(self):
+        self.client.force_login(self.hr)
+        response = self.client.get(self.list_url, self.data)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Tính thưởng chuyên cần &amp; thâm niên')
+        rows = Bonus.objects.filter(employee=self.people['employee'])
+        self.assertEqual(dict(rows.values_list('bonus_type', 'amount')),
+                         {'attendance': Decimal(500000), 'seniority': Decimal(3000000)})
+        before = list(rows.order_by('pk').values())
+        self.client.get(self.list_url, self.data)
+        self.assertEqual(list(rows.order_by('pk').values()), before)
+
+    def test_source_changes_refresh_drafts_but_preserve_locked_rows(self):
+        self.client.force_login(self.hr)
+        self.client.get(self.list_url, self.data)
+        seniority = Bonus.objects.get(employee=self.people['employee'], bonus_type='seniority')
+        Bonus.objects.filter(pk=seniority.pk).update(status='approved')
+        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(so_phut_tre=10)
+        self.client.get(self.list_url, self.data)
+        self.assertEqual(Bonus.objects.get(employee=self.people['employee'],
+                                         bonus_type='attendance').amount, 0)
+        seniority.refresh_from_db()
+        self.assertEqual(seniority.status, 'approved')
+        self.assertEqual(seniority.amount, Decimal(3000000))
+
+    def test_incomplete_attendance_waits_until_sources_are_complete(self):
+        self.client.force_login(self.hr)
+        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(trang_thai='incomplete')
+        self.client.get(self.list_url, self.data)
+        self.assertFalse(Bonus.objects.filter(employee=self.people['employee'],
+                                             bonus_type='attendance').exists())
+        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(trang_thai='present')
+        self.client.get(self.list_url, self.data)
+        self.assertTrue(Bonus.objects.filter(employee=self.people['employee'],
+                                            bonus_type='attendance', amount=500000).exists())
 
     def test_post_requires_csrf(self):
         self.client.force_login(self.hr)
@@ -99,13 +123,13 @@ class AutomaticBonusPostTests(TestCase):
 
     def test_hr_post_uses_existing_calculations_and_selected_employee(self):
         self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url)
+        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
         rows = Bonus.objects.filter(employee=self.people['employee'])
         self.assertEqual(dict(rows.values_list('bonus_type', 'amount')),
                          {'attendance': Decimal(500000), 'seniority': Decimal(3000000)})
         self.assertEqual(set(rows.values_list('status', flat=True)), {'draft'})
         self.assertFalse(Bonus.objects.exclude(employee=self.people['employee']).exists())
-        self.assertRedirects(self.post(), self.list_url)
+        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
         self.assertEqual(rows.count(), 2)
 
     def test_post_updates_editable_automatic_rows_only(self):
@@ -114,7 +138,7 @@ class AutomaticBonusPostTests(TestCase):
         other = self.bonus('other', 'draft', amount=999)
         before_other = Bonus.objects.filter(pk=other.pk).values().get()
         self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url)
+        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
         attendance.refresh_from_db()
         seniority.refresh_from_db()
         self.assertEqual(attendance.amount, Decimal(500000))
@@ -128,7 +152,7 @@ class AutomaticBonusPostTests(TestCase):
         self.bonus('seniority', 'approved')
         before = list(Bonus.objects.order_by('pk').values())
         self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url)
+        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
         self.assertEqual(list(Bonus.objects.order_by('pk').values()), before)
 
     def test_invalid_or_missing_period_and_forged_employee_do_not_write(self):
@@ -136,13 +160,5 @@ class AutomaticBonusPostTests(TestCase):
         for data in [{}, {'month': 13, 'year': 2026},
                      {'month': 1, 'year': 2026, 'employee': 999999}]:
             with self.subTest(data=data):
-                self.assertRedirects(self.post(data), self.list_url)
+                self.assertRedirects(self.post(data), self.list_url, fetch_redirect_response=False)
                 self.assertFalse(Bonus.objects.exists())
-
-    def test_existing_button_stays_post_with_csrf(self):
-        self.client.force_login(self.hr)
-        response = self.client.get(self.list_url, {'month': 1, 'year': 2026})
-        self.assertContains(response, f'<form method="post" action="{self.calculate_url}">')
-        self.assertContains(response, 'name="csrfmiddlewaretoken"')
-        self.assertContains(response, 'Tính thưởng chuyên cần &amp; thâm niên')
-        self.assertFalse(Bonus.objects.exists())

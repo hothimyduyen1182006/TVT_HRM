@@ -1,1 +1,1 @@
-"""Logic tính công và duyệt công sẽ được triển khai sau khi chốt chính sách."""
+"""Các hàm nghiệp vụ tính công, chấm công, lịch làm việc, tổng hợp và duyệt công."""

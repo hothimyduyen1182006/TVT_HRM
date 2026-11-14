@@ -4,15 +4,15 @@ from . import clock_views
 
 app_name = 'bang_cong'
 urlpatterns = [
-    path('personal/', views.personal, name='personal'),
-    path('clock/', clock_views.today, name='clock'),
-    path('', views.record_list, name='list'),
-    path('new/', views.edit, name='create'),
-    path('employee/<int:employee_id>/', views.employee_month, name='employee-month'),
-    path('employee/<int:employee_id>/approve/<int:period_id>/', views.approve_employee_view, name='employee-approve'),
-    path('employee/<int:employee_id>/history/', views.history, name='history'),
-    path('employee/<int:employee_id>/export/', views.export_month, name='export'),
-    path('<int:pk>/', views.detail, name='detail'),
-    path('<int:pk>/edit/', views.edit, name='edit'),
-    path('period/<int:pk>/', views.transition, name='transition'),
+    path('ca-nhan/', views.bang_cong_ca_nhan, name='ca-nhan'),
+    path('cham-cong/', clock_views.cham_cong_hom_nay, name='cham-cong'),
+    path('', views.danh_sach_bang_cong, name='danh-sach'),
+    path('them/', views.sua_cham_cong, name='them'),
+    path('nhan-vien/<int:employee_id>/', views.bang_cong_nhan_vien, name='cong-nhan-vien'),
+    path('nhan-vien/<int:employee_id>/duyet/<int:period_id>/', views.duyet_bang_cong_nhan_vien, name='duyet-cong'),
+    path('nhan-vien/<int:employee_id>/lich-su/', views.lich_su_dieu_chinh, name='lich-su'),
+    path('nhan-vien/<int:employee_id>/xuat/', views.xuat_bang_cong, name='xuat'),
+    path('<int:pk>/', views.chi_tiet_cham_cong, name='chi-tiet'),
+    path('<int:pk>/sua/', views.sua_cham_cong, name='sua'),
+    path('ky-cong/<int:pk>/', views.doi_trang_thai_ky_cong, name='doi-trang-thai'),
 ]

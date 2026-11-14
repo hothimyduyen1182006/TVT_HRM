@@ -1,4 +1,5 @@
 from django.conf import settings
+from uuid import uuid4
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -35,6 +36,26 @@ def payroll_bonus_records(rows):
         raise ValidationError('Có khoản thưởng đã duyệt thiếu thông tin đề xuất hoặc phê duyệt. '
                               'Cần kiểm tra và hoàn thiện Bảng thưởng trước khi tính hoặc duyệt lương.')
     return approved_bonus_records(rows)
+
+
+def tao_ma_tong_thuong():
+    return 'T' + uuid4().hex[:24]
+
+
+class TongThuong(models.Model):
+    """Tổng thưởng theo nhân viên/kỳ, lưu nguồn đã dùng trong phiếu lương."""
+    ma_thuong = models.CharField(max_length=25, unique=True, default=tao_ma_tong_thuong, editable=False)
+    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    thang = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
+    nam = models.PositiveSmallIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
+    tong_tien = models.DecimalField(max_digits=24, decimal_places=8, default=0)
+    chi_tiet = models.JSONField(default=list)
+
+    class Meta:
+        db_table = 'Tong_thuong'
+        constraints = [models.UniqueConstraint(
+            fields=['nhan_vien', 'nam', 'thang'], name='unique_employee_bonus_summary',
+        )]
 
 
 class Bonus(models.Model):

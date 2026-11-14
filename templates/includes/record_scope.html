@@ -5,11 +5,11 @@
 <div class="record-scope-container">
   <nav class="record-scope pr-no-print" aria-label="{% if module == 'attendance' %}Bảng công{% elif module == 'payroll' %}Bảng lương{% else %}Bảng thưởng{% endif %}">
     <a class="{% if not personal %}is-active{% endif %}" {% if not personal %}aria-current="page"{% endif %}
-       href="{% if module == 'attendance' %}{% url 'bang_cong:list' %}{% elif module == 'payroll' %}{% url 'bang_luong:list' %}{% else %}{% url 'thuong:list' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">
+       href="{% if module == 'attendance' %}{% url 'bang_cong:danh-sach' %}{% elif module == 'payroll' %}{% url 'bang_luong:list' %}{% else %}{% url 'thuong:list' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">
       {% if module == 'attendance' %}Bảng công quản lý{% elif module == 'payroll' %}Bảng lương quản lý{% else %}Quản lý thưởng{% endif %}
     </a>
     <a class="{% if personal %}is-active{% endif %}" {% if personal %}aria-current="page"{% endif %}
-       href="{% if module == 'attendance' %}{% url 'bang_cong:personal' %}{% elif module == 'payroll' %}{% url 'bang_luong:personal' %}{% else %}{% url 'thuong:personal' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">
+       href="{% if module == 'attendance' %}{% url 'bang_cong:ca-nhan' %}{% elif module == 'payroll' %}{% url 'bang_luong:personal' %}{% else %}{% url 'thuong:personal' %}{% endif %}?month={{ form.month.value }}&amp;year={{ form.year.value }}">
       {% if module == 'attendance' %}Bảng công của tôi{% elif module == 'payroll' %}Phiếu lương của tôi{% else %}Thưởng của tôi{% endif %}
     </a>
   </nav>

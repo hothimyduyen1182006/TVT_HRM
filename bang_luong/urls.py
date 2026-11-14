@@ -3,13 +3,13 @@ from . import views
 
 app_name = 'bang_luong'
 urlpatterns = [
-    path('', views.record_list, name='list'),
-    path('personal/', views.personal, name='personal'),
-    path('inputs/', views.inputs, name='inputs'),
-    path('inputs/<str:kind>/new/', views.edit_input, name='input-create'),
-    path('inputs/<str:kind>/<int:pk>/', views.edit_input, name='input-edit'),
-    path('<int:pk>/', views.detail, name='detail'),
-    path('<int:pk>/approve/', views.approve_employee_payroll, name='employee-approve'),
-    path('period/<int:pk>/', views.transition, name='transition'),
-    path('export/<str:fmt>/', views.export, name='export'),
+    path('', views.danh_sach_bang_luong, name='list'),
+    path('personal/', views.luong_ca_nhan, name='personal'),
+    path('inputs/', views.thiet_lap_luong, name='inputs'),
+    path('inputs/<str:kind>/new/', views.chuyen_den_thiet_lap_nhan_vien, name='input-create'),
+    path('inputs/<str:kind>/<int:pk>/', views.chuyen_den_thiet_lap_nhan_vien, name='input-edit'),
+    path('<int:pk>/', views.chi_tiet_luong, name='detail'),
+    path('<int:pk>/approve/', views.duyet_luong_nhan_vien, name='employee-approve'),
+    path('period/<int:pk>/', views.doi_trang_thai_ky_luong, name='transition'),
+    path('export/<str:fmt>/', views.xuat_bang_luong, name='export'),
 ]

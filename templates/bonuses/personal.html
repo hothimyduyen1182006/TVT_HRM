@@ -42,7 +42,7 @@
 {% endblock %}
 {% block content %}
 <main class="bp-page">
-  <h1 class="h3 bp-title"><span class="bp-title-icon" aria-hidden="true">▣</span><span>{% if employee %}THÔNG TIN THƯỞNG CỦA <span class="bp-title-name">{{ employee.full_name|upper }}</span>{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</span></h1>
+  <h1 class="h3 bp-title"><span>{% if employee %}THÔNG TIN THƯỞNG CỦA <span class="bp-title-name">{{ employee.full_name|upper }}</span>{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</span></h1>
   <form method="get" class="bp-filter">
     {% for field in form %}<div class="bp-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
     <button class="btn" type="submit">Lọc</button>

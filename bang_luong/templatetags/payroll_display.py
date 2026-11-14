@@ -35,4 +35,4 @@ def department_tone(value):
 @register.filter
 def bhxh(record):
     # Chỉ đọc khoản có mã BHXH rõ ràng; không suy diễn từ tổng bảo hiểm.
-    return record.breakdown.get('insurance', {}).get('BHXH')
+    return record.khau_tru_bhxh

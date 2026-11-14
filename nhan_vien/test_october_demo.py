@@ -4,7 +4,7 @@ from django.core.management import call_command, CommandError
 from unittest.mock import patch
 from django.test import TestCase
 from bang_cong.models import KyCong, ChamCong
-from bang_luong.models import PayrollRecord
+from bang_luong.models import Luong
 
 
 class OctoberDemoTests(TestCase):
@@ -17,7 +17,7 @@ class OctoberDemoTests(TestCase):
         self.assertEqual(user.employee.user_id, user.pk)
         self.assertEqual(list(KyCong.objects.values_list('thang', flat=True)), [10])
         self.assertFalse(ChamCong.objects.exclude(ngay__month=10).exists())
-        self.assertEqual(PayrollRecord.objects.count(), 8)
+        self.assertEqual(Luong.objects.count(), 8)
         self.assertEqual(User.objects.filter(username='demo_hr').count(), 1)
 
     def test_shared_dataset_is_complete_and_reset_preserves_accounts(self):
@@ -30,7 +30,7 @@ class OctoberDemoTests(TestCase):
         self.assertEqual(LaborContract.objects.count(), 8)
         self.assertEqual(LeaveRequest.objects.count(), 5)
         self.assertEqual(ChamCong.objects.count(), 176)
-        self.assertEqual(PayrollRecord.objects.count(), 8)
+        self.assertEqual(Luong.objects.count(), 8)
         with self.assertRaises(CommandError):
             call_command('seed_october', stdout=StringIO())
         before = dict(User.objects.values_list('pk', 'password'))
