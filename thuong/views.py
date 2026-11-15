@@ -21,7 +21,7 @@ from bang_luong.models import PayrollPeriod as KyCong
 from bang_cong.services.tinh_toan import lich_thang
 from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
 from nhan_vien.models import Employee
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
 from .models import Bonus, approved_bonus_records, complete_bonus_records, displayed_bonus_records
 
@@ -247,9 +247,11 @@ def calculate_attendance(employee, month, year):
         record.ngay: record
         for record in ChamCong.objects.filter(nhan_vien=employee, ngay__range=(start, end))
     }
-    leave_dates = set(LeaveDay.objects.filter(
-        employee=employee, date__range=(start, end), approved=True
-    ).values_list('date', flat=True))
+    leave_dates = set(NgayNghi.objects.filter(
+        don_nghi_phep__nhan_vien=employee,
+        don_nghi_phep__trang_thai='da_duyet',
+        ngay__range=(start, end),
+    ).values_list('ngay', flat=True))
     if any(day.ngay not in records and day.ngay not in leave_dates for day in workdays):
         raise ValidationError(f'Thiếu dữ liệu chấm công của {employee}.')
     day_records = [records[d.ngay] for d in workdays if d.ngay in records]

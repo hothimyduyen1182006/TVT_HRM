@@ -1,4 +1,4 @@
-from collections import Counter
+﻿from collections import Counter
 from decimal import Decimal
 from django import forms
 from django.db.models import Count
@@ -7,7 +7,7 @@ from nhan_vien.access import visible_employees
 from nhan_vien.models import Department
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 
 
 class DashboardFilter(forms.Form):
@@ -27,7 +27,11 @@ def dashboard_context(user, form):
     employees = visible_employees(user).filter(is_active=True, hire_date__lte=day)
     period = KyCong.objects.filter(nam=day.year, thang=day.month).first()
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
-    leaves = set(LeaveDay.objects.filter(employee__in=employees, date=day, approved=True).values_list('employee_id', flat=True))
+    leaves = set(NgayNghi.objects.filter(
+        don_nghi_phep__nhan_vien__in=employees,
+        don_nghi_phep__trang_thai='da_duyet',
+        ngay=day,
+    ).values_list('don_nghi_phep__nhan_vien_id', flat=True))
     counts = {'ontime': 0, 'late': 0, 'unchecked': 0}
     rows = []
     for employee in employees.select_related('department', 'position').order_by('code'):
@@ -64,3 +68,4 @@ def dashboard_context(user, form):
         rows = [r for r in rows if r['employee'].department_id == selected.pk]
     return {'selected_day': day, 'total_employees': total, 'department_count': len(departments), 'departments': departments,
             'genders': gender_rows, 'attendance_counts': counts, 'employee_rows': rows, 'schedule_missing': period is None}
+

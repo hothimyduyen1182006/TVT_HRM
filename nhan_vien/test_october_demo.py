@@ -22,13 +22,13 @@ class OctoberDemoTests(TestCase):
 
     def test_shared_dataset_is_complete_and_reset_preserves_accounts(self):
         from nhan_vien.models import Employee, LaborContract
-        from nghi_phep.models import LeaveRequest
+        from nghi_phep.models import DonNghiPhep
         user = User.objects.create_user('existing-admin', password='KeepExistingPassword', is_superuser=True)
         old_hash = user.password
         call_command('seed_october', stdout=StringIO())
         self.assertEqual(Employee.objects.exclude(gender__in=['Nam', 'Nữ']).count(), 0)
         self.assertEqual(LaborContract.objects.count(), 8)
-        self.assertEqual(LeaveRequest.objects.count(), 5)
+        self.assertEqual(DonNghiPhep.objects.count(), 5)
         self.assertEqual(ChamCong.objects.count(), 176)
         self.assertEqual(Luong.objects.count(), 8)
         with self.assertRaises(CommandError):

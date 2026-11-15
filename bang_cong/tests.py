@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import IntegrityError, transaction
 from django.test import TestCase, Client
 from nhan_vien.models import Employee, Department
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from .models import ChamCong, KyCong, LichLamViec, NhatKyCong, LichSuTangCa
 from .services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from django.core.management.base import CommandError
@@ -209,19 +209,19 @@ class AttendanceTests(TestCase):
             ChamCong.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), trang_thai='absent')
 
     def test_paid_and_unpaid_leave(self):
-        leave = LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
-                                        reason='Phép', approved=True)
+        leave = NgayNghi.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), so_cong=1,
+                                        huong_luong=True, ly_do='Phép', da_duyet=True)
         row = luu_cham_cong(self.hr, self.record(gio_vao=None, gio_ra=None, trang_thai='leave'), 'Phép')
         self.assertEqual(row.tong_cong, 1)
         self.assertEqual(row.cong_thuc_te, 0)
-        leave.paid = False
+        leave.huong_luong = False
         leave.save()
         luu_cham_cong(self.hr, row, 'Không lương')
         self.assertEqual(row.tong_cong, 0)
 
     def test_overlap_rejected(self):
-        LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
-                                reason='Phép', approved=True)
+        NgayNghi.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), so_cong=1,
+                                huong_luong=True, ly_do='Phép', da_duyet=True)
         with self.assertRaises(ValidationError):
             luu_cham_cong(self.hr, self.record(), 'Trùng')
 

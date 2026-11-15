@@ -1,4 +1,4 @@
-"""Bộ dữ liệu đồ án tháng 10/2026; không chia sẻ database hoặc mật khẩu hiện có."""
+﻿"""Bộ dữ liệu đồ án tháng 10/2026; không chia sẻ database hoặc mật khẩu hiện có."""
 from datetime import date
 from io import StringIO
 from pathlib import Path
@@ -11,7 +11,7 @@ from django.core.management import BaseCommand, CommandError, call_command
 from django.db import connection, transaction
 from django.utils import timezone
 from nhan_vien.models import Employee, Department, Position, LaborContract
-from nghi_phep.models import LeaveDay, LeaveRequest
+from nghi_phep.models import DonNghiPhep, NgayNghi
 from thuong.models import Bonus
 from .seed_demo import PEOPLE
 
@@ -50,8 +50,8 @@ class Command(BaseCommand):
             order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.Luong',
                 'payroll.PayrollAdjustment', 'payroll.PayrollInput', 'payroll.PayrollPeriod',
                 'attendance.ChotBangCong',
-                'attendance.LichSuTangCa', 'attendance.ChamCong', 'leaves.LeaveRequest',
-                'leaves.LeaveDay', 'bonuses.Bonus', 'attendance.KyCong',
+                'attendance.LichSuTangCa', 'attendance.ChamCong', 'leaves.NgayNghi',
+                'leaves.DonNghiPhep', 'bonuses.Bonus', 'attendance.KyCong',
                 'employees.Education', 'employees.LaborContract']
             for label in order:
                 apps.get_model(label).objects.all().delete()
@@ -73,10 +73,6 @@ class Command(BaseCommand):
                 LaborContract.objects.create(employee=employee, code=f'DEMO-HD-{index+1:02}', number=f'DEMO/2026/10/{index+1:02}',
                     contract_type='Hợp đồng minh họa 12 tháng', signed_date=date(2026, 10, 1), start_date=date(2026, 10, 1),
                     end_date=date(2027, 9, 30), agreed_salary=employee.base_salary, status='Đang hiệu lực')
-            for leave in LeaveDay.objects.all():
-                LeaveRequest.objects.create(employee=leave.employee, Ngay_bat_dau=leave.date, Ngay_ket_thuc=leave.date,
-                    leave_type='annual' if leave.paid else 'unpaid', paid=leave.paid,
-                    Ly_do=leave.reason, Trang_thai='approved', reviewed_by=hr, reviewed_at=timezone.now())
             Bonus.objects.update(proposed_by=hr)
             # Chỉ so sánh tài khoản cũ, không in hash hoặc mật khẩu hiện có.
             if dict(User.objects.filter(pk__in=existing).values_list('pk', 'password')) != existing:
@@ -88,3 +84,5 @@ class Command(BaseCommand):
         if new_names:
             self.stdout.write('Tài khoản mới: ' + ', '.join(new_names))
             self.stdout.write('Mật khẩu CHỈ cho tài khoản mới: ' + password)
+
+

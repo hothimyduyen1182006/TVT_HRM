@@ -6,7 +6,7 @@ from nhan_vien.models import Employee
 from bang_cong.models import ChamCong
 from bang_cong.models import KyCong
 from bang_luong.models import PayrollPeriod, Luong
-from nghi_phep.models import LeaveRequest
+from nghi_phep.models import DonNghiPhep
 
 
 class DemoDataTests(TestCase):
@@ -63,8 +63,8 @@ class DemoDataTests(TestCase):
         self.assertEqual(response.context['page_obj'].paginator.count, 8)
         self.assertEqual(len(response.context['rows']), 5)
         self.assertContains(response, 'aria-current="page">BẢNG THƯỞNG</a>')
-        LeaveRequest.objects.create(employee=Employee.objects.get(code='DEMO-NV01'),
-            Ngay_bat_dau='2026-09-10', Ngay_ket_thuc='2026-09-10', Ly_do='Test leave request')
+        DonNghiPhep.objects.create(nhan_vien=Employee.objects.get(code='DEMO-NV01'),
+                                   ngay_bat_dau='2026-09-10', ngay_ket_thuc='2026-09-10', ly_do='Test leave request')
         response = self.client.get('/nghi_phep/?month=9&year=2026')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['requests'].exists())

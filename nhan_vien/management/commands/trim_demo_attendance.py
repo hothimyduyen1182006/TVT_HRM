@@ -1,4 +1,4 @@
-"""Loại bỏ công mẫu chưa diễn ra, không áp dụng cho nhân viên thật."""
+﻿"""Loại bỏ công mẫu chưa diễn ra, không áp dụng cho nhân viên thật."""
 
 from django.db.models import F
 from datetime import date
@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction, connection
 from bang_cong.models import ChamCong, ChotBangCong
 from bang_luong.models import PayrollPeriod as KyCong
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from bang_luong.models import PayrollPeriod, Luong, PayrollAuditLog
 
 
@@ -66,6 +66,13 @@ class Command(BaseCommand):
         count = records.count()
         records.delete()
         # Các khoản nghỉ/OT tạo bởi bộ demo cho ngày tương lai cũng cần gỡ.
-        LeaveDay.objects.filter(employee__code__startswith='DEMO-', date__gte=cutoff,
-                                reason__startswith='DEMO:').delete()
+        NgayNghi.objects.filter(
+            don_nghi_phep__nhan_vien__code__startswith='DEMO-',
+            don_nghi_phep__ly_do__startswith='DEMO:',
+            ngay__gte=cutoff,
+        ).delete()
         self.stdout.write(self.style.SUCCESS(f'Removed {count} demo attendance records from {cutoff}.'))
+
+
+
+

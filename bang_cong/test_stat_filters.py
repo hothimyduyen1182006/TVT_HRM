@@ -1,7 +1,7 @@
 from datetime import date, time
 from decimal import Decimal
 from django.test import TestCase
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from .tests import AttendanceTests
 from .services.quy_trinh import luu_cham_cong
 
@@ -13,8 +13,8 @@ class StatFilterTests(TestCase):
     def test_cards_filter_daily_rows_and_preserve_period(self):
         regular = luu_cham_cong(self.hr, self.record(gio_ra=time(19)), 'Ngày làm')
         late = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 6), gio_vao=time(9)), 'Đi trễ')
-        LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 7), units=1,
-                                paid=True, approved=True, reason='Phép')
+        NgayNghi.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 7), so_cong=1,
+                                huong_luong=True, da_duyet=True, ly_do='Phép')
         leave = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 7), gio_vao=None,
                             gio_ra=None, trang_thai='leave'), 'Nghỉ phép')
         absent = luu_cham_cong(self.hr, self.record(ngay=date(2026, 1, 8), gio_vao=None,

@@ -11,7 +11,7 @@ from bang_cong.models import KyCong, ChamCong, ChotBangCong, LichLamViec, LichSu
 from bang_cong.services.quy_trinh import luu_cham_cong, duyet_cong_nhan_vien
 from thuong.models import Bonus, payroll_bonus_records
 from nhan_vien.models import Employee, Department, Education, LaborContract, Position
-from nghi_phep.models import LeaveRequest, LeaveDay
+from nghi_phep.models import DonNghiPhep, NgayNghi
 from bang_luong.models import PayrollPeriod, Luong, PayrollInput, PayrollAdjustment
 from bang_luong.services.tinh_toan import tinh_bang_luong
 from bang_luong.services.quy_trinh import duyet_phieu_luong, xu_ly_trang_thai_luong, loi_duyet_luong
@@ -43,8 +43,8 @@ class OctoberTrainingTests(TestCase):
         self.assertEqual(ChamCong.objects.count(),177)
         self.assertEqual(ChamCong.objects.filter(trang_thai='incomplete').count(),2)
         self.assertEqual(ChamCong.objects.filter(trang_thai='absent').count(),1)
-        self.assertEqual(LeaveRequest.objects.count(),5)
-        self.assertEqual(LeaveDay.objects.count(),3)
+        self.assertEqual(DonNghiPhep.objects.count(), 5)
+        self.assertEqual(NgayNghi.objects.count(), 3)
         self.assertEqual(set(Bonus.objects.values_list('status',flat=True)),{'draft','pending','approved','rejected'})
         self.assertEqual(PayrollInput.objects.count(),8)
         self.assertEqual(PayrollInput.objects.filter(verified=False).get().employee.code,'NV08')
@@ -72,8 +72,8 @@ class OctoberTrainingTests(TestCase):
         record=ChamCong.objects.get(nhan_vien=people['NV01'],ngay=date(2026,10,23))
         record.gio_ra=time(18)
         luu_cham_cong(people['NV05'].user,record,'Người dùng thử chỉnh sửa giờ ra')
-        models=[KyCong,ChamCong,LichLamViec,Bonus,PayrollPeriod,Luong,
-                PayrollInput,PayrollAdjustment,LeaveDay,LeaveRequest]
+        models=[KyCong, ChamCong, LichLamViec, Bonus, PayrollPeriod, Luong,
+                PayrollInput, PayrollAdjustment, NgayNghi, DonNghiPhep]
         snapshots={model:list(model.objects.order_by('pk').values()) for model in models}
         self.prepare()
         for model,rows in snapshots.items():
@@ -90,7 +90,7 @@ class OctoberTrainingTests(TestCase):
 
     def test_dry_run_rolls_back_every_business_record(self):
         self.prepare(dry_run=True)
-        for model in [KyCong,ChamCong,LichLamViec,Bonus,PayrollPeriod,Luong,LeaveRequest,LeaveDay]:
+        for model in [KyCong, ChamCong, LichLamViec, Bonus, PayrollPeriod, Luong, DonNghiPhep, NgayNghi]:
             self.assertFalse(model.objects.exists())
         self.assertEqual(Employee.objects.count(),8)
 
@@ -148,13 +148,13 @@ class OctoberTrainingTests(TestCase):
         self.assertEqual(xuat_du_lieu_luong(hr,locked,'csv',10,2026,{}).status_code,200)
         with self.assertRaises(ValidationError): xuat_du_lieu_luong(hr,Luong.objects.all(),'csv',10,2026,{})
         with self.assertRaises(ValidationError): xu_ly_trang_thai_luong(director,period.pk,'paid','Chưa đủ bước','')
-        request=LeaveRequest.objects.get(Trang_thai='pending')
+        request=DonNghiPhep.objects.get(trang_thai='cho_duyet')
         client=Client()
         client.force_login(hr)
         from django.urls import reverse
         self.assertEqual(client.post(reverse('nghi_phep:review',args=[request.pk,'approve'])).status_code,302)
         request.refresh_from_db()
-        self.assertEqual(request.Trang_thai,'approved')
+        self.assertEqual(request.trang_thai,'da_duyet')
         record=ChamCong.objects.get(nhan_vien=people['NV04'],ngay=date(2026,10,30))
         record.trang_thai='leave'
         luu_cham_cong(hr,record,'Cập nhật công sau khi phép đã duyệt')

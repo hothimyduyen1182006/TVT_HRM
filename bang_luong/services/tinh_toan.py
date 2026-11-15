@@ -1,4 +1,4 @@
-"""Tính lương, liên kết nguồn và chuẩn hóa dữ liệu đối chiếu."""
+﻿"""Tính lương, liên kết nguồn và chuẩn hóa dữ liệu đối chiếu."""
 from datetime import date, time
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
@@ -10,7 +10,7 @@ from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from thuong.models import Bonus, payroll_bonus_records
 from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang, nap_cong_ngay
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from bang_luong.models import PayrollPeriod, Luong, PayrollAuditLog
 from .thue import tinh_thue_tncn
 
@@ -202,8 +202,12 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
         ky_luong=period, nhan_vien=employee, ma_nhan_vien=employee.code, ten_nhan_vien=employee.full_name,
         ma_phong_ban_luu=employee.department_id, ten_phong_ban=employee.department.name,
         luong_co_ban=employee.base_salary, cong_chuan=standard, cong_huong_luong=cong_huong_luong,
-        cong_nghi_phep=tong_gia_tri(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
-                                                 date__month=attendance.thang, approved=True), 'units'),
+        cong_nghi_phep=NgayNghi.objects.filter(
+            don_nghi_phep__nhan_vien=employee,
+            don_nghi_phep__trang_thai='da_duyet',
+            ngay__year=attendance.nam,
+            ngay__month=attendance.thang,
+        ).count(),
         so_phut_tre=late_minutes, so_gio_tang_ca=sum((dong['hours'] for dong in overtime),ZERO), luong_theo_cong=luong_theo_cong,
         luong_tang_ca=ot_pay, tong_tien_thuong=thuong, phu_cap=allowance, tong_bao_hiem=bao_hiem, thue_tncn=tax,
         tong_khau_tru=deductions, luong_thuc_linh=net.quantize(Decimal('1'), rounding=ROUND_HALF_UP),
@@ -256,8 +260,19 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
             'late_minutes': r.so_phut_tre, 'actual_units': r.cong_thuc_te,
             'paid_leave_units': r.cong_nghi_co_luong, 'paid_units': r.tong_cong,
         } for r in ds_ban_ghi],
-        'leave': list(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
-            date__month=attendance.thang, approved=True).order_by('date').values('date', 'units', 'paid')),
+        'leave': [
+            {
+                'date': leave.ngay,
+                'units': Decimal('1.0000'),
+                'paid': leave.huong_luong,
+            }
+            for leave in NgayNghi.objects.filter(
+                don_nghi_phep__nhan_vien=employee,
+                don_nghi_phep__trang_thai='da_duyet',
+                ngay__year=attendance.nam,
+                ngay__month=attendance.thang,
+            ).select_related('don_nghi_phep').order_by('ngay')
+        ],
         'overtime': [{khoa: dong[khoa] for khoa in ['id','date','start','end','hours','multiplier']} for dong in overtime],
         'overtime_policy': 'automatic-checkout-1700-v1',
         'overtime_hourly_rate': inputs.overtime_hourly_rate,
@@ -291,3 +306,5 @@ def doi_chieu_chi_tiet_cu(breakdown):
         'adjustments': sorted((phan_tu['id'], phan_tu['kind'], Decimal(phan_tu['amount']))
                               for phan_tu in breakdown.get('adjustments', [])),
     }
+
+

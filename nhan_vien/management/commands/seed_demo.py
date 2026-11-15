@@ -15,7 +15,7 @@ from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from bang_cong.services.tinh_toan import lich_thang
 from bang_cong.services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import DonNghiPhep, NgayNghi
 from thuong.models import Bonus
 from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment
 from bang_luong.services.tinh_toan import tinh_bang_luong
@@ -104,15 +104,15 @@ class Command(BaseCommand):
                     values = {'nhan_vien': employee, 'ngay': day, 'trang_thai': 'present',
                               'gio_vao': time(8), 'gio_ra': time(17), 'ghi_chu': 'DEMO: dữ liệu minh họa'}
                     if index in [2, 3, 5] and number == 2:
-                        self.leave(employee, day, Decimal(1), True)
+                        self.leave(employee, day, 'phep_nam')
                         values.update(trang_thai='leave', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ phép hưởng lương')
                     elif index == 4 and number == 3:
-                        self.leave(employee, day, Decimal(1), False)
+                        self.leave(employee, day, 'khong_luong')
                         values.update(trang_thai='leave', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ không lương')
                     elif index in [2, 6] and number == 4:
                         values.update(trang_thai='absent', gio_vao=None, gio_ra=None, ghi_chu='DEMO: nghỉ không phép đã xác nhận')
                     elif index == 3 and number == 6:
-                        self.leave(employee, day, Decimal(1), True)
+                        self.leave(employee, day, 'phep_nam')
                         values.update(
                             trang_thai='leave',
                             gio_vao=None,
@@ -165,8 +165,13 @@ class Command(BaseCommand):
             self.stdout.write('DEMO PASSWORD: ' + password)
         self.stdout.write('Existing users and passwords were not changed. Demo users are NOT staff/superusers.')
 
-    def leave(self, employee, day, units, paid):
-        leave = LeaveDay(employee=employee, date=day, units=units, paid=paid,
-                         reason='DEMO: nghỉ phép minh họa đã duyệt', approved=True)
-        leave.full_clean()
-        leave.save()
+    def leave(self, employee, day, loai_nghi):
+        don = DonNghiPhep.objects.create(
+            nhan_vien=employee,
+            ngay_bat_dau=day,
+            ngay_ket_thuc=day,
+            loai_nghi=loai_nghi,
+            ly_do='DEMO: nghỉ phép minh họa đã duyệt',
+            trang_thai='da_duyet',
+        )
+        NgayNghi.objects.create(don_nghi_phep=don, ngay=day)

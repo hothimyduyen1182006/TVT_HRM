@@ -9,7 +9,7 @@ from django.views.decorators.http import require_safe
 from nhan_vien.access import has_role, require_role, HR, DIRECTOR, MANAGER
 from nhan_vien.access import visible_employees
 from nhan_vien.models import Employee, Education, LaborContract
-from nghi_phep.models import LeaveRequest
+from nghi_phep.models import DonNghiPhep
 from django.core.paginator import Paginator
 from .dashboard import DashboardFilter, dashboard_context
 from django.urls import reverse
@@ -78,7 +78,7 @@ def protected_media(request, path):
     employees = visible_employees(request.user)
     for model, field_name in [
         (Employee, 'avatar'), (Education, 'certificate_file'),
-        (LaborContract, 'contract_file'), (LeaveRequest, 'Tep_dinh_kem'),
+        (LaborContract, 'contract_file'), (DonNghiPhep, 'tep_dinh_kem'),
     ]:
         scope = {'pk__in': employees.values('pk')} if model is Employee else {'employee__in': employees}
         record = model.objects.filter(**scope, **{field_name: path}).first()

@@ -19,7 +19,7 @@ from thuong.models import Bonus
 from thuong.views import calculate_automatic
 from nhan_vien.access import has_role, HR, DIRECTOR
 from nhan_vien.models import Employee
-from nghi_phep.models import LeaveRequest, LeaveDay
+from nghi_phep.models import DonNghiPhep, NgayNghi
 from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment, Luong, PayrollAuditLog
 from bang_luong.services.tinh_toan import tinh_bang_luong
 from bang_luong.services.quy_trinh import save_input
@@ -132,31 +132,32 @@ class Command(BaseCommand):
             ChamCong.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             LichSuTangCa.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             Bonus.objects.filter(year=YEAR,month=MONTH),
-            LeaveDay.objects.filter(date__year=YEAR,date__month=MONTH),
-            LeaveRequest.objects.filter(Ngay_bat_dau__lte=date(YEAR,MONTH,31),Ngay_ket_thuc__gte=date(YEAR,MONTH,1)),
+            NgayNghi.objects.filter(ngay__year=YEAR, ngay__month=MONTH),
+            DonNghiPhep.objects.filter(ngay_bat_dau__lte=date(YEAR, MONTH, 31), ngay_ket_thuc__gte=date(YEAR, MONTH, 1)),
         ]
         if any(rows.exists() for rows in checks):
             raise CommandError('Tháng 10/2026 đã có dữ liệu. Dừng để không ghi đè; không xóa hoặc đặt lại dữ liệu.')
 
     def _leaves(self, people, hr):
-        specs = [('NV04',12,'annual',True,Decimal(1),'approved','Việc gia đình đã sắp xếp công việc'),
-                 ('NV06',15,'unpaid',False,Decimal(1),'approved','Nghỉ việc riêng không hưởng lương'),
-                 ('NV07',9,'annual',True,Decimal(1),'approved','Nghỉ phép trọn ngày để giải quyết việc gia đình'),
-                 ('NV04',30,'annual',True,Decimal(1),'pending','Xin nghỉ một ngày, đang chờ sắp xếp người thay thế'),
-                 ('NV07',23,'personal',False,Decimal(1),'rejected','Đề nghị nghỉ việc riêng')]
-        for code,number,kind,paid,units,state,reason in specs:
+        specs = [
+            ('NV04', 12, 'phep_nam', 'da_duyet', 'Việc gia đình đã sắp xếp công việc'),
+            ('NV06', 15, 'khong_luong', 'da_duyet', 'Nghỉ việc riêng không hưởng lương'),
+            ('NV07', 9, 'phep_nam', 'da_duyet', 'Nghỉ phép trọn ngày để giải quyết việc gia đình'),
+            ('NV04', 30, 'phep_nam', 'cho_duyet', 'Xin nghỉ một ngày, đang chờ sắp xếp người thay thế'),
+            ('NV07', 23, 'khong_luong', 'tu_choi', 'Đề nghị nghỉ việc riêng'),
+        ]
+        for code, number, loai_nghi, state, reason in specs:
             day=date(YEAR,MONTH,number)
-            request=LeaveRequest(employee=people[code],Ngay_bat_dau=day,Ngay_ket_thuc=day,leave_type=kind,
-                paid=paid,Trang_thai=state,Ly_do=reason)
-            if state!='pending':
-                request.reviewed_by=hr
-                request.reviewed_at=timezone.now()
-            if state=='rejected':
-                request.review_note='Trùng lịch bàn giao khách hàng; nhân viên đã đi làm bình thường.'
+            request=DonNghiPhep(nhan_vien=people[code], ngay_bat_dau=day, ngay_ket_thuc=day, loai_nghi=loai_nghi,
+                                trang_thai=state, ly_do=reason)
+            if state!='cho_duyet':
+                request.nguoi_duyet=hr
+                request.ngay_duyet=timezone.now()
+            if state=='tu_choi':
+                request.ghi_chu_duyet='Trùng lịch bàn giao khách hàng; nhân viên đã đi làm bình thường.'
             request.full_clean();request.save()
-            if state=='approved':
-                leave=LeaveDay(employee=people[code],date=day,units=units,paid=paid,reason=reason,approved=True)
-                leave.full_clean();leave.save()
+            if state=='da_duyet':
+                NgayNghi.objects.create(don_nghi_phep=request, ngay=day)
 
     def _bonuses(self, people, hr, director):
         states={'NV01':'draft','NV02':'approved','NV03':'pending','NV04':'draft',

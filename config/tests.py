@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from django.contrib.auth.models import Group
 from nhan_vien.models import Education, LaborContract
-from nghi_phep.models import LeaveRequest
+from nghi_phep.models import DonNghiPhep
 from datetime import date, time
 
 from django.conf import settings
@@ -262,12 +262,12 @@ class PrivateMediaTests(TestCase):
                 contract_type='Có thời hạn', signed_date=date(2026, 1, 1),
                 start_date=date(2026, 1, 1), agreed_salary=10000000,
                 contract_file=f'employees/contracts/{name}.pdf')
-            leave = LeaveRequest.objects.create(employee=employee,
-                Ngay_bat_dau=date(2026, 1, 5), Ngay_ket_thuc=date(2026, 1, 5), Ly_do='Khám sức khỏe',
-                Tep_dinh_kem=f'leave_evidence/2026/01/{name}.png')
+            leave = DonNghiPhep.objects.create(nhan_vien=employee,
+                                               ngay_bat_dau=date(2026, 1, 5), ngay_ket_thuc=date(2026, 1, 5), ly_do='Khám sức khỏe',
+                                               tep_dinh_kem=f'leave_evidence/2026/01/{name}.png')
             cls.people[name] = employee
             cls.files[name] = [employee.avatar.name, education.certificate_file.name,
-                               contract.contract_file.name, leave.Tep_dinh_kem.name]
+                               contract.contract_file.name, leave.tep_dinh_kem.name]
         department.manager = cls.people['manager']
         department.save(update_fields=['manager'])
         cls.reviewers = []
@@ -374,7 +374,7 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(response.status_code, 200)
         for name in self.files['employee'][:3]:
             self.assertContains(response, self.url(name))
-        leave = LeaveRequest.objects.get(employee=self.people['employee'])
+        leave = DonNghiPhep.objects.get(nhan_vien=self.people['employee'])
         response = self.client.get(reverse('nghi_phep:detail', args=[leave.pk]))
         evidence_url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertContains(response, evidence_url)
@@ -393,7 +393,7 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 405)
 
     def test_evidence_url_checks_authentication_scope_and_cache(self):
-        leave = LeaveRequest.objects.get(employee=self.people['outsider'])
+        leave = DonNghiPhep.objects.get(nhan_vien=self.people['outsider'])
         url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertEqual(self.client.get(url).status_code, 302)
         self.client.force_login(self.people['employee'].user)
@@ -408,11 +408,11 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 405)
 
     def test_non_image_upload_cannot_render_active_content_inline(self):
-        leave = LeaveRequest.objects.get(employee=self.people['employee'])
+        leave = DonNghiPhep.objects.get(nhan_vien=self.people['employee'])
         name = 'leave_evidence/2026/01/document.html'
         (self.media_root / name).write_bytes(b'<script>alert(1)</script>')
-        leave.Tep_dinh_kem = name
-        leave.save(update_fields=['Tep_dinh_kem'])
+        leave.tep_dinh_kem = name
+        leave.save(update_fields=['tep_dinh_kem'])
         self.client.force_login(self.people['employee'].user)
         for url in [self.url(name), reverse('nghi_phep:evidence', args=[leave.pk])]:
             response = self.client.get(url)
