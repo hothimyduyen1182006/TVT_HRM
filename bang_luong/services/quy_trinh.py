@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.utils import timezone
 from bang_luong.models import PayrollPeriod as KyCong
-from nhan_vien.access import require_role, HR, DIRECTOR
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 from bang_luong.models import PayrollPeriod, PayrollAuditLog, Luong
 from .tinh_toan import chup_du_lieu_luong, du_lieu_tinh_luong, doi_chieu_chi_tiet_cu
 from .thue import loi_nguon_thue
@@ -196,7 +196,7 @@ class CanCuLuong(SimpleNamespace):
 
     def full_clean(self):
         if not self.verified or not self.tax_basis or not self.insurance_basis:
-            raise ValidationError('Thiếu thiết lập bảo hiểm/thuế đã được HR xác nhận.')
+            raise ValidationError('Thiếu thiết lập bảo hiểm/thuế đã được NHAN_SU xác nhận.')
         if self.insurance_base is None or not self.insurance_base.is_finite() or self.insurance_base < 0:
             raise ValidationError('Lương đóng bảo hiểm phải là số không âm.')
         if not isinstance(self.insurance_rates, dict):

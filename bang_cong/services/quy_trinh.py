@@ -77,7 +77,7 @@ def luu_cham_cong(nguoi_thuc_hien, ban_ghi, ly_do):
 
 @transaction.atomic
 def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
-    require_role(nguoi_thuc_hien, DIRECTOR)
+    yeu_cau_vai_tro(nguoi_thuc_hien, GIAM_DOC)
     if thao_tac != 'approve':
         raise ValidationError('Chỉ được duyệt công; bảng công đã duyệt không được mở lại.')
     ky_cong = PayrollPeriod.objects.select_for_update().get(pk=ma_ky_cong)
@@ -118,7 +118,7 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
 
 @transaction.atomic
 def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
-    require_role(nguoi_thuc_hien, HR, DIRECTOR)
+    yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU, GIAM_DOC)
     ky_cong = PayrollPeriod.objects.select_for_update().get(pk=ma_ky_cong)
     if ky_cong_da_khoa(ky_cong, nhan_vien.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
@@ -140,8 +140,8 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     else:
         ban_chot = ChotBangCong.objects.create(
             tong_hop=cap_nhat_tong_hop(nhan_vien, ky_cong), nguoi_duyet=nguoi_thuc_hien)
-    ds_ma_nhan_vien = set(Employee.objects.filter(is_active=True,
-        hire_date__lte=_ngay_cuoi_ky(ky_cong)).values_list('pk', flat=True))
+    ds_ma_nhan_vien = set(NhanVien.objects.filter(dang_hoat_dong=True,
+        ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong)).values_list('pk', flat=True))
     ma_da_duyet_hop_le = set(ky_cong.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True))
     if ds_ma_nhan_vien and ds_ma_nhan_vien.issubset(ma_da_duyet_hop_le):
         ky_cong.trang_thai = 'approved'

@@ -39,8 +39,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('employees', '0008_alter_education_options_alter_employee_options_and_more'),
-        ('attendance', '0010_alter_chamcong_options'),
-        ('payroll', '0008_retire_period_inputs'),
+        ('attendance', '0019_merge_erd_and_vietnamese_options'),
+        ('payroll', '0011_retire_attendance_period'),
         ('bonuses', '0004_tong_thuong'),
         ('leaves', '0010_simplify_leave_day_units'),
         ('contenttypes', '0002_remove_content_type_name'),

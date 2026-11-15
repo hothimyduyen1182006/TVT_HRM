@@ -10,7 +10,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q, Sum
 from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocCongNgay, BoLocLichSuCong
 from bang_cong.models import ChamCong, ChotBangCong, LichSuDieuChinhCong
 from bang_luong.models import PayrollPeriod
-from nhan_vien.models import Employee
+from nhan_vien.models import NhanVien
 
 from .tinh_toan import tinh_tang_ca_tu_dong, lich_thang, nap_cong_ngay
 

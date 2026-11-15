@@ -17,8 +17,10 @@ class BoLocBangLuong(BoLocKy):
 
 
 def thiet_lap_bo_chon_ky(form):
-    form.fields['thang'].widget = forms.Select(choices=[(thang, f'Tháng {thang:02}') for thang in range(1, 13)])
-    form.fields['nam'].widget = forms.Select(choices=[(nam, f'Năm {nam}') for nam in range(2000, 2101)])
+    truong_thang = 'thang' if 'thang' in form.fields else 'month'
+    truong_nam = 'nam' if 'nam' in form.fields else 'year'
+    form.fields[truong_thang].widget = forms.Select(choices=[(thang, f'Tháng {thang:02}') for thang in range(1, 13)])
+    form.fields[truong_nam].widget = forms.Select(choices=[(nam, f'Năm {nam}') for nam in range(2000, 2101)])
 
 
 class BoLocPhieuLuong(forms.Form):

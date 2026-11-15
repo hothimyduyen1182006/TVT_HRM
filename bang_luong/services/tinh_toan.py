@@ -4,8 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Sum
-from nhan_vien.access import require_role, HR, DIRECTOR
-from nhan_vien.models import Employee
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
+from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from thuong.models import Bonus, payroll_bonus_records
@@ -174,7 +174,7 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     overtime=tong_hop_tang_ca_tinh_luong(employee,attendance.nam,attendance.thang)
     if overtime and (not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()):
-        raise ValidationError(f'{employee}: HR cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
+        raise ValidationError(f'{employee}: NHAN_SU cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
     ot_rate=inputs.overtime_hourly_rate or ZERO
     ot_lines=[{**{khoa: str(dong[khoa]) if khoa in ['hours','multiplier'] else dong[khoa]
                      for khoa in ['id','date','start','end','hours','multiplier']},

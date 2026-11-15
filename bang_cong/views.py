@@ -107,8 +107,8 @@ def bang_cong_nhan_vien(request, employee_id, chi_xem_ban_than=False):
 @login_required
 @require_POST
 def duyet_bang_cong_nhan_vien(request, employee_id, period_id):
-    require_role(request.user, HR, DIRECTOR)
-    nhan_vien = get_object_or_404(visible_employees(request.user), pk=employee_id)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    nhan_vien = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=employee_id)
     ky_cong = get_object_or_404(PayrollPeriod, pk=period_id)
     try:
         ban_chot = duyet_cong_nhan_vien(request.user, nhan_vien, ky_cong.pk)
@@ -222,7 +222,7 @@ def sua_cham_cong(request, pk=None):
 @login_required
 @require_POST
 def doi_trang_thai_ky_cong(request, pk):
-    require_role(request.user, DIRECTOR)
+    yeu_cau_vai_tro(request.user, GIAM_DOC)
     ky_cong = get_object_or_404(PayrollPeriod, pk=pk)
     try:
         xu_ly_trang_thai_ky_cong(request.user, pk, request.POST.get('action'), request.POST.get('reason', ''))

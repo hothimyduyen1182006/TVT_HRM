@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from nhan_vien.models import Department, Employee
+from nhan_vien.models import PhongBan, NhanVien
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from bang_cong.services.tinh_toan import lich_thang

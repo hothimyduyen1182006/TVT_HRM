@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from nhan_vien.admin_utils import ReadOnlyAdmin
+from nhan_vien.admin_utils import QuanTriChiDoc
 
 from .models import ChamCong, ChotBangCong, LichSuDieuChinhCong
 
@@ -11,7 +11,7 @@ class ChamCongAdmin(QuanTriChiDoc):
 
 
 @admin.register(LichSuDieuChinhCong)
-class LichSuDieuChinhCongAdmin(ReadOnlyAdmin):
+class LichSuDieuChinhCongAdmin(QuanTriChiDoc):
     list_display = ('ngay_dieu_chinh', 'nhan_vien', 'ngay_cong', 'truong_dieu_chinh', 'nguoi_thuc_hien')
 
 

@@ -3,8 +3,8 @@ from decimal import Decimal
 from django import forms
 from django.db.models import Count, F
 from django.utils import timezone
-from nhan_vien.access import visible_employees
-from nhan_vien.models import Department
+from nhan_vien.access import nhan_vien_duoc_hien_thi
+from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from nghi_phep.models import LeaveDay

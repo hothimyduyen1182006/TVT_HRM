@@ -19,8 +19,8 @@ from django.views.decorators.http import require_POST
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from bang_cong.services.tinh_toan import lich_thang
-from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, visible_employees
-from nhan_vien.models import Employee
+from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, nhan_vien_duoc_hien_thi
+from nhan_vien.models import NhanVien
 from nghi_phep.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
 from .models import Bonus, approved_bonus_records, complete_bonus_records, displayed_bonus_records
@@ -239,7 +239,7 @@ def calculate_attendance(employee, month, year):
     start, end = date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
     period = KyCong.objects.filter(thang=month, nam=year).first()
     workdays = [lich for lich in lich_thang(year, month, period).values()
-                if max(start, employee.hire_date) <= lich.ngay <= end
+                if max(start, employee.ngay_vao_lam) <= lich.ngay <= end
                 and lich.loai_ngay == 'work' and lich.cong_chuan > 0]
     if not period or not workdays:
         raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')

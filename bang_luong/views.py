@@ -64,9 +64,9 @@ def luong_ca_nhan(request):
 
 @login_required
 def chi_tiet_luong(request, pk):
-    co_quyen_xem_nhom = has_role(request.user, HR, DIRECTOR, MANAGER)
+    co_quyen_xem_nhom = co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
     truy_van = Luong.objects.select_related('ky_luong').filter(
-        nhan_vien__in=visible_employees(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
+        nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
     dong = get_object_or_404(phieu_luong_du_cong_duyet(truy_van), pk=pk)
     ky_luong = dong.ky_luong.attendance_period
     bieu_mau = BoLocPhieuLuong({'month': ky_luong.thang, 'year': ky_luong.nam})
@@ -79,9 +79,9 @@ def chi_tiet_luong(request, pk):
 @login_required
 @require_POST
 def duyet_luong_nhan_vien(request, pk):
-    require_role(request.user, DIRECTOR)
+    yeu_cau_vai_tro(request.user, GIAM_DOC)
     dong = get_object_or_404(Luong.objects.select_related('ky_luong'), pk=pk,
-                            nhan_vien__in=visible_employees(request.user))
+                            nhan_vien__in=nhan_vien_duoc_hien_thi(request.user))
     try:
         duyet_phieu_luong(request.user, dong.pk)
     except ValidationError as loi:
@@ -95,7 +95,7 @@ def duyet_luong_nhan_vien(request, pk):
 @login_required
 @require_POST
 def doi_trang_thai_ky_luong(request, pk):
-    require_role(request.user, HR, DIRECTOR)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     ky_luong = get_object_or_404(PayrollPeriod.objects.select_related(), pk=pk)
     try:
         action = request.POST.get('action')
