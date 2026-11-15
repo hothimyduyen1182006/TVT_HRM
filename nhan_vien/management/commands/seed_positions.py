@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from nhan_vien.models import Department, Employee, Position
+from nhan_vien.models import PhongBan, NhanVien, ChucVu
 
 
 POSITION_DATA = {
@@ -24,27 +24,27 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         created = 0
         assigned = 0
-        for department in Department.objects.order_by('code'):
-            suffix = department.code.rsplit('-', 1)[-1].upper()
-            department_label = department.name.replace('Phòng ', '').replace(' (DEMO)', '').strip()
+        for department in PhongBan.objects.order_by('ma_phong_ban'):
+            suffix = department.ma_phong_ban.rsplit('-', 1)[-1].upper()
+            department_label = department.ten_phong_ban.replace('Phòng ', '').replace(' (DEMO)', '').strip()
             positions = POSITION_DATA.get(suffix, [
                 (f'Nhân viên {department_label}', '1.0'),
                 (f'Trưởng phòng {department_label}', '2.5'),
             ])
             staff_position = None
             for index, (name, coefficient) in enumerate(positions):
-                position, was_created = Position.objects.get_or_create(
-                    department=department,
-                    name=name,
-                    defaults={'salary_coefficient': Decimal(coefficient)},
+                position, was_created = ChucVu.objects.get_or_create(
+                    phong_ban=department,
+                    ten_chuc_vu=name,
+                    defaults={'he_so_luong_chuc_vu': Decimal(coefficient)},
                 )
                 created += int(was_created)
                 if index == 0:
                     staff_position = position
             if staff_position:
-                assigned += Employee.objects.filter(
-                    department=department, position__isnull=True,
-                ).update(position=staff_position)
+                assigned += NhanVien.objects.filter(
+                    phong_ban=department, chuc_vu__isnull=True,
+                ).update(chuc_vu=staff_position)
 
         self.stdout.write(self.style.SUCCESS(
             f'Created {created} positions and assigned positions to {assigned} employees.'

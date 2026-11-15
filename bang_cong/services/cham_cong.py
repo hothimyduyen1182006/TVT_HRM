@@ -8,7 +8,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from nhan_vien.models import Employee
+from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod
 from .quy_trinh import ky_cong_da_khoa, cap_nhat_tong_hop
@@ -75,8 +75,8 @@ def ghi_nhan_cham_cong(nguoi_thuc_hien, thao_tac, ghi_chu=''):
     hom_nay = hien_tai.date()
     gio_hien_tai = hien_tai.time()
     nhan_vien = (
-        Employee.objects.select_for_update()
-        .filter(user=nguoi_thuc_hien, is_active=True)
+        NhanVien.objects.select_for_update()
+        .filter(nguoi_dung=nguoi_thuc_hien, dang_hoat_dong=True)
         .first()
     )
     if not nhan_vien:

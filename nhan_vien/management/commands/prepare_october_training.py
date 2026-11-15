@@ -17,8 +17,8 @@ from bang_cong.services import tinh_toan as attendance_calculations
 from bang_cong.services.quy_trinh import luu_cham_cong, duyet_cong_nhan_vien
 from thuong.models import Bonus
 from thuong.views import calculate_automatic
-from nhan_vien.access import has_role, HR, DIRECTOR
-from nhan_vien.models import Employee
+from nhan_vien.access import co_vai_tro, NHAN_SU, GIAM_DOC
+from nhan_vien.models import NhanVien
 from nghi_phep.models import DonNghiPhep, NgayNghi
 from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment, Luong, PayrollAuditLog
 from bang_luong.services.tinh_toan import tinh_bang_luong
@@ -45,13 +45,13 @@ class Command(BaseCommand):
             self.stdout.write('Bộ tình huống tháng 10/2026 đã có; giữ nguyên mọi thao tác bạn đã thực hiện.')
             return
         self._require_empty_month()
-        people = {e.code: e for e in Employee.objects.filter(code__in=[f'NV{i:02}' for i in range(1,9)]).select_related('user','department')}
-        if len(people) != 8 or any(not e.is_active or not e.user.is_active or e.hire_date > date(YEAR,MONTH,1) for e in people.values()):
+        people = {e.ma_ho_so: e for e in NhanVien.objects.filter(ma_ho_so__in=[f'NV{i:02}' for i in range(1,9)]).select_related('nguoi_dung','phong_ban')}
+        if len(people) != 8 or any(not e.dang_hoat_dong or not e.nguoi_dung.is_active or e.ngay_vao_lam > date(YEAR,MONTH,1) for e in people.values()):
             raise CommandError('Cần đủ 8 nhân viên NV01–NV08 đang hoạt động và đã vào làm trước tháng 10.')
-        if Employee.objects.filter(is_active=True,hire_date__lte=date(YEAR,MONTH,31)).exclude(pk__in=[e.pk for e in people.values()]).exists():
+        if NhanVien.objects.filter(dang_hoat_dong=True,ngay_vao_lam__lte=date(YEAR,MONTH,31)).exclude(pk__in=[e.pk for e in people.values()]).exists():
             raise CommandError('Có nhân viên khác ngoài NV01–NV08 cần dữ liệu trong kỳ; dừng để không tạo kỳ công thiếu người.')
-        hr, director = people['NV05'].user, people['NV08'].user
-        if not has_role(hr, HR) or not has_role(director, DIRECTOR):
+        hr, director = people['NV05'].nguoi_dung, people['NV08'].nguoi_dung
+        if not co_vai_tro(hr, NHAN_SU) or not co_vai_tro(director, GIAM_DOC):
             raise CommandError('NV05 cần quyền Nhân sự; NV08 cần quyền Giám đốc.')
         if not options['dry_run']:
             self._backup()
@@ -146,18 +146,21 @@ class Command(BaseCommand):
             ('NV04', 30, 'phep_nam', 'cho_duyet', 'Xin nghỉ một ngày, đang chờ sắp xếp người thay thế'),
             ('NV07', 23, 'khong_luong', 'tu_choi', 'Đề nghị nghỉ việc riêng'),
         ]
-        for code, number, loai_nghi, state, reason in specs:
+        for code, number, kind, state, reason in specs:
             day=date(YEAR,MONTH,number)
-            request=DonNghiPhep(nhan_vien=people[code], ngay_bat_dau=day, ngay_ket_thuc=day, loai_nghi=loai_nghi,
-                                trang_thai=state, ly_do=reason)
-            if state!='cho_duyet':
-                request.nguoi_duyet=hr
-                request.ngay_duyet=timezone.now()
-            if state=='tu_choi':
-                request.ghi_chu_duyet='Trùng lịch bàn giao khách hàng; nhân viên đã đi làm bình thường.'
-            request.full_clean();request.save()
-            if state=='da_duyet':
-                NgayNghi.objects.create(don_nghi_phep=request, ngay=day)
+            don = DonNghiPhep(
+                nhan_vien=people[code], ngay_bat_dau=day, ngay_ket_thuc=day,
+                loai_nghi=kind, trang_thai=state, ly_do=reason,
+            )
+            if state != 'cho_duyet':
+                don.nguoi_duyet = hr
+                don.ngay_duyet = timezone.now()
+            if state == 'tu_choi':
+                don.ghi_chu_duyet = 'Trùng lịch bàn giao khách hàng; nhân viên đã đi làm bình thường.'
+            don.full_clean()
+            don.save()
+            if state == 'da_duyet':
+                NgayNghi.objects.create(don_nghi_phep=don, ngay=day)
 
     def _bonuses(self, people, hr, director):
         states={'NV01':'draft','NV02':'approved','NV03':'pending','NV04':'draft',
@@ -185,18 +188,18 @@ class Command(BaseCommand):
     def _inputs(self, people, attendance, payroll, hr):
         standard=cong_chuan_thang(attendance)
         for code,employee in sorted(people.items()):
-            rate=(employee.base_salary/standard/attendance.gio_chuan).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
+            rate=(employee.luong_co_ban/standard/attendance.gio_chuan).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
             basis=('Dữ liệu thực hành 10/2026: giả định cá nhân cư trú, 0 người phụ thuộc; giảm trừ bản thân '
                    '15.500.000đ, BH 10,5% lương cơ bản; thu nhập tính thuế bậc đầu không quá 10 triệu, thuế suất 5%. '
                    'Phụ cấp ăn trưa giả định đủ điều kiện loại khỏi thu nhập chịu thuế. Các nhân viên có OT '
                    'vẫn dưới ngưỡng chịu thuế kể cả tính toàn bộ tiền OT. Cần kiểm tra hồ sơ thật trước khi áp dụng thực tế.')
             if code=='NV08':
                 basis+=' Chưa xác nhận: lương hồ sơ 20 triệu khác lương hợp đồng 11,5 triệu; HR cần đối chiếu căn cứ BH/thuế.'
-            inputs=PayrollInput(period=payroll,employee=employee,insurance_base=employee.base_salary,
+            inputs=PayrollInput(period=payroll,employee=employee,insurance_base=employee.luong_co_ban,
                 insurance_rates={'BHXH':'0.08','BHYT':'0.015','BHTN':'0.01'},tax_method='resident_2026',
                 tax_basis=basis,insurance_basis='Giả định thuộc diện BH bắt buộc, lương đóng BH bằng lương cơ bản; cần HR đối chiếu hồ sơ thực tế.',
                 verified=code!='NV08',overtime_hourly_rate=rate,
-                overtime_basis=f'Lương cơ bản {employee.base_salary} / {standard} công / 8 giờ; không gồm thưởng, ăn trưa và khoản hỗ trợ.')
+                overtime_basis=f'Lương cơ bản {employee.luong_co_ban} / {standard} công / 8 giờ; không gồm thưởng, ăn trưa và khoản hỗ trợ.')
             save_input(hr,inputs)
             adjustment=PayrollAdjustment(period=payroll,employee=employee,name='Phụ cấp ăn trưa',kind='allowance',
                 amount=450000,tax_category='meal_cash',basis='Phụ cấp ăn trưa cố định tháng 10/2026, không tính vào căn cứ lương giờ OT.',approved=True)

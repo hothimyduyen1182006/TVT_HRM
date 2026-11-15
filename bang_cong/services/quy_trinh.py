@@ -7,8 +7,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from nhan_vien.access import require_role, HR, DIRECTOR
-from nhan_vien.models import Employee
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
+from nhan_vien.models import NhanVien
 from bang_cong.models import (
     ChamCong, ChotBangCong, TongHopCong, LichSuDieuChinhCong,
 )
@@ -54,7 +54,7 @@ def du_lieu_cham_cong(ban_ghi):
 
 @transaction.atomic
 def luu_cham_cong(nguoi_thuc_hien, ban_ghi, ly_do):
-    require_role(nguoi_thuc_hien, HR, DIRECTOR)
+    yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU, GIAM_DOC)
     if not ly_do.strip():
         raise ValidationError('Cần lý do thay đổi.')
     ky_cong = PayrollPeriod.objects.select_for_update().get(nam=ban_ghi.ngay.year, thang=ban_ghi.ngay.month)
@@ -77,7 +77,7 @@ def luu_cham_cong(nguoi_thuc_hien, ban_ghi, ly_do):
 
 @transaction.atomic
 def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
-    require_role(nguoi_thuc_hien, DIRECTOR)
+    yeu_cau_vai_tro(nguoi_thuc_hien, GIAM_DOC)
     if thao_tac != 'approve':
         raise ValidationError('Chỉ được duyệt công; bảng công đã duyệt không được mở lại.')
     ky_cong = PayrollPeriod.objects.select_for_update().get(pk=ma_ky_cong)
@@ -90,10 +90,10 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
         lich_da_kiem_tra = kiem_tra_lich_lam_viec(ky_cong)
         luu_can_cu_lich(ky_cong, lich_da_kiem_tra)
         ds_ban_ghi = ChamCong.objects.filter(ngay__year=ky_cong.nam, ngay__month=ky_cong.thang)
-        ds_nhan_vien = Employee.objects.filter(is_active=True, hire_date__lte=_ngay_cuoi_ky(ky_cong))
+        ds_nhan_vien = NhanVien.objects.filter(dang_hoat_dong=True, ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong))
         for nhan_vien in ds_nhan_vien:
             ngay_bat_buoc = {lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
-                        if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.hire_date}
+                        if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.ngay_vao_lam}
             ngay_da_co = set(ds_ban_ghi.filter(nhan_vien=nhan_vien).exclude(trang_thai='incomplete').values_list('ngay', flat=True))
             if not set(ngay_bat_buoc).issubset(ngay_da_co):
                 raise ValidationError(f'{nhan_vien}: còn ngày làm việc chưa kiểm tra.')
@@ -118,7 +118,7 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
 
 @transaction.atomic
 def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
-    require_role(nguoi_thuc_hien, HR, DIRECTOR)
+    yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU, GIAM_DOC)
     ky_cong = PayrollPeriod.objects.select_for_update().get(pk=ma_ky_cong)
     if ky_cong_da_khoa(ky_cong, nhan_vien.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
@@ -127,7 +127,7 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     luu_can_cu_lich(ky_cong, lich_da_kiem_tra)
     ds_ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay__year=ky_cong.nam, ngay__month=ky_cong.thang)
     ngay_bat_buoc = {lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
-                if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.hire_date}
+                if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.ngay_vao_lam}
     ngay_da_co = set(ds_ban_ghi.exclude(trang_thai='incomplete').values_list('ngay', flat=True))
     if not ds_ban_ghi.exists() or not ngay_bat_buoc.issubset(ngay_da_co) or ds_ban_ghi.filter(trang_thai='incomplete').exists():
         raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
@@ -140,8 +140,8 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     else:
         ban_chot = ChotBangCong.objects.create(
             tong_hop=cap_nhat_tong_hop(nhan_vien, ky_cong), nguoi_duyet=nguoi_thuc_hien)
-    ds_ma_nhan_vien = set(Employee.objects.filter(is_active=True,
-        hire_date__lte=_ngay_cuoi_ky(ky_cong)).values_list('pk', flat=True))
+    ds_ma_nhan_vien = set(NhanVien.objects.filter(dang_hoat_dong=True,
+        ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong)).values_list('pk', flat=True))
     ma_da_duyet_hop_le = set(ky_cong.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True))
     if ds_ma_nhan_vien and ds_ma_nhan_vien.issubset(ma_da_duyet_hop_le):
         ky_cong.trang_thai = 'approved'
@@ -159,7 +159,7 @@ def du_lieu_tong_hop(nhan_vien, ky_cong):
     """Chuyển kết quả tổng hợp tháng thành các trường của bảng Tổng hợp công."""
     from .hien_thi import tong_hop_cong_thang
 
-    dong = tong_hop_cong_thang(Employee.objects.filter(pk=nhan_vien.pk), ky_cong.nam, ky_cong.thang, ky_cong)[0]
+    dong = tong_hop_cong_thang(NhanVien.objects.filter(pk=nhan_vien.pk), ky_cong.nam, ky_cong.thang, ky_cong)[0]
     return {
         'thang': ky_cong.thang, 'nam': ky_cong.nam,
         'cong_chuan': dong['standard'] or 0, 'cong_thuc_te': dong['actual'],
@@ -191,7 +191,7 @@ def cap_nhat_tong_hop(nhan_vien, ky_cong):
 
 def cap_nhat_tong_hop_ca_ky(ky_cong):
     """Đồng bộ tổng hợp của các nhân viên đã vào làm trước cuối kỳ."""
-    for nhan_vien in Employee.objects.filter(hire_date__lte=_ngay_cuoi_ky(ky_cong)):
+    for nhan_vien in NhanVien.objects.filter(ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong)):
         cap_nhat_tong_hop(nhan_vien, ky_cong)
 
 

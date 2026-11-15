@@ -1,9 +1,9 @@
 from django import template
-from nhan_vien.access import has_role
+from nhan_vien.access import co_vai_tro
 
 register = template.Library()
 
 
 @register.simple_tag
 def role_allowed(user, *roles):
-    return has_role(user, *roles)
+    return co_vai_tro(user, *roles)

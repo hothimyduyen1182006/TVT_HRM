@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.utils import timezone
 from bang_luong.models import PayrollPeriod as KyCong
-from nhan_vien.access import require_role, HR, DIRECTOR
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 from bang_luong.models import PayrollPeriod, PayrollAuditLog, Luong
 from .tinh_toan import chup_du_lieu_luong, du_lieu_tinh_luong, doi_chieu_chi_tiet_cu
 from .thue import loi_nguon_thue
@@ -105,7 +105,7 @@ def loi_duyet_luong(record, period=None, attendance=None):
 
 @transaction.atomic
 def xu_ly_trang_thai_luong(actor, period_id, action, reason, evidence=''):
-    require_role(actor, DIRECTOR)
+    yeu_cau_vai_tro(actor, GIAM_DOC)
     if not reason.strip():
         raise ValidationError('Cần ghi lý do.')
     link = PayrollPeriod.objects.get(pk=period_id)
@@ -163,7 +163,7 @@ def xu_ly_trang_thai_luong(actor, period_id, action, reason, evidence=''):
 
 @transaction.atomic
 def duyet_phieu_luong(actor, record_id):
-    require_role(actor, DIRECTOR)
+    yeu_cau_vai_tro(actor, GIAM_DOC)
     link = Luong.objects.select_related('ky_luong').get(pk=record_id)
     attendance = KyCong.objects.select_for_update().get(pk=link.ky_luong.attendance_period_id)
     period = PayrollPeriod.objects.select_for_update().get(pk=link.ky_luong_id)
@@ -196,7 +196,7 @@ class CanCuLuong(SimpleNamespace):
 
     def full_clean(self):
         if not self.verified or not self.tax_basis or not self.insurance_basis:
-            raise ValidationError('Thiếu thiết lập bảo hiểm/thuế đã được HR xác nhận.')
+            raise ValidationError('Thiếu thiết lập bảo hiểm/thuế đã được NHAN_SU xác nhận.')
         if self.insurance_base is None or not self.insurance_base.is_finite() or self.insurance_base < 0:
             raise ValidationError('Lương đóng bảo hiểm phải là số không âm.')
         if not isinstance(self.insurance_rates, dict):
@@ -223,7 +223,7 @@ class CanCuLuong(SimpleNamespace):
 
 def can_cu_luong_nhan_vien(employee, period):
     """Chỉ đọc thiết lập chung của nhân viên hoặc snapshot khi đối chiếu phiếu cũ."""
-    settings = employee.payroll_settings
+    settings = employee.thiet_lap_luong
     if not settings or not settings.get('verified'):
         raise ValidationError(f'{employee}: cần thiết lập và xác nhận tính lương trong Quản lý nhân viên.')
     defaults = dict(insurance_base=0, insurance_rates={}, insurance_basis='',
@@ -252,7 +252,7 @@ def cac_khoan_phu_cap_khau_tru(employee, period):
     historical = cac_khoan_da_luu(existing) if existing else []
     historical = [dong for dong in historical if dong.tax_category != 'meal_cash'
                   and dong.name not in ['Phụ cấp ăn trưa', 'Ăn trưa']]
-    settings = employee.payroll_settings or {}
+    settings = employee.thiet_lap_luong or {}
     return historical+[SimpleNamespace(pk=f'employee-{employee.pk}-lunch',name='Phụ cấp ăn trưa',kind='allowance',
         amount=Decimal(str(settings.get('lunch_allowance',450000))),tax_category='meal_cash',
         basis='Phụ cấp ăn trưa dùng chung đã được xác nhận trong quản lý nhân viên')]
@@ -273,11 +273,11 @@ def nhan_vien_theo_phieu_luong(record):
     """Phiếu đã lưu dùng bản chụp thiết lập của chính nó để đối soát thuế/OT."""
     from copy import copy
     employee=copy(record.nhan_vien)
-    employee.payroll_settings=record.chi_tiet.get('source_data',{}).get('employee_settings')
-    if employee.payroll_settings is None:
+    employee.thiet_lap_luong=record.chi_tiet.get('source_data',{}).get('employee_settings')
+    if employee.thiet_lap_luong is None:
         chi_tiet = record.chi_tiet
         tax = chi_tiet.get('source_data', {}).get('tax_inputs', {})
-        employee.payroll_settings = {
+        employee.thiet_lap_luong = {
             'insurance_base': chi_tiet.get('insurance_base', '0'),
             'insurance_rates': chi_tiet.get('insurance_rates', {}),
             'insurance_basis': chi_tiet.get('insurance_basis', ''),
@@ -295,30 +295,30 @@ def nhan_vien_theo_phieu_luong(record):
 
 @transaction.atomic
 def luu_thiet_lap_luong(actor, employee, settings):
-    require_role(actor,HR,DIRECTOR)
-    from nhan_vien.models import Employee
+    yeu_cau_vai_tro(actor,NHAN_SU,GIAM_DOC)
+    from nhan_vien.models import NhanVien
     from django.utils import timezone
-    employee=Employee.objects.select_for_update().get(pk=employee.pk)
-    from nhan_vien.forms import SalarySettingsForm
+    employee=NhanVien.objects.select_for_update().get(pk=employee.pk)
+    from nhan_vien.forms import BieuMauThietLapLuong
     payload={f'salary-{khoa}':gia_tri for khoa,gia_tri in settings.items()}
     for khoa in ['bhxh','bhyt','bhtn']:
         payload[f'salary-{khoa}']=Decimal(str(settings.get('insurance_rates',{}).get(khoa.upper(),0)))*100
-    bieu_mau=SalarySettingsForm(employee,data=payload)
+    bieu_mau=BieuMauThietLapLuong(employee,data=payload)
     if not bieu_mau.is_valid():
         raise ValidationError(bieu_mau.errors.as_text())
-    settings=bieu_mau.settings_data()
-    du_lieu_cu=employee.payroll_settings
+    settings=bieu_mau.du_lieu_thiet_lap()
+    du_lieu_cu=employee.thiet_lap_luong
     employee.payroll_errors=[]
     comparable={khoa:gia_tri for khoa,gia_tri in (du_lieu_cu or {}).items() if not khoa.startswith('_')}
     if comparable==settings:
         return employee
-    employee.payroll_settings={**settings,'_updated_by':actor.pk,'_updated_at':timezone.now().isoformat()}
+    employee.thiet_lap_luong={**settings,'_updated_by':actor.pk,'_updated_at':timezone.now().isoformat()}
     employee.save(update_fields=['payroll_settings'])
     period=PayrollPeriod.objects.filter(records__nhan_vien=employee).order_by('-nam','-thang').first()
     if period:
         PayrollAuditLog.objects.create(period=period,actor=actor,action='employee_settings',
-            reason=f'Cập nhật thiết lập tính lương dùng chung của {employee.code}',
-            snapshot=[{'employee_id':employee.pk,'before':du_lieu_cu,'after':employee.payroll_settings}])
+            reason=f'Cập nhật thiết lập tính lương dùng chung của {employee.ma_ho_so}',
+            snapshot=[{'employee_id':employee.pk,'before':du_lieu_cu,'after':employee.thiet_lap_luong}])
     from .tinh_toan import cap_nhat_luong_nhan_vien
     for period in PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk'):
         attendance=period.attendance_period

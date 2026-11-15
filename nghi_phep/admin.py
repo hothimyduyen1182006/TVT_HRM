@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from nhan_vien.admin_utils import ReadOnlyAdmin
+from nhan_vien.admin_utils import QuanTriChiDoc
 
 from .models import DonNghiPhep, NgayNghi
 
@@ -12,10 +12,10 @@ class DonNghiPhepAdmin(admin.ModelAdmin):
         'trang_thai', 'ngay_tao',
     )
     list_filter = ('loai_nghi', 'trang_thai')
-    search_fields = ('nhan_vien__full_name', 'nhan_vien__code', 'ly_do')
+    search_fields = ('nhan_vien__ho_va_ten', 'nhan_vien__ma_ho_so', 'ly_do')
 
 
 @admin.register(NgayNghi)
-class NgayNghiAdmin(ReadOnlyAdmin):
+class NgayNghiAdmin(QuanTriChiDoc):
     list_display = ('don_nghi_phep', 'ngay', 'nhan_vien', 'huong_luong')
     list_filter = ('don_nghi_phep__loai_nghi', 'don_nghi_phep__trang_thai')

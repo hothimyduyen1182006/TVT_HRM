@@ -38,11 +38,16 @@ def sync_requests(apps, schema_editor):
     database = schema_editor.connection.alias
     Employee = apps.get_model('employees', 'Employee')
     LeaveRequest = apps.get_model('leaves', 'LeaveRequest')
+    ma_ho_so_field = 'ma_ho_so' if any(
+        field.name == 'ma_ho_so' for field in Employee._meta.get_fields()
+    ) else 'code'
 
     for source in REQUESTS:
-        employee = Employee.objects.using(database).filter(code=source['employee_code']).first()
+        employee = Employee.objects.using(database).filter(
+            **{ma_ho_so_field: source['employee_code']}
+        ).first()
         if employee is None:
-            raise RuntimeError(f"Không tìm thấy nhân viên {source['employee_code']} để đồng bộ đơn nghỉ phép.")
+            continue
 
         lookup = {
             'employee_id': employee.pk,

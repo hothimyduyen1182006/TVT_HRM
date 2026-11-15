@@ -15,8 +15,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from nhan_vien.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
-from nhan_vien.models import Employee
+from nhan_vien.access import nhan_vien_duoc_hien_thi, yeu_cau_vai_tro, co_vai_tro, NHAN_SU, GIAM_DOC, TRUONG_PHONG
+from nhan_vien.models import NhanVien
 from .forms import ChamCongForm, BoLocBangCong
 from .models import ChamCong
 from bang_luong.models import PayrollPeriod
@@ -26,8 +26,8 @@ from .services.hien_thi import tong_hop_cong_thang, du_lieu_cong_thang, du_lieu_
 
 @login_required
 def danh_sach_bang_cong(request):
-    if not has_role(request.user, HR, DIRECTOR, MANAGER):
-        nhan_vien = visible_employees(request.user).first()
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
+        nhan_vien = nhan_vien_duoc_hien_thi(request.user).first()
         if nhan_vien:
             return bang_cong_nhan_vien(request, nhan_vien.pk)
     form = BoLocBangCong(request.user, request.GET)
@@ -35,14 +35,14 @@ def danh_sach_bang_cong(request):
     ky_cong = None
     if form.is_valid():
         du_lieu = form.cleaned_data
-        ds_nhan_vien = form.employee_scope(request.user)
+        ds_nhan_vien = form.nhan_vien_trong_pham_vi(request.user)
         if du_lieu['q']:
             ds_nhan_vien = ds_nhan_vien.filter(
-                Q(full_name__icontains=du_lieu['q']) | Q(code__icontains=du_lieu['q']),
+                Q(ho_va_ten__icontains=du_lieu['q']) | Q(ma_ho_so__icontains=du_lieu['q']),
             )
         ky_cong = PayrollPeriod.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
         if du_lieu.get('day'):
-            ds_nhan_vien = ds_nhan_vien.filter(is_active=True, hire_date__lte=du_lieu['day'])
+            ds_nhan_vien = ds_nhan_vien.filter(dang_hoat_dong=True, ngay_vao_lam__lte=du_lieu['day'])
             da_cham_cong = ChamCong.objects.filter(ngay=du_lieu['day'], gio_vao__isnull=False)
             if du_lieu['day_state'] == 'unchecked':
                 ds_nhan_vien = ds_nhan_vien.exclude(
@@ -59,12 +59,12 @@ def danh_sach_bang_cong(request):
         danh_sach = tong_hop_cong_thang(ds_nhan_vien, du_lieu['year'], du_lieu['month'], ky_cong)
         if du_lieu['review']:
             danh_sach = [dong for dong in danh_sach if dong['state'] == du_lieu['review']]
-    return render(request, 'attendance/list.html', {
+    return render(request, 'bang_cong/list.html', {
         'form': form, 'rows': danh_sach, 'period': ky_cong,
         'page_obj': Paginator(danh_sach, 15).get_page(request.GET.get('page')),
         'page_query': tham_so_phan_trang(request),
-        'can_edit': has_role(request.user, HR, DIRECTOR),
-        'director': has_role(request.user, DIRECTOR),
+        'can_edit': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
+        'director': co_vai_tro(request.user, GIAM_DOC),
     })
 
 
@@ -76,17 +76,17 @@ def tham_so_phan_trang(request):
 
 @login_required
 def bang_cong_ca_nhan(request):
-    nhan_vien = get_object_or_404(Employee, user=request.user)
+    nhan_vien = get_object_or_404(NhanVien, nguoi_dung=request.user)
     return bang_cong_nhan_vien(request, nhan_vien.pk, chi_xem_ban_than=True)
 
 
 @login_required
 def bang_cong_nhan_vien(request, employee_id, chi_xem_ban_than=False):
-    pham_vi = Employee.objects.filter(user=request.user) if chi_xem_ban_than else visible_employees(request.user)
+    pham_vi = NhanVien.objects.filter(nguoi_dung=request.user) if chi_xem_ban_than else nhan_vien_duoc_hien_thi(request.user)
     nhan_vien = get_object_or_404(pham_vi, pk=employee_id)
     ngu_canh = du_lieu_cong_thang(request, nhan_vien)
-    la_ca_nhan = chi_xem_ban_than or not has_role(request.user, HR, DIRECTOR, MANAGER)
-    co_quyen_quan_ly = not la_ca_nhan and has_role(request.user, HR, DIRECTOR)
+    la_ca_nhan = chi_xem_ban_than or not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
+    co_quyen_quan_ly = not la_ca_nhan and co_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     ky_cong = ngu_canh['period']
     tong_hop = ngu_canh['summary']
     ky_da_duyet = ky_cong and ky_cong.trang_thai == 'approved'
@@ -97,25 +97,25 @@ def bang_cong_nhan_vien(request, employee_id, chi_xem_ban_than=False):
         'can_approve': co_quyen_quan_ly,
         'can_export': co_quyen_quan_ly,
         'page_obj': Paginator(ngu_canh['rows'], 6 if la_ca_nhan else 12).get_page(request.GET.get('page')),
-        'page_query': tham_so_phan_trang(request), 'director': has_role(request.user, DIRECTOR),
-        'initials': ''.join(tu[0] for tu in nhan_vien.full_name.split()[-2:]).upper(),
+        'page_query': tham_so_phan_trang(request), 'director': co_vai_tro(request.user, GIAM_DOC),
+        'initials': ''.join(tu[0] for tu in nhan_vien.ho_va_ten.split()[-2:]).upper(),
         'tabs': [('', 'Tất cả'), ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép')],
     })
-    return render(request, 'attendance/month.html', ngu_canh)
+    return render(request, 'bang_cong/month.html', ngu_canh)
 
 
 @login_required
 @require_POST
 def duyet_bang_cong_nhan_vien(request, employee_id, period_id):
-    require_role(request.user, HR, DIRECTOR)
-    nhan_vien = get_object_or_404(visible_employees(request.user), pk=employee_id)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    nhan_vien = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=employee_id)
     ky_cong = get_object_or_404(PayrollPeriod, pk=period_id)
     try:
         ban_chot = duyet_cong_nhan_vien(request.user, nhan_vien, ky_cong.pk)
     except ValidationError as loi:
         messages.error(request, '; '.join(loi.messages))
     else:
-        messages.success(request, f'Đã duyệt bảng công của {nhan_vien.full_name} tháng {ky_cong}.')
+        messages.success(request, f'Đã duyệt bảng công của {nhan_vien.ho_va_ten} tháng {ky_cong}.')
         if getattr(ban_chot, 'payroll_error', ''):
             messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + ban_chot.payroll_error)
     return redirect(reverse('bang_cong:cong-nhan-vien', args=[nhan_vien.pk]) + '?' +
@@ -124,21 +124,21 @@ def duyet_bang_cong_nhan_vien(request, employee_id, period_id):
 
 @login_required
 def lich_su_dieu_chinh(request, employee_id):
-    pham_vi = Employee.objects.filter(Q(pk__in=visible_employees(request.user).values('pk')) | Q(user=request.user))
+    pham_vi = NhanVien.objects.filter(Q(pk__in=nhan_vien_duoc_hien_thi(request.user).values('pk')) | Q(nguoi_dung=request.user))
     nhan_vien = get_object_or_404(pham_vi, pk=employee_id)
     ngu_canh = du_lieu_lich_su_cong(request, nhan_vien)
     ngu_canh.update({
-        'employee': nhan_vien, 'can_export': has_role(request.user, HR, DIRECTOR),
+        'employee': nhan_vien, 'can_export': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
         'page_obj': Paginator(ngu_canh['rows'], 20).get_page(request.GET.get('page')),
         'page_query': tham_so_phan_trang(request),
     })
-    return render(request, 'attendance/history.html', ngu_canh)
+    return render(request, 'bang_cong/history.html', ngu_canh)
 
 
 @login_required
 def xuat_bang_cong(request, employee_id):
-    require_role(request.user, HR, DIRECTOR)
-    nhan_vien = get_object_or_404(visible_employees(request.user), pk=employee_id)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    nhan_vien = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=employee_id)
     che_do = request.GET.get('mode', 'month')
     if che_do not in ('month', 'history'):
         raise Http404
@@ -165,7 +165,7 @@ def xuat_bang_cong(request, employee_id):
         for dong in ngu_canh['rows']:
             ban_ghi = dong['record']
             gia_tri.append([
-                nhan_vien.code, nhan_vien.full_name, dong['date'],
+                nhan_vien.ma_ho_so, nhan_vien.ho_va_ten, dong['date'],
                 getattr(ban_ghi, 'gio_vao', ''), getattr(ban_ghi, 'gio_ra', ''), dong['label'],
                 getattr(ban_ghi, 'so_phut_tre', ''), getattr(ban_ghi, 'so_gio_lam', ''),
                 getattr(ban_ghi, 'tong_cong', ''), dong['ot'],
@@ -187,19 +187,19 @@ def xuat_bang_cong(request, employee_id):
 @login_required
 def chi_tiet_cham_cong(request, pk):
     dong = get_object_or_404(ChamCong.objects.select_related('nhan_vien'), pk=pk,
-                            nhan_vien__in=visible_employees(request.user))
+                            nhan_vien__in=nhan_vien_duoc_hien_thi(request.user))
     ngu_canh = {
         'row': dong,
-        'can_edit': has_role(request.user, HR, DIRECTOR) and not cham_cong_da_khoa(dong),
+        'can_edit': co_vai_tro(request.user, NHAN_SU, GIAM_DOC) and not cham_cong_da_khoa(dong),
         **du_lieu_tang_ca(dong),
     }
-    return render(request, 'attendance/detail.html', ngu_canh)
+    return render(request, 'bang_cong/detail.html', ngu_canh)
 
 
 @login_required
 def sua_cham_cong(request, pk=None):
-    require_role(request.user, HR, DIRECTOR)
-    dong = get_object_or_404(ChamCong, pk=pk, nhan_vien__in=visible_employees(request.user)) if pk else None
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    dong = get_object_or_404(ChamCong, pk=pk, nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if pk else None
     if dong and cham_cong_da_khoa(dong):
         raise PermissionDenied('Kỳ công đã duyệt, không được chỉnh sửa chấm công.')
     ban_dau = {'employee': request.GET.get('employee'), 'date': request.GET.get('date')} if not dong else None
@@ -216,13 +216,13 @@ def sua_cham_cong(request, pk=None):
         else:
             messages.success(request, 'Đã lưu và tính lại công.')
             return redirect('bang_cong:chi-tiet', pk=da_luu.pk)
-    return render(request, 'attendance/edit.html', {'form': form, 'title': 'Ghi nhận / chỉnh sửa chấm công', 'row': dong})
+    return render(request, 'bang_cong/edit.html', {'form': form, 'title': 'Ghi nhận / chỉnh sửa chấm công', 'row': dong})
 
 
 @login_required
 @require_POST
 def doi_trang_thai_ky_cong(request, pk):
-    require_role(request.user, DIRECTOR)
+    yeu_cau_vai_tro(request.user, GIAM_DOC)
     ky_cong = get_object_or_404(PayrollPeriod, pk=pk)
     try:
         xu_ly_trang_thai_ky_cong(request.user, pk, request.POST.get('action'), request.POST.get('reason', ''))

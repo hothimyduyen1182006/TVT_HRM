@@ -6,8 +6,8 @@ from django.core.management import call_command
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import IntegrityError, transaction
 from django.test import TestCase, Client
-from nhan_vien.models import Employee, Department
-from nghi_phep.models import NgayNghi
+from nhan_vien.models import NhanVien, PhongBan
+from nghi_phep.models import LeaveDay
 from .models import ChamCong, KyCong, LichLamViec, NhatKyCong, LichSuTangCa
 from .services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from django.core.management.base import CommandError
@@ -30,7 +30,7 @@ class AutomaticOvertimeTests(TestCase):
         for employee in [self.emp,self.other]:
             for end,expected in [(time(16,30),0),(time(17),0),(time(17,30),Decimal('.5')),
                                  (time(18),1),(time(19),2),(time(20),3)]:
-                with self.subTest(employee=employee.code,end=end):
+                with self.subTest(employee=employee.ma_ho_so,end=end):
                     row=ChamCong.objects.filter(nhan_vien=employee,ngay=date(2026,10,5)).first() or self.record(nhan_vien=employee)
                     row.gio_ra=end
                     luu_cham_cong(self.hr,row,'Kiểm thử tháng 10')
@@ -160,12 +160,12 @@ class AttendanceTests(TestCase):
         self.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
         self.user = User.objects.create_user('employee')
         self.other_user = User.objects.create_user('other')
-        self.dep = Department.objects.create(code='A', name='Phòng A')
-        self.other_dep = Department.objects.create(code='B', name='Phòng B')
-        self.emp = Employee.objects.create(code='NV01', full_name='Nhân viên 1', user=self.user,
-                    department=self.dep, hire_date=date(2020, 1, 1), base_salary=Decimal('22000000'))
-        self.other = Employee.objects.create(code='NV02', full_name='Nhân viên 2', user=self.other_user,
-                    department=self.other_dep, hire_date=date(2020, 1, 1), base_salary=Decimal('22000000'))
+        self.dep = PhongBan.objects.create(ma_phong_ban='A', ten_phong_ban='Phòng A')
+        self.other_dep = PhongBan.objects.create(ma_phong_ban='B', ten_phong_ban='Phòng B')
+        self.emp = NhanVien.objects.create(ma_ho_so='NV01', ho_va_ten='Nhân viên 1', nguoi_dung=self.user,
+                    phong_ban=self.dep, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=Decimal('22000000'))
+        self.other = NhanVien.objects.create(ma_ho_so='NV02', ho_va_ten='Nhân viên 2', nguoi_dung=self.other_user,
+                    phong_ban=self.other_dep, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=Decimal('22000000'))
         self.period = KyCong.objects.create(thang=1, nam=2026, gio_bat_dau=time(8),
                  bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8)
         for day in range(1, 32):
@@ -209,19 +209,19 @@ class AttendanceTests(TestCase):
             ChamCong.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), trang_thai='absent')
 
     def test_paid_and_unpaid_leave(self):
-        leave = NgayNghi.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), so_cong=1,
-                                        huong_luong=True, ly_do='Phép', da_duyet=True)
+        leave = LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
+                                        reason='Phép', approved=True)
         row = luu_cham_cong(self.hr, self.record(gio_vao=None, gio_ra=None, trang_thai='leave'), 'Phép')
         self.assertEqual(row.tong_cong, 1)
         self.assertEqual(row.cong_thuc_te, 0)
-        leave.huong_luong = False
+        leave.paid = False
         leave.save()
         luu_cham_cong(self.hr, row, 'Không lương')
         self.assertEqual(row.tong_cong, 0)
 
     def test_overlap_rejected(self):
-        NgayNghi.objects.create(nhan_vien=self.emp, ngay=date(2026, 1, 5), so_cong=1,
-                                huong_luong=True, ly_do='Phép', da_duyet=True)
+        LeaveDay.objects.create(employee=self.emp, date=date(2026, 1, 5), units=1, paid=True,
+                                reason='Phép', approved=True)
         with self.assertRaises(ValidationError):
             luu_cham_cong(self.hr, self.record(), 'Trùng')
 
@@ -304,7 +304,7 @@ class AttendanceTests(TestCase):
         self.assertEqual(self.client.get(f'/bang_cong/{own.pk}/').status_code, 200)
         self.assertEqual(self.client.get(f'/bang_cong/{other.pk}/').status_code, 404)
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
-        self.dep.manager = self.emp
+        self.dep.truong_phong = self.emp
         self.dep.save()
         self.assertEqual(self.client.get(f'/bang_cong/{other.pk}/').status_code, 404)
 
@@ -439,7 +439,7 @@ class AttendanceTests(TestCase):
             self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/{suffix}').status_code, 404)
         self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/').status_code, 403)
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
-        self.dep.manager = self.emp
+        self.dep.truong_phong = self.emp
         self.dep.save()
         self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/lich-su/').status_code, 404)
 

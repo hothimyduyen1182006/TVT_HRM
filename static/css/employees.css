@@ -44,8 +44,8 @@
 .profile-card, .form-panel { min-width: 0; padding: 16px; border: 1px solid #e6ebf0; border-radius: 9px; background: #fff; box-shadow: 0 4px 16px #20334f09; }
 .profile-card h2, .form-panel h2 { margin: 0 0 12px; color: #20334f; font-size: 15px; font-weight: 700; }
 .personal-info { display: grid; grid-template-columns: 92px 1fr; align-items: start; gap: 15px; }
-.employee-avatar { width: 92px; height: 112px; object-fit: cover; border: 1px solid #dce2e9; border-radius: 10px; }
-.avatar-placeholder { display: grid; place-items: center; color: #3e628d; background: #e9f0f7; font-size: 35px; font-weight: 700; }
+.employee-hinh_anh { width: 92px; height: 112px; object-fit: cover; border: 1px solid #dce2e9; border-radius: 10px; }
+.hinh_anh-placeholder { display: grid; place-items: center; color: #3e628d; background: #e9f0f7; font-size: 35px; font-weight: 700; }
 .profile-card dl { display: grid; grid-template-columns: minmax(100px, .8fr) 1.4fr; row-gap: 8px; margin: 0; font-size: 12px; }
 .profile-card dt { color: #718096; font-weight: 600; }
 .profile-card dd { min-width: 0; margin: 0; color: #2c3f58; overflow-wrap: anywhere; }
@@ -95,16 +95,16 @@
   box-shadow: 0 0 0 1000px #fff inset;
   transition: background-color 9999s ease-out;
 }
-.form-page .personal-form-grid { grid-template-areas: "avatar name" "code birth" "gender national" "phone status" "address address"; }
-.personal-avatar { grid-area: avatar; }
-.personal-full_name { grid-area: name; }
+.form-page .personal-form-grid { grid-template-areas: "hinh_anh name" "code birth" "gioi_tinh national" "so_dien_thoai status" "dia_chi dia_chi"; }
+.personal-hinh_anh { grid-area: hinh_anh; }
+.personal-ho_va_ten { grid-area: name; }
 .personal-code { grid-area: code; }
-.personal-date_of_birth { grid-area: birth; }
-.personal-gender { grid-area: gender; }
-.personal-national_id { grid-area: national; }
-.personal-phone { grid-area: phone; }
-.personal-address { grid-area: address; }
-.personal-employment_status { grid-area: status; }
+.personal-ngay_sinh { grid-area: birth; }
+.personal-gioi_tinh { grid-area: gioi_tinh; }
+.personal-cccd { grid-area: national; }
+.personal-so_dien_thoai { grid-area: so_dien_thoai; }
+.personal-dia_chi { grid-area: dia_chi; }
+.personal-trang_thai_nv { grid-area: status; }
 .form-page .form-field.wide { grid-column: 1 / -1; }
 .form-page .checkbox-field { display: flex; flex-direction: row; align-items: center; align-self: auto; gap: 7px; }
 .form-page .checkbox-field input { flex: 0 0 17px; }
@@ -127,21 +127,21 @@
 .edit-form-panels .form-panel { padding: 22px; }
 .edit-form-panels .form-panel h2 { margin-bottom: 18px; font-size: 15px; }
 .edit-profile-top { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: start; gap: 16px; margin-bottom: 16px; }
-.edit-avatar-block { display: flex; flex-direction: column; align-items: center; gap: 9px; min-width: 0; }
-.edit-avatar-preview { display: grid; width: 80px; height: 96px; place-items: center; border: 1px solid #dce3eb; border-radius: 9px; object-fit: cover; color: #3e628d; background: #e9f0f7; font-size: 30px; font-weight: 700; }
-.edit-avatar-block .avatar-placeholder { width: 80px; height: 96px; margin: 0; border-radius: 9px; }
-.avatar-change-button { display: inline-flex; width: max-content; min-width: max-content; min-height: 30px; align-items: center; justify-content: center; align-self: center; padding: 5px 12px; border: 1px solid #d5dce5; border-radius: 5px; color: #20334f; background: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
-.avatar-change-button:hover { background: #edf2f8; }
-.avatar-input-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.edit-avatar-block:focus-within .avatar-change-button { outline: 2px solid #8aa7c8; outline-offset: 2px; }
+.edit-hinh_anh-block { display: flex; flex-direction: column; align-items: center; gap: 9px; min-width: 0; }
+.edit-hinh_anh-preview { display: grid; width: 80px; height: 96px; place-items: center; border: 1px solid #dce3eb; border-radius: 9px; object-fit: cover; color: #3e628d; background: #e9f0f7; font-size: 30px; font-weight: 700; }
+.edit-hinh_anh-block .hinh_anh-placeholder { width: 80px; height: 96px; margin: 0; border-radius: 9px; }
+.hinh_anh-change-button { display: inline-flex; width: max-content; min-width: max-content; min-height: 30px; align-items: center; justify-content: center; align-self: center; padding: 5px 12px; border: 1px solid #d5dce5; border-radius: 5px; color: #20334f; background: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+.hinh_anh-change-button:hover { background: #edf2f8; }
+.hinh_anh-input-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.edit-hinh_anh-block:focus-within .hinh_anh-change-button { outline: 2px solid #8aa7c8; outline-offset: 2px; }
 .edit-identity-fields { display: grid; gap: 11px; min-width: 0; }
-.form-page .edit-personal-grid { grid-template-areas: "birth gender" "national phone" "address address" "status status"; }
-.edit-date_of_birth { grid-area: birth; }
-.edit-gender { grid-area: gender; }
-.edit-national_id { grid-area: national; }
-.edit-phone { grid-area: phone; }
-.edit-address { grid-area: address; }
-.edit-employment_status { grid-area: status; }
+.form-page .edit-personal-grid { grid-template-areas: "birth gioi_tinh" "national so_dien_thoai" "dia_chi dia_chi" "status status"; }
+.edit-ngay_sinh { grid-area: birth; }
+.edit-gioi_tinh { grid-area: gioi_tinh; }
+.edit-cccd { grid-area: national; }
+.edit-so_dien_thoai { grid-area: so_dien_thoai; }
+.edit-dia_chi { grid-area: dia_chi; }
+.edit-trang_thai_nv { grid-area: status; }
 .edit-account-status { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 34px; color: #34465e; font-size: 12px; font-weight: 650; }
 .edit-account-status input { width: 34px; height: 19px; margin: 0; appearance: none; border-radius: 999px; background: #cbd3dd; cursor: pointer; position: relative; transition: background .15s ease; }
 .edit-account-status input::after { position: absolute; top: 2px; left: 2px; width: 15px; height: 15px; border-radius: 50%; background: #fff; content: ""; transition: transform .15s ease; box-shadow: 0 1px 2px #0002; }
@@ -158,18 +158,18 @@
 .contract-edit-grid { grid-template-areas: "code number" "type status" "signed start" "end salary"; }
 .contract-field-code { grid-area: code; }
 .contract-field-number { grid-area: number; }
-.contract-field-contract_type { grid-area: type; }
+.contract-field-loai_hop_dong { grid-area: type; }
 .contract-field-status { grid-area: status; }
-.contract-field-signed_date { grid-area: signed; }
+.contract-field-ngay_ky { grid-area: signed; }
 .contract-field-start_date { grid-area: start; }
 .contract-field-end_date { grid-area: end; }
-.contract-field-agreed_salary { grid-area: salary; }
+.contract-field-luong_thoa_thuan { grid-area: salary; }
 .education-edit-card { padding: 24px; border: 1px solid #e5eaf0; border-radius: 12px; background: #fff; box-shadow: 0 5px 18px #20334f0a; }
 .education-edit-intro { display: flex; align-items: center; gap: 13px; padding-bottom: 17px; border-bottom: 1px solid #edf0f4; }
 .education-edit-intro h2 { margin: 0; padding: 0; border: 0; color: #20334f; font-size: 16px; font-weight: 750; }
 .education-edit-intro p { margin: 5px 0 0; color: #738198; font-size: 12px; }
 .education-edit-grid { gap: 16px 18px; padding: 20px 0 22px; }
-.education-edit-grid .education-field-graduation_year { grid-column: 1 / -1; width: 100%; }
+.education-edit-grid .education-field-nam_tot_nghiep { grid-column: 1 / -1; width: 100%; }
 .education-upload-section { padding-top: 20px; border-top: 1px solid #edf0f4; }
 .education-upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .education-upload-heading h3 { margin: 0; color: #34465e; font-size: 13px; font-weight: 700; }
@@ -220,7 +220,7 @@
   .employee-filters { grid-template-columns: 1fr; }
   .filter-actions { grid-column: auto; }
   .personal-info { grid-template-columns: 70px 1fr; gap: 10px; }
-  .employee-avatar { width: 70px; height: 88px; }
+  .employee-hinh_anh { width: 70px; height: 88px; }
   .profile-card dl { grid-template-columns: 94px 1fr; font-size: 11px; }
 }
 @media (max-width: 560px) {
@@ -230,7 +230,7 @@
 }
 @media (max-width: 430px) {
   .edit-profile-top { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
-  .edit-avatar-preview, .edit-avatar-block .avatar-placeholder { width: 68px; height: 82px; }
+  .edit-hinh_anh-preview, .edit-hinh_anh-block .hinh_anh-placeholder { width: 68px; height: 82px; }
   .edit-form-panels .form-panel { padding: 14px; }
   .education-edit-card { padding: 16px; }
   .education-upload-heading { align-items: flex-start; flex-direction: column; }

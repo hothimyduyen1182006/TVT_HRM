@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 
-from nhan_vien.models import Department, Education, Employee, LaborContract, Position
+from nhan_vien.models import PhongBan, HocVan, NhanVien, HopDongLaoDong, ChucVu
 
 
 class Command(BaseCommand):
@@ -51,11 +51,11 @@ class Command(BaseCommand):
             with transaction.atomic():
                 departments = {}
                 for item in payload['departments']:
-                    matches = Department.objects.filter(code__in=[item['code'], 'DEMO-' + item['code']])
+                    matches = PhongBan.objects.filter(ma_phong_ban__in=[item['code'], 'DEMO-' + item['code']])
                     if matches.count() > 1:
                         raise CommandError('Có cả mã phòng cũ và mới: ' + item['code'])
-                    department = matches.first() or Department()
-                    department.code, department.name = item['code'], item['name']
+                    department = matches.first() or PhongBan()
+                    department.ma_phong_ban, department.ten_phong_ban = item['code'], item['name']
                     department.full_clean()
                     department.save()
                     departments[item['code']] = department
@@ -66,10 +66,10 @@ class Command(BaseCommand):
                     if item['manager_code']:
                         department = departments[item['code']]
                         manager = people[item['manager_code']]
-                        if manager.department_id != department.pk:
+                        if manager.phong_ban_id != department.pk:
                             raise CommandError('Trưởng phòng phải thuộc đúng phòng ban.')
-                        department.manager = manager
-                        department.save(update_fields=['manager'])
+                        department.truong_phong = manager
+                        department.save(update_fields=['truong_phong'])
                 if self.dry_run:
                     transaction.set_rollback(True)
         except (ValidationError, IntegrityError) as error:
@@ -82,7 +82,7 @@ class Command(BaseCommand):
             self.stdout.write('Mật khẩu của tài khoản đã có được giữ nguyên.')
 
     def _account(self, item):
-        matches = Employee.objects.filter(code__in=[item['code'], 'DEMO-' + item['code']]).select_related('user')
+        matches = NhanVien.objects.filter(ma_ho_so__in=[item['code'], 'DEMO-' + item['code']]).select_related('nguoi_dung')
         if matches.count() > 1:
             raise CommandError('Có cả mã nhân viên cũ và mới: ' + item['code'])
         employee = matches.first()
@@ -90,10 +90,10 @@ class Command(BaseCommand):
         if targets.count() > 1:
             raise CommandError('Nhiều tài khoản có tên tương tự: ' + item['username'])
         target = targets.first()
-        user = employee.user if employee else target
-        if employee and target and target.pk != employee.user_id:
+        user = employee.nguoi_dung if employee else target
+        if employee and target and target.pk != employee.nguoi_dung_id:
             raise CommandError('Tên đăng nhập đã thuộc tài khoản khác: ' + item['username'])
-        if not employee and target and Employee.objects.filter(user=target).exists():
+        if not employee and target and NhanVien.objects.filter(nguoi_dung=target).exists():
             raise CommandError('Tài khoản đã liên kết nhân viên khác: ' + item['username'])
         if user and (user.is_staff or user.is_superuser):
             raise CommandError('Không cập nhật tài khoản quản trị: ' + item['username'])
@@ -115,50 +115,65 @@ class Command(BaseCommand):
         user.full_clean()
         user.save()
         user.groups.set([Group.objects.get_or_create(name=name)[0] for name in item['roles']])
-        employee = employee or Employee(user=user)
-        for field in ['code', 'full_name', 'gender', 'phone', 'address', 'is_active', 'employment_status']:
-            setattr(employee, field, item[field])
-        employee.date_of_birth = date.fromisoformat(item['date_of_birth']) if item['date_of_birth'] else None
-        employee.hire_date = date.fromisoformat(item['hire_date'])
+        employee = employee or NhanVien(nguoi_dung=user)
+        for truong, khoa_du_lieu in [
+            ('ma_ho_so', 'code'), ('ho_va_ten', 'ho_va_ten'), ('gioi_tinh', 'gioi_tinh'),
+            ('so_dien_thoai', 'so_dien_thoai'), ('dia_chi', 'dia_chi'),
+            ('dang_hoat_dong', 'is_active'), ('trang_thai_nv', 'trang_thai_nv'),
+        ]:
+            setattr(employee, truong, item[khoa_du_lieu])
+        employee.ngay_sinh = date.fromisoformat(item['ngay_sinh']) if item['ngay_sinh'] else None
+        employee.ngay_vao_lam = date.fromisoformat(item['ngay_vao_lam'])
         from bang_cong.models import ChamCong
-        if ChamCong.objects.filter(nhan_vien_id=employee.pk, ngay__lt=employee.hire_date).exists():
+        if ChamCong.objects.filter(nhan_vien_id=employee.pk, ngay__lt=employee.ngay_vao_lam).exists():
             raise CommandError('Ngày vào làm xung đột với chấm công: ' + item['code'])
-        employee.base_salary = Decimal(item['base_salary'])
-        employee.department = department
+        employee.luong_co_ban = Decimal(item['luong_co_ban'])
+        employee.phong_ban = department
         if item['position']:
-            position, _ = Position.objects.get_or_create(department=department, name=item['position']['name'],
-                defaults={'salary_coefficient': Decimal(item['position']['salary_coefficient'])})
+            position, _ = ChucVu.objects.get_or_create(phong_ban=department, ten_chuc_vu=item['position']['name'],
+                defaults={'he_so_luong_chuc_vu': Decimal(item['position']['he_so_luong_chuc_vu'])})
             position.full_clean()
-            employee.position = position
+            employee.chuc_vu = position
         else:
-            employee.position = None
+            employee.chuc_vu = None
         employee.full_clean()
         employee.save()
         for values in item['educations']:
-            education = Education.objects.filter(code=values['code']).first()
-            if education and education.employee_id != employee.pk:
+            education = HocVan.objects.filter(ma_hoc_van=values['code']).first()
+            if education and education.ho_so_ca_nhan_id != employee.pk:
                 raise CommandError('Mã bằng cấp đã thuộc nhân viên khác: ' + values['code'])
             if not education:
-                matches = Education.objects.filter(employee=employee, major=values['major'], school=values['school'],
-                    graduation_year=values['graduation_year'])
+                matches = HocVan.objects.filter(ho_so_ca_nhan=employee, chuyen_nganh=values['chuyen_nganh'], truong_hoc=values['truong_hoc'],
+                    nam_tot_nghiep=values['nam_tot_nghiep'])
                 if matches.count() > 1:
                     raise CommandError('Nhiều bằng cấp trùng thông tin: ' + item['code'])
-                education = matches.first() or Education(employee=employee)
-            for field, value in values.items():
-                setattr(education, field, value)
+                education = matches.first() or HocVan(ho_so_ca_nhan=employee)
+            for truong, khoa_du_lieu in [
+                ('ma_hoc_van', 'code'), ('bang_cap', 'bang_cap'), ('chuyen_nganh', 'chuyen_nganh'),
+                ('truong_hoc', 'truong_hoc'), ('nam_tot_nghiep', 'nam_tot_nghiep'), ('tep_bang_cap', 'tep_bang_cap'),
+            ]:
+                if khoa_du_lieu in values:
+                    setattr(education, truong, values[khoa_du_lieu])
             education.full_clean()
             education.save()
         for values in item['contracts']:
-            matches = LaborContract.objects.filter(Q(code=values['code']) | Q(number=values['number']))
-            if matches.count() > 1 or matches.exclude(employee=employee).exists():
+            matches = HopDongLaoDong.objects.filter(Q(ma_hop_dong=values['code']) | Q(so_hop_dong=values['number']))
+            if matches.count() > 1 or matches.exclude(ho_so_ca_nhan=employee).exists():
                 raise CommandError('Mã/số hợp đồng bị trùng: ' + values['code'])
-            contract = matches.first() or LaborContract(employee=employee)
-            for field, value in values.items():
-                if field in ['signed_date', 'start_date', 'end_date']:
+            contract = matches.first() or HopDongLaoDong(ho_so_ca_nhan=employee)
+            for truong, khoa_du_lieu in [
+                ('ma_hop_dong', 'code'), ('so_hop_dong', 'number'), ('loai_hop_dong', 'loai_hop_dong'),
+                ('ngay_ky', 'ngay_ky'), ('ngay_bat_dau', 'start_date'), ('ngay_ket_thuc', 'end_date'),
+                ('luong_thoa_thuan', 'luong_thoa_thuan'), ('trang_thai', 'trang_thai'), ('tep_hop_dong', 'tep_hop_dong'),
+            ]:
+                if khoa_du_lieu not in values:
+                    continue
+                value = values[khoa_du_lieu]
+                if truong in ['ngay_ky', 'ngay_bat_dau', 'ngay_ket_thuc']:
                     value = date.fromisoformat(value) if value else None
-                elif field == 'agreed_salary':
+                elif truong == 'luong_thoa_thuan':
                     value = Decimal(value)
-                setattr(contract, field, value)
+                setattr(contract, truong, value)
             contract.full_clean()
             contract.save()
         return employee

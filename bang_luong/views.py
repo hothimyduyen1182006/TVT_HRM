@@ -9,7 +9,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from nhan_vien.access import visible_employees, has_role, require_role, HR, DIRECTOR, MANAGER
+from nhan_vien.access import nhan_vien_duoc_hien_thi, co_vai_tro, yeu_cau_vai_tro, NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from .models import Luong, PayrollPeriod
 from .forms import BoLocBangLuong, BoLocPhieuLuong
 from .services.tinh_toan import tinh_bang_luong
@@ -27,14 +27,14 @@ def _ve_danh_sach_luong(ky_cong):
 
 @login_required
 def danh_sach_bang_luong(request):
-    if not has_role(request.user, HR, DIRECTOR, MANAGER):
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         messages.error(request, 'Bạn không có quyền truy cập chức năng quản lý lương.')
         dich_den = reverse('bang_luong:personal')
         tham_so_ky = urlencode({khoa: request.GET[khoa] for khoa in ['month', 'year'] if request.GET.get(khoa)})
         return redirect(dich_den + ('?' + tham_so_ky if tham_so_ky else ''))
     bieu_mau = BoLocBangLuong(request.user, request.GET)
     ds_dong = phieu_luong_trong_pham_vi(request.user, bieu_mau)
-    if has_role(request.user, HR, DIRECTOR):
+    if co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
         for dong in ds_dong:
             dong.approval_error = loi_duyet_luong(dong) if dong.trang_thai == 'pending' else ''
     ky_luong = None
@@ -43,9 +43,9 @@ def danh_sach_bang_luong(request):
                                                nam=bieu_mau.cleaned_data['year']).first()
     ngu_canh = {'form': bieu_mau, 'rows': ds_dong, 'period': ky_luong,
                   'has_approved_records': ky_luong.records.filter(trang_thai='approved').exists() if ky_luong else False,
-                  'month_label': str(bieu_mau['month'].value()).zfill(2), 'year_label': bieu_mau['year'].value(),
-                  'can_manage': has_role(request.user, HR, DIRECTOR), 'director': has_role(request.user, DIRECTOR)}
-    return render(request, 'payroll/list.html', ngu_canh)
+                  'month_label': str(bieu_mau['thang'].value()).zfill(2), 'year_label': bieu_mau['nam'].value(),
+                  'can_manage': co_vai_tro(request.user, NHAN_SU, GIAM_DOC), 'director': co_vai_tro(request.user, GIAM_DOC)}
+    return render(request, 'bang_luong/list.html', ngu_canh)
 
 
 @login_required
@@ -59,29 +59,29 @@ def luong_ca_nhan(request):
     ngu_canh.update({'form': bieu_mau, 'row': dong, 'personal': True,
                     'month_label': str(bieu_mau['month'].value()).zfill(2), 'year_label': bieu_mau['year'].value(),
                     'requires_approval': False})
-    return render(request, 'payroll/personal.html', ngu_canh)
+    return render(request, 'bang_luong/personal.html', ngu_canh)
 
 
 @login_required
 def chi_tiet_luong(request, pk):
-    co_quyen_xem_nhom = has_role(request.user, HR, DIRECTOR, MANAGER)
+    co_quyen_xem_nhom = co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
     truy_van = Luong.objects.select_related('ky_luong').filter(
-        nhan_vien__in=visible_employees(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
+        nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
     dong = get_object_or_404(phieu_luong_du_cong_duyet(truy_van), pk=pk)
     ky_luong = dong.ky_luong.attendance_period
     bieu_mau = BoLocPhieuLuong({'month': ky_luong.thang, 'year': ky_luong.nam})
     ngu_canh = du_lieu_hien_thi_luong(dong)
     ngu_canh.update({'form': bieu_mau, 'personal': not co_quyen_xem_nhom, 'month_label': f'{ky_luong.thang:02}',
                     'year_label': ky_luong.nam, 'requires_approval': False})
-    return render(request, 'payroll/detail.html', ngu_canh)
+    return render(request, 'bang_luong/detail.html', ngu_canh)
 
 
 @login_required
 @require_POST
 def duyet_luong_nhan_vien(request, pk):
-    require_role(request.user, DIRECTOR)
+    yeu_cau_vai_tro(request.user, GIAM_DOC)
     dong = get_object_or_404(Luong.objects.select_related('ky_luong'), pk=pk,
-                            nhan_vien__in=visible_employees(request.user))
+                            nhan_vien__in=nhan_vien_duoc_hien_thi(request.user))
     try:
         duyet_phieu_luong(request.user, dong.pk)
     except ValidationError as loi:
@@ -95,7 +95,7 @@ def duyet_luong_nhan_vien(request, pk):
 @login_required
 @require_POST
 def doi_trang_thai_ky_luong(request, pk):
-    require_role(request.user, HR, DIRECTOR)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     ky_luong = get_object_or_404(PayrollPeriod.objects.select_related(), pk=pk)
     try:
         action = request.POST.get('action')
@@ -113,7 +113,7 @@ def doi_trang_thai_ky_luong(request, pk):
 @login_required
 @require_POST
 def xuat_bang_luong(request, fmt):
-    require_role(request.user, HR, DIRECTOR)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     bieu_mau = BoLocBangLuong(request.user, request.POST)
     if not bieu_mau.is_valid():
         return render(request, 'form.html', {'form': bieu_mau, 'title': 'Bộ lọc xuất không hợp lệ'}, status=400)
@@ -132,10 +132,10 @@ def xuat_bang_luong(request, fmt):
 
 @login_required
 def thiet_lap_luong(request):
-    require_role(request.user, HR, DIRECTOR)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     if request.GET.get('employee'):
         try:
-            nhan_vien = get_object_or_404(visible_employees(request.user), pk=int(request.GET['employee']))
+            nhan_vien = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=int(request.GET['employee']))
         except (ValueError, TypeError):
             raise Http404
         tham_so = urlencode({khoa: request.GET[khoa] for khoa in ['month', 'year'] if request.GET.get(khoa)})
@@ -145,7 +145,7 @@ def thiet_lap_luong(request):
 
 @login_required
 def chuyen_den_thiet_lap_nhan_vien(request, kind, pk=None, employee_id=None):
-    require_role(request.user, HR, DIRECTOR)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     if kind not in ['tax', 'adjustment']:
         raise Http404
     # URL cũ chỉ chuyển đến thiết lập nhân viên, không tạo đầu vào theo kỳ.
@@ -155,7 +155,7 @@ def chuyen_den_thiet_lap_nhan_vien(request, kind, pk=None, employee_id=None):
     if employee_id is None:
         return redirect('employees')
     try:
-        nhan_vien = get_object_or_404(visible_employees(request.user), pk=int(employee_id))
+        nhan_vien = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=int(employee_id))
     except (ValueError, TypeError):
         raise Http404
-    return redirect('employee_edit', employee_id=nhan_vien.pk)
+    return redirect('employee_edit', ma_nhan_vien=nhan_vien.pk)

@@ -10,7 +10,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q, Sum
 from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocCongNgay, BoLocLichSuCong
 from bang_cong.models import ChamCong, ChotBangCong, LichSuDieuChinhCong
 from bang_luong.models import PayrollPeriod
-from nhan_vien.models import Employee
+from nhan_vien.models import NhanVien
 
 from .tinh_toan import tinh_tang_ca_tu_dong, lich_thang, nap_cong_ngay
 
@@ -93,7 +93,7 @@ def danh_sach_cong_ngay(nhan_vien, nam, thang, *, ds_ban_ghi=None, lich_thang=No
     ket_qua = []
     for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
         gia_tri = date(nam, thang, so_ngay)
-        if gia_tri < nhan_vien.hire_date:
+        if gia_tri < nhan_vien.ngay_vao_lam:
             continue
         ban_ghi, lich_ngay = ds_ban_ghi.get(gia_tri), lich_thang.get(gia_tri)
         trang_thai, nhan = 'incomplete', 'Chưa có dữ liệu'
@@ -150,7 +150,7 @@ def du_lieu_cong_thang(request, nhan_vien):
         tang_ca = {ban_ghi.pk: tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay))
                     for ban_ghi in ds_ban_ghi}
         tong_hop = tong_hop_cong_thang(
-            Employee.objects.filter(pk=nhan_vien.pk), du_lieu['year'], du_lieu['month'], ky_cong,
+            NhanVien.objects.filter(pk=nhan_vien.pk), du_lieu['year'], du_lieu['month'], ky_cong,
             ds_ban_ghi=ds_ban_ghi, lich_thang=lich_thang, tang_ca=tang_ca,
         )[0]
         ds_dong = danh_sach_cong_ngay(

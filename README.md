@@ -115,8 +115,8 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 1. Admin > Groups: lệnh setup_roles tạo Nhân viên, Trưởng phòng, Nhân sự, Giám đốc.
 2. Admin > Users: tạo tài khoản và chọn nhóm cho từng người. Không bật staff/superuser
    cho nhân viên thường. Cổng admin chỉ dành cho superuser, kể cả staff có model permission.
-3. Tạo Department chưa gán manager; tạo Employee gắn User, Department, ngày vào làm và
-   lương cơ bản. Sau đó gán manager của Department tới Employee phụ trách phòng đó.
+3. Tạo PhongBan chưa gán manager; tạo NhanVien gắn User, PhongBan, ngày vào làm và
+   lương cơ bản. Sau đó gán manager của PhongBan tới NhanVien phụ trách phòng đó.
 4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
    nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
 5. Lịch năm 2026 được tính từ code: thứ Hai–thứ Sáu, lễ và nghỉ bù. Không tạo lịch hoặc sửa từng ngày trong Admin.
@@ -172,7 +172,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 | Vai trò | Phạm vi | Thao tác |
 | --- | --- | --- |
 | Nhân viên | Bản thân | Xem công/lương/nhân viên; không xuất |
-| Trưởng phòng | Phòng có Department.manager là bản thân | Xem; không sửa/duyệt lương |
+| Trưởng phòng | Phòng có PhongBan.manager là bản thân | Xem; không sửa/duyệt lương |
 | Nhân sự | Toàn công ty trong bản đồ án | Sửa công kỳ mở, nhập đầu vào lương, tính, xuất kỳ duyệt |
 | Giám đốc | Toàn công ty | Thao tác Nhân sự, duyệt/mở lại, xác nhận chi trả |
 | Superuser | Quản trị hệ thống | Quản lý dữ liệu gốc và thao tác nghiệp vụ |

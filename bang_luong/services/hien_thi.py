@@ -9,7 +9,7 @@ from bang_luong.models import Luong, PayrollAuditLog, PayrollPeriod
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponse
-from nhan_vien.access import require_role, HR, DIRECTOR
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 
 
 def phieu_luong_du_cong_duyet(queryset):
@@ -65,7 +65,7 @@ def phieu_luong_trong_pham_vi(user, form):
         return Luong.objects.none()
     du_lieu = form.cleaned_data
     ds_dong = Luong.objects.select_related('ky_luong').filter(
-        nhan_vien__in=form.employee_scope(user), ky_luong__thang=du_lieu['month'],
+        nhan_vien__in=form.nhan_vien_trong_pham_vi(user), ky_luong__thang=du_lieu['month'],
         ky_luong__nam=du_lieu['year'])
     if du_lieu.get('q'):
         ds_dong = ds_dong.filter(Q(ten_nhan_vien__icontains=du_lieu['q']) | Q(ma_nhan_vien__icontains=du_lieu['q']))
@@ -77,7 +77,7 @@ def phieu_luong_trong_pham_vi(user, form):
 def phieu_luong_ca_nhan(user):
     """Phiếu lương của tài khoản hiện tại, không mở rộng theo vai trò quản lý."""
     return phieu_luong_du_cong_duyet(
-        Luong.objects.select_related('ky_luong').filter(nhan_vien__user=user),
+        Luong.objects.select_related('ky_luong').filter(nhan_vien__nguoi_dung=user),
     )
 
 
@@ -93,7 +93,7 @@ def o_du_lieu_an_toan(value):
 
 @transaction.atomic
 def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope):
-    require_role(actor, HR, DIRECTOR)
+    yeu_cau_vai_tro(actor, NHAN_SU, GIAM_DOC)
     if queryset.exclude(pk__in=phieu_luong_du_cong_duyet(queryset).values('pk')).exists():
         raise ValidationError('Bảng công chưa duyệt, không được xuất phiếu lương.')
     if fmt not in ['csv', 'json', 'txt']:

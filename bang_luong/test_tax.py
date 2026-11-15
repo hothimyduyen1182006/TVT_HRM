@@ -35,7 +35,7 @@ class AutomaticTaxTests(TestCase):
         ChamCong.objects.update(ngay=date(2026,10,5))
         PayrollInput.objects.update(tax_method='resident_2026',tax_amount=99999999,
             insurance_base=0,insurance_rates={},tax_basis='Cư trú; HĐ >= 3 tháng; đăng ký giảm trừ tại TVT; không người phụ thuộc')
-        self.emp.base_salary=20000000
+        self.emp.luong_co_ban=20000000
         self.emp.save()
 
     def salary(self):

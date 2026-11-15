@@ -15,8 +15,15 @@ from django.views.decorators.http import require_POST, require_safe
 
 from bang_cong.services.quy_trinh import cap_nhat_tong_hop
 from bang_luong.models import PayrollPeriod
-from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, require_role, visible_employees
-from nhan_vien.models import Department, Employee
+from nhan_vien.access import (
+    GIAM_DOC,
+    NHAN_SU,
+    TRUONG_PHONG,
+    co_vai_tro,
+    nhan_vien_duoc_hien_thi,
+    yeu_cau_vai_tro,
+)
+from nhan_vien.models import NhanVien, PhongBan
 
 from .forms import (
     CAC_LOAI_TEP_CHO_PHEP,
@@ -27,29 +34,29 @@ from .forms import (
 from .models import SO_NGAY_PHEP_NAM, DonNghiPhep, NgayNghi, tinh_ngay_phep_da_dung
 
 
-VAI_TRO_DUOC_DUYET = (HR, DIRECTOR, MANAGER)
+VAI_TRO_DUOC_DUYET = (NHAN_SU, GIAM_DOC, TRUONG_PHONG)
 
 
 # Trả về danh sách nhân viên người dùng được xem, kèm hồ sơ của chính họ nếu có.
 def pham_vi_co_the_xem(nguoi_dung, nhan_vien=None):
-    pham_vi = visible_employees(nguoi_dung)
+    pham_vi = nhan_vien_duoc_hien_thi(nguoi_dung)
     if nhan_vien:
-        pham_vi |= Employee.objects.filter(pk=nhan_vien.pk)
+        pham_vi |= NhanVien.objects.filter(pk=nhan_vien.pk)
     return pham_vi
 
 
 @login_required
 def danh_sach_don_nghi(request):
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
-    la_nguoi_duyet = has_role(request.user, *VAI_TRO_DUOC_DUYET)
-    pham_vi = visible_employees(request.user) if la_nguoi_duyet else Employee.objects.none()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    la_nguoi_duyet = co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+    pham_vi = nhan_vien_duoc_hien_thi(request.user) if la_nguoi_duyet else NhanVien.objects.none()
 
     tab_mac_dinh = 'manage' if la_nguoi_duyet else 'mine'
     tab_yeu_cau = request.POST.get('view') if request.method == 'POST' else request.GET.get('view')
     tab_hien_tai = tab_yeu_cau if la_nguoi_duyet and tab_yeu_cau in {'mine', 'manage'} else tab_mac_dinh
     dang_quan_ly = la_nguoi_duyet and tab_hien_tai == 'manage'
 
-    cac_don = DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__department', 'nguoi_duyet')
+    cac_don = DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet')
     if dang_quan_ly:
         cac_don = cac_don.filter(nhan_vien__in=pham_vi)
     elif nhan_vien:
@@ -74,8 +81,8 @@ def danh_sach_don_nghi(request):
             return redirect('nghi_phep:list')
 
     cac_phong_ban = (
-        Department.objects.filter(employee__in=pham_vi).distinct()
-        if la_nguoi_duyet else Department.objects.none()
+        PhongBan.objects.filter(pk__in=pham_vi.values('phong_ban_id')).distinct()
+        if la_nguoi_duyet else PhongBan.objects.none()
     )
     bo_loc = LocDonNghiPhepForm(cac_phong_ban, request.GET)
     if not bo_loc.is_valid():
@@ -84,11 +91,11 @@ def danh_sach_don_nghi(request):
         dieu_kien = bo_loc.cleaned_data
         if dieu_kien['q']:
             cac_don = cac_don.filter(
-                Q(nhan_vien__full_name__icontains=dieu_kien['q'])
-                | Q(nhan_vien__code__icontains=dieu_kien['q'])
+                Q(nhan_vien__ho_va_ten__icontains=dieu_kien['q'])
+                | Q(nhan_vien__ma_ho_so__icontains=dieu_kien['q'])
             )
         cac_truong_loc = {
-            'department': 'nhan_vien__department_id',
+            'department': 'nhan_vien__phong_ban_id',
             'status': 'trang_thai',
             'leave_type': 'loai_nghi',
             'start_date': 'ngay_ket_thuc__gte',
@@ -107,7 +114,7 @@ def danh_sach_don_nghi(request):
     nam_phep = ngay_chon.year if ngay_chon else timezone.localdate().year
     da_dung = tinh_ngay_phep_da_dung(nhan_vien, nam_phep) if nhan_vien else 0
 
-    return render(request, 'leaves/list.html', {
+    return render(request, 'nghi_phep/list.html', {
         'requests': cac_don,
         'form': bieu_mau,
         'filters': bo_loc,
@@ -123,15 +130,15 @@ def danh_sach_don_nghi(request):
 
 @login_required
 def chi_tiet_don_nghi(request, ma_don):
-    ma_nhan_vien_lien_ket = Employee.objects.filter(user=request.user).values_list('pk', flat=True).first()
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    ma_nhan_vien_lien_ket = NhanVien.objects.filter(nguoi_dung=request.user).values_list('pk', flat=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     don = get_object_or_404(
-        DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__department', 'nguoi_duyet'),
+        DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet'),
         pk=ma_don,
         nhan_vien__in=pham_vi_co_the_xem(request.user, nhan_vien),
     )
     duoc_duyet = (
-        has_role(request.user, *VAI_TRO_DUOC_DUYET)
+        co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
         and don.nhan_vien_id != ma_nhan_vien_lien_ket
     )
     tab_quay_lai = request.GET.get('view', 'manage' if duoc_duyet else 'mine')
@@ -143,7 +150,7 @@ def chi_tiet_don_nghi(request, ma_don):
     except (OSError, SuspiciousFileOperation):
         co_tep = False
 
-    return render(request, 'leaves/detail.html', {
+    return render(request, 'nghi_phep/detail.html', {
         'item': don,
         'can_review': duoc_duyet,
         'days_count': don.so_ngay_nghi,
@@ -164,7 +171,7 @@ def chi_tiet_don_nghi(request, ma_don):
 @login_required
 @require_POST
 def huy_don_nghi(request, ma_don):
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     if not nhan_vien:
         raise PermissionDenied
 
@@ -187,7 +194,7 @@ def huy_don_nghi(request, ma_don):
 @login_required
 @require_POST
 def bo_sung_minh_chung(request, ma_don):
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     if not nhan_vien:
         raise PermissionDenied
     don = get_object_or_404(
@@ -212,7 +219,7 @@ def bo_sung_minh_chung(request, ma_don):
 @login_required
 @require_safe
 def tai_minh_chung(request, ma_don):
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     don = get_object_or_404(
         DonNghiPhep,
         pk=ma_don,
@@ -239,13 +246,13 @@ def tai_minh_chung(request, ma_don):
 @login_required
 @require_POST
 def xu_ly_don_nghi(request, ma_don, thao_tac):
-    require_role(request.user, *VAI_TRO_DUOC_DUYET)
+    yeu_cau_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
     don = get_object_or_404(
         DonNghiPhep.objects.select_related('nhan_vien'),
         pk=ma_don,
-        nhan_vien__in=visible_employees(request.user),
+        nhan_vien__in=nhan_vien_duoc_hien_thi(request.user),
     )
-    nhan_vien_dang_dung = Employee.objects.filter(user=request.user).only('pk').first()
+    nhan_vien_dang_dung = NhanVien.objects.filter(nguoi_dung=request.user).only('pk').first()
     if nhan_vien_dang_dung and don.nhan_vien_id == nhan_vien_dang_dung.pk:
         raise PermissionDenied
     if don.trang_thai != 'cho_duyet' or thao_tac not in ('approve', 'reject'):

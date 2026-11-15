@@ -21,6 +21,9 @@ def backfill_attendance(apps, schema_editor):
     Adjustment = apps.get_model('attendance', 'AttendanceAdjustment')
     Employee = apps.get_model('employees', 'Employee')
     employees = {item.pk: item for item in Employee.objects.using(alias).all()}
+    ngay_vao_lam_field = 'ngay_vao_lam' if any(
+        field.name == 'ngay_vao_lam' for field in Employee._meta.get_fields()
+    ) else 'hire_date'
     zero = Decimal(0)
 
     def hours(day, start, end):
@@ -30,7 +33,7 @@ def backfill_attendance(apps, schema_editor):
     def overtime(record, period, day):
         employee = employees[record.employee_id]
         if (not day or record.status != 'present' or not record.check_in or not record.check_out
-                or record.check_out <= record.check_in or record.date < employee.hire_date):
+                or record.check_out <= record.check_in or record.date < getattr(employee, ngay_vao_lam_field)):
             return zero
         start = max(record.check_in, time(17)) if day.kind == 'work' else record.check_in
         if start >= record.check_out:
@@ -56,7 +59,7 @@ def backfill_attendance(apps, schema_editor):
         for employee in employees.values():
             rows = groups[employee.pk]
             approval = approvals.get(employee.pk)
-            if employee.hire_date > last and not rows and not approval:
+            if getattr(employee, ngay_vao_lam_field) > last and not rows and not approval:
                 continue
             approved = period.status == 'approved' or (approval and not any(
                 item.updated_at > approval.approved_at for item in rows))

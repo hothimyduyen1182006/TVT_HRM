@@ -1,17 +1,17 @@
 from django.contrib import admin
-from .models import Department, Education, Employee, LaborContract, Position
+from .models import PhongBan, HocVan, NhanVien, HopDongLaoDong, ChucVu
 
 
-@admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
-    readonly_fields = ('payroll_settings',)
-    list_display = ('code', 'full_name', 'department', 'base_salary', 'is_active')
-    list_filter = ('department', 'is_active')
-    search_fields = ('code', 'full_name')
+@admin.register(NhanVien)
+class NhanVienAdmin(admin.ModelAdmin):
+    readonly_fields = ('thiet_lap_luong',)
+    list_display = ('ma_ho_so', 'ho_va_ten', 'phong_ban', 'luong_co_ban', 'dang_hoat_dong')
+    list_filter = ('phong_ban', 'dang_hoat_dong')
+    search_fields = ('ma_ho_so', 'ho_va_ten')
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if change and set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
+        if change and set(form.changed_data) & {'luong_co_ban', 'ma_ho_so', 'ho_va_ten', 'phong_ban'}:
             from bang_luong.models import PayrollPeriod
             from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
             for period in PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk'):
@@ -22,27 +22,27 @@ class EmployeeAdmin(admin.ModelAdmin):
                     self.message_user(request, error, level=messages.WARNING)
 
 
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    exclude = ('allows_overtime',)
-    list_display = ('code', 'name', 'manager')
+@admin.register(PhongBan)
+class PhongBanAdmin(admin.ModelAdmin):
+    exclude = ('cho_phep_tang_ca',)
+    list_display = ('ma_phong_ban', 'ten_phong_ban', 'truong_phong')
 
 
-@admin.register(Position)
-class PositionAdmin(admin.ModelAdmin):
-    list_display = ('name', 'department', 'salary_coefficient')
-    list_filter = ('department',)
-    search_fields = ('name', 'department__name')
+@admin.register(ChucVu)
+class ChucVuAdmin(admin.ModelAdmin):
+    list_display = ('ten_chuc_vu', 'phong_ban', 'he_so_luong_chuc_vu')
+    list_filter = ('phong_ban',)
+    search_fields = ('ten_chuc_vu', 'phong_ban__ten_phong_ban')
 
 
-@admin.register(Education)
-class EducationAdmin(admin.ModelAdmin):
-    list_display = ('code', 'employee', 'degree', 'school', 'graduation_year')
-    search_fields = ('code', 'employee__full_name', 'degree', 'school')
+@admin.register(HocVan)
+class HocVanAdmin(admin.ModelAdmin):
+    list_display = ('ma_hoc_van', 'ho_so_ca_nhan', 'bang_cap', 'truong_hoc', 'nam_tot_nghiep')
+    search_fields = ('ma_hoc_van', 'ho_so_ca_nhan__ho_va_ten', 'bang_cap', 'truong_hoc')
 
 
-@admin.register(LaborContract)
-class LaborContractAdmin(admin.ModelAdmin):
-    list_display = ('code', 'number', 'employee', 'contract_type', 'start_date', 'end_date', 'status')
-    list_filter = ('status', 'contract_type')
-    search_fields = ('code', 'number', 'employee__full_name')
+@admin.register(HopDongLaoDong)
+class HopDongLaoDongAdmin(admin.ModelAdmin):
+    list_display = ('ma_hop_dong', 'so_hop_dong', 'ho_so_ca_nhan', 'loai_hop_dong', 'ngay_bat_dau', 'ngay_ket_thuc', 'trang_thai')
+    list_filter = ('trang_thai', 'loai_hop_dong')
+    search_fields = ('ma_hop_dong', 'so_hop_dong', 'ho_so_ca_nhan__ho_va_ten')

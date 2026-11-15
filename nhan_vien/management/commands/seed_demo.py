@@ -10,14 +10,14 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from nhan_vien.models import Department, Employee
+from nhan_vien.models import PhongBan, NhanVien
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from bang_cong.services.tinh_toan import lich_thang
 from bang_cong.services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from nghi_phep.models import DonNghiPhep, NgayNghi
 from thuong.models import Bonus
-from bang_luong.models import PayrollPeriod, PayrollInput, PayrollAdjustment
+from bang_luong.models import PayrollPeriod
 from bang_luong.services.tinh_toan import tinh_bang_luong
 from bang_luong.services.quy_trinh import xu_ly_trang_thai_luong
 
@@ -53,14 +53,14 @@ class Command(BaseCommand):
         codes = [f'DEMO-NV{index:02}' for index in range(1, len(PEOPLE) + 1)]
         usernames = [person[0] for person in PEOPLE]
         User = get_user_model()
-        if (Employee.objects.filter(code__in=codes).count() == len(codes)
+        if (NhanVien.objects.filter(ma_ho_so__in=codes).count() == len(codes)
                 and User.objects.filter(username__in=usernames).count() == len(usernames)
                 and KyCong.objects.filter(nam=year, thang__in=months).count() == len(months)):
             self.stdout.write('Demo already exists. No data or passwords were changed.')
             return
-        if Employee.objects.exists():
+        if NhanVien.objects.exists():
             raise CommandError('Employees already exist. Demo seeding requires an empty employee database; nothing changed.')
-        if (not reuse_users and User.objects.filter(username__in=usernames).exists()) or Department.objects.filter(code__startswith='DEMO-').exists():
+        if (not reuse_users and User.objects.filter(username__in=usernames).exists()) or PhongBan.objects.filter(ma_phong_ban__startswith='DEMO-').exists():
             raise CommandError('Demo account/department names already exist; nothing changed.')
         if KyCong.objects.filter(nam=year, thang__in=months).exists():
             raise CommandError('Target periods/calendar already exist; nothing changed.')
@@ -70,21 +70,33 @@ class Command(BaseCommand):
         users, employees, departments = {}, [], {}
         for index, (username, name, code, department, salary, role) in enumerate(PEOPLE, 1):
             if code not in departments:
-                departments[code] = Department.objects.create(code='DEMO-' + code, name=f'Phòng {department} (DEMO)',
-                    allows_overtime=False)
+                departments[code] = PhongBan.objects.create(ma_phong_ban='DEMO-' + code, ten_phong_ban=f'Phòng {department} (DEMO)',
+                    cho_phep_tang_ca=False)
             user = User.objects.filter(username=username).first() if reuse_users else None
             if user is None:
                 user = User.objects.create_user(username=username, password=password,
                                                 first_name='DEMO', last_name=name.replace(' (DEMO)', ''))
             user.groups.add(Group.objects.get_or_create(name=role)[0])
             users[username] = user
-            employee = Employee(code=f'DEMO-NV{index:02}', full_name=name, user=user, department=departments[code],
-                                hire_date=date(year - 1, 1, 1), base_salary=Decimal(salary))
+            employee = NhanVien(ma_ho_so=f'DEMO-NV{index:02}', ho_va_ten=name, nguoi_dung=user, phong_ban=departments[code],
+                                ngay_vao_lam=date(year - 1, 1, 1), luong_co_ban=Decimal(salary))
+            employee.thiet_lap_luong = {
+                'insurance_base': salary,
+                'insurance_rates': {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'},
+                'insurance_basis': 'DEMO: dữ liệu minh họa, không phải chính sách chính thức.',
+                'tax_method': 'resident_2026',
+                'tax_basis': 'DEMO: dữ liệu minh họa để kiểm tra giao diện.',
+                'claim_personal_deduction': True,
+                'lunch_allowance': '450000',
+                'overtime_hourly_rate': '100000',
+                'overtime_basis': 'DEMO: mức lương giờ minh họa.',
+                'verified': True,
+            }
             employee.full_clean()
             employee.save()
             employees.append(employee)
-        departments['SX'].manager = employees[1]
-        departments['SX'].save(update_fields=['manager'])
+        departments['SX'].truong_phong = employees[1]
+        departments['SX'].save(update_fields=['truong_phong'])
         hr, director = users['demo_hr'], users['demo_director']
         for month in months:
             period = KyCong(nam=year, thang=month, gio_bat_dau=time(8), bat_dau_nghi_trua=time(12),

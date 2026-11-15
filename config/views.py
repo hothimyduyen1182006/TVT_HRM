@@ -6,9 +6,9 @@ from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
-from nhan_vien.access import has_role, require_role, HR, DIRECTOR, MANAGER
-from nhan_vien.access import visible_employees
-from nhan_vien.models import Employee, Education, LaborContract
+from nhan_vien.access import co_vai_tro, yeu_cau_vai_tro, NHAN_SU, GIAM_DOC, TRUONG_PHONG
+from nhan_vien.access import nhan_vien_duoc_hien_thi
+from nhan_vien.models import NhanVien, HocVan, HopDongLaoDong
 from nghi_phep.models import DonNghiPhep
 from django.core.paginator import Paginator
 from .dashboard import DashboardFilter, dashboard_context
@@ -22,9 +22,9 @@ from bang_luong.services.hien_thi import phieu_luong_ca_nhan
 @login_required
 @require_safe
 def home(request):
-    employee=Employee.objects.filter(user=request.user).first()
-    can_manage=has_role(request.user,HR,DIRECTOR,MANAGER)
-    name=(employee.full_name if employee else '') or request.user.get_full_name() or request.user.get_username()
+    employee=NhanVien.objects.filter(nguoi_dung=request.user).first()
+    can_manage=co_vai_tro(request.user,NHAN_SU,GIAM_DOC,TRUONG_PHONG)
+    name=(employee.ho_va_ten if employee else '') or request.user.get_full_name() or request.user.get_username()
     latest=phieu_luong_ca_nhan(request.user).order_by(
         '-ky_luong__nam','-ky_luong__thang','-ngay_tinh','-pk').first()
     today=timezone.localdate()
@@ -38,16 +38,16 @@ def home(request):
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
         'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
-        'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.is_active) else '',
+        'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.dang_hoat_dong) else '',
         'leave_title':'Quản lý nghỉ phép' if can_manage else 'Đăng ký nghỉ phép',
         'leave_description':'Xem các yêu cầu theo quyền' if can_manage else (
-            'Tạo đơn nghỉ phép' if employee and employee.is_active else 'Cần hồ sơ nhân viên đang hoạt động'),
+            'Tạo đơn nghỉ phép' if employee and employee.dang_hoat_dong else 'Cần hồ sơ nhân viên đang hoạt động'),
     })
 
 
 @login_required
 def dashboard(request):
-    if not has_role(request.user, HR, DIRECTOR, MANAGER):
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         return redirect('bang_cong:danh-sach')
     form = DashboardFilter(request.user, request.GET)
     context = dashboard_context(request.user, form) if form.is_valid() else {}
@@ -60,7 +60,7 @@ def dashboard(request):
 
 @login_required
 def departments(request):
-    require_role(request.user, HR, DIRECTOR, MANAGER)
+    yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
     form = DashboardFilter(request.user, request.GET)
     context = dashboard_context(request.user, form) if form.is_valid() else {}
     context['form'] = form
@@ -75,12 +75,19 @@ def protected_media(request, path):
     if any(part in ('', '.', '..') for part in path.split('/')) or any(
             char in path for char in ('\\', '\x00', ':')):
         raise Http404
-    employees = visible_employees(request.user)
+    employees = nhan_vien_duoc_hien_thi(request.user)
     for model, field_name in [
-        (Employee, 'avatar'), (Education, 'certificate_file'),
-        (LaborContract, 'contract_file'), (DonNghiPhep, 'tep_dinh_kem'),
+        (NhanVien, 'hinh_anh'), (HocVan, 'tep_bang_cap'),
+        (HopDongLaoDong, 'tep_hop_dong'), (DonNghiPhep, 'tep_dinh_kem'),
     ]:
-        scope = {'pk__in': employees.values('pk')} if model is Employee else {'employee__in': employees}
+        if model is NhanVien:
+            scope = {'pk__in': employees.values('pk')}
+        elif model in (HocVan, HopDongLaoDong):
+            scope = {'ho_so_ca_nhan__in': employees}
+        elif model is DonNghiPhep:
+            scope = {'nhan_vien__in': employees}
+        else:
+            scope = {'employee__in': employees}
         record = model.objects.filter(**scope, **{field_name: path}).first()
         if record is None:
             continue

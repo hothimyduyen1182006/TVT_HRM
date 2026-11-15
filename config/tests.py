@@ -1,8 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from django.contrib.auth.models import Group
-from nhan_vien.models import Education, LaborContract
-from nghi_phep.models import DonNghiPhep
+from nhan_vien.models import HocVan, HopDongLaoDong
+from nghi_phep.models import LeaveRequest
 from datetime import date, time
 
 from django.conf import settings
@@ -11,7 +11,7 @@ from django.contrib.sessions.models import Session
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 
-from nhan_vien.models import Department, Employee
+from nhan_vien.models import PhongBan, NhanVien
 from nhan_vien import test_personal_records as personal_fixtures
 from bang_cong.models import KyCong
 from bang_luong.models import Luong, PayrollPeriod
@@ -22,17 +22,17 @@ class HomePageTests(TestCase):
 
     def test_home_requires_login_and_does_not_accept_post(self):
         self.assertRedirects(self.client.get('/'),'/accounts/login/?next=/',fetch_redirect_response=False)
-        self.client.force_login(self.people[3].user)
+        self.client.force_login(self.people[3].nguoi_dung)
         self.assertEqual(self.client.post('/').status_code,405)
 
     def test_every_role_has_own_attendance_and_salary_shortcuts(self):
         before=list(Luong.objects.values())
         for employee in self.people:
-            with self.subTest(user=employee.user.username):
-                self.client.force_login(employee.user)
+            with self.subTest(user=employee.nguoi_dung.username):
+                self.client.force_login(employee.nguoi_dung)
                 response=self.client.get('/')
                 self.assertEqual(response.status_code,200)
-                self.assertContains(response,employee.full_name)
+                self.assertContains(response,employee.ho_va_ten)
                 self.assertContains(response,'Chào mừng trở lại!')
                 self.assertEqual(response.context['attendance_url'],'/bang_cong/ca-nhan/')
                 self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=1&year=2026')
@@ -44,14 +44,13 @@ class HomePageTests(TestCase):
     def test_latest_salary_is_selected_only_for_current_user(self):
         employee=self.people[3]
         for owner,year in [(employee,2027),(self.people[0],2028)]:
-            attendance=KyCong.objects.create(nam=year,thang=2,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
+            attendance=KyCong.objects.create(nam=year,thang=2,trang_thai='approved',gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
                 ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
             period=PayrollPeriod.objects.create(attendance_period=attendance)
             record=Luong.objects.get(nhan_vien=owner)
-            record.pk=None
             record.ky_luong=period
-            record.save()
-        self.client.force_login(employee.user)
+            record.save(update_fields=['ky_luong'])
+        self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
         self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=2&year=2027')
         self.assertContains(response,'Phiếu lương mới nhất · 02/2027')
@@ -60,7 +59,7 @@ class HomePageTests(TestCase):
     def test_employee_without_salary_has_working_empty_payslip_link(self):
         employee=self.people[3]
         Luong.objects.filter(nhan_vien=employee).delete()
-        self.client.force_login(employee.user)
+        self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)
         self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
@@ -82,9 +81,9 @@ class HomePageTests(TestCase):
 
     def test_display_name_is_escaped_and_dashboard_stays_protected(self):
         employee=self.people[3]
-        employee.full_name='<script>alert(1)</script>'
+        employee.ho_va_ten='<script>alert(1)</script>'
         employee.save()
-        self.client.force_login(employee.user)
+        self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/')
         self.assertContains(response,'&lt;script&gt;alert(1)&lt;/script&gt;')
         self.assertNotContains(response,'<script>alert(1)</script>')
@@ -97,10 +96,10 @@ class LoginSessionTests(TestCase):
         cls.password = 'TestOnly-Session@2026'
         cls.user_a = get_user_model().objects.create_user('session-a', password=cls.password)
         cls.user_b = get_user_model().objects.create_user('session-b', password=cls.password)
-        department = Department.objects.create(code='SESSION', name='Phòng kiểm thử')
+        department = PhongBan.objects.create(ma_phong_ban='SESSION', ten_phong_ban='Phòng kiểm thử')
         for user in [cls.user_a, cls.user_b]:
-            Employee.objects.create(user=user, code=user.username, full_name=user.username,
-                department=department, hire_date=date(2020, 1, 1), base_salary=10000000)
+            NhanVien.objects.create(nguoi_dung=user, ma_ho_so=user.username, ho_va_ten=user.username,
+                phong_ban=department, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000)
 
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True)
@@ -242,8 +241,8 @@ class LoginSessionTests(TestCase):
 class PrivateMediaTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        department = Department.objects.create(code='MA', name='Phòng A')
-        other_department = Department.objects.create(code='MB', name='Phòng B')
+        department = PhongBan.objects.create(ma_phong_ban='MA', ten_phong_ban='Phòng A')
+        other_department = PhongBan.objects.create(ma_phong_ban='MB', ten_phong_ban='Phòng B')
         cls.people = {}
         cls.files = {}
         for name, room, role in [
@@ -253,23 +252,23 @@ class PrivateMediaTests(TestCase):
         ]:
             user = get_user_model().objects.create_user(name)
             user.groups.add(Group.objects.get_or_create(name=role)[0])
-            employee = Employee.objects.create(user=user, code=name, full_name=name,
-                department=room, hire_date=date(2020, 1, 1), base_salary=10000000,
-                avatar=f'employees/avatars/{name}.png')
-            education = Education.objects.create(employee=employee, code=name,
-                degree='Đại học', certificate_file=f'employees/education/{name}.pdf')
-            contract = LaborContract.objects.create(employee=employee, code=name, number=name,
-                contract_type='Có thời hạn', signed_date=date(2026, 1, 1),
-                start_date=date(2026, 1, 1), agreed_salary=10000000,
-                contract_file=f'employees/contracts/{name}.pdf')
-            leave = DonNghiPhep.objects.create(nhan_vien=employee,
-                                               ngay_bat_dau=date(2026, 1, 5), ngay_ket_thuc=date(2026, 1, 5), ly_do='Khám sức khỏe',
-                                               tep_dinh_kem=f'leave_evidence/2026/01/{name}.png')
+            employee = NhanVien.objects.create(nguoi_dung=user, ma_ho_so=name, ho_va_ten=name,
+                phong_ban=room, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000,
+                hinh_anh=f'employees/avatars/{name}.png')
+            education = HocVan.objects.create(ho_so_ca_nhan=employee, ma_hoc_van=name,
+                bang_cap='Đại học', tep_bang_cap=f'employees/education/{name}.pdf')
+            contract = HopDongLaoDong.objects.create(ho_so_ca_nhan=employee, ma_hop_dong=name, so_hop_dong=name,
+                loai_hop_dong='Có thời hạn', ngay_ky=date(2026, 1, 1),
+                ngay_bat_dau=date(2026, 1, 1), luong_thoa_thuan=10000000,
+                tep_hop_dong=f'employees/contracts/{name}.pdf')
+            leave = LeaveRequest.objects.create(employee=employee,
+                Ngay_bat_dau=date(2026, 1, 5), Ngay_ket_thuc=date(2026, 1, 5), Ly_do='Khám sức khỏe',
+                Tep_dinh_kem=f'leave_evidence/2026/01/{name}.png')
             cls.people[name] = employee
-            cls.files[name] = [employee.avatar.name, education.certificate_file.name,
-                               contract.contract_file.name, leave.tep_dinh_kem.name]
-        department.manager = cls.people['manager']
-        department.save(update_fields=['manager'])
+            cls.files[name] = [employee.hinh_anh.name, education.tep_bang_cap.name,
+                               contract.tep_hop_dong.name, leave.Tep_dinh_kem.name]
+        department.truong_phong = cls.people['manager']
+        department.save(update_fields=['truong_phong'])
         cls.reviewers = []
         for role in ['Nhân sự', 'Giám đốc']:
             user = get_user_model().objects.create_user(role)
@@ -308,14 +307,14 @@ class PrivateMediaTests(TestCase):
             self.assertTrue(response.url.startswith(reverse('login') + '?next='))
 
     def test_employee_downloads_own_files_only(self):
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         for name in self.files['employee']:
             self.assert_download(name)
         for name in self.files['outsider'] + self.files['manager']:
             self.assertEqual(self.client.get(self.url(name)).status_code, 404)
 
     def test_manager_downloads_only_managed_department_files(self):
-        self.client.force_login(self.people['manager'].user)
+        self.client.force_login(self.people['manager'].nguoi_dung)
         for name in self.files['employee'] + self.files['manager']:
             self.assert_download(name)
         for name in self.files['outsider']:
@@ -338,7 +337,7 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(self.client.get(self.url('unregistered.pdf')).status_code, 404)
 
     def test_missing_file_returns_404(self):
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         name = self.files['employee'][1]
         (self.media_root / name).unlink()
         self.assertEqual(self.client.get(self.url(name)).status_code, 404)
@@ -349,11 +348,11 @@ class PrivateMediaTests(TestCase):
                      'employees\\..\\db.sqlite3', 'C:/db.sqlite3',
                      'employees//avatars/employee.png', 'employees/./avatars/employee.png']:
             with self.subTest(path=name):
-                Employee.objects.filter(pk=self.people['employee'].pk).update(avatar=name)
+                NhanVien.objects.filter(pk=self.people['employee'].pk).update(hinh_anh=name)
                 self.assertEqual(self.client.get(self.url(name)).status_code, 404)
 
     def test_encoded_traversal_and_query_parameters_do_not_grant_access(self):
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         self.assertEqual(self.client.get('/media/%2e%2e/db.sqlite3').status_code, 404)
         self.assertEqual(self.client.get('/media/%252e%252e/db.sqlite3').status_code, 404)
         url = self.url(self.files['outsider'][1]) + f'?employee={self.people["employee"].pk}'
@@ -365,16 +364,16 @@ class PrivateMediaTests(TestCase):
                 self.client.logout()
                 name = self.files['employee'][1]
                 self.assertEqual(self.client.get(self.url(name)).status_code, 302)
-                self.client.force_login(self.people['employee'].user)
+                self.client.force_login(self.people['employee'].nguoi_dung)
                 self.assert_download(name)
 
     def test_profile_and_leave_template_links_continue_to_work(self):
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         response = self.client.get(reverse('personal_profile'))
         self.assertEqual(response.status_code, 200)
         for name in self.files['employee'][:3]:
             self.assertContains(response, self.url(name))
-        leave = DonNghiPhep.objects.get(nhan_vien=self.people['employee'])
+        leave = LeaveRequest.objects.get(employee=self.people['employee'])
         response = self.client.get(reverse('nghi_phep:detail', args=[leave.pk]))
         evidence_url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertContains(response, evidence_url)
@@ -384,7 +383,7 @@ class PrivateMediaTests(TestCase):
         response.close()
 
     def test_head_allowed_and_post_rejected(self):
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         url = self.url(self.files['employee'][0])
         response = self.client.head(url)
         self.assertEqual(response.status_code, 200)
@@ -393,12 +392,12 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 405)
 
     def test_evidence_url_checks_authentication_scope_and_cache(self):
-        leave = DonNghiPhep.objects.get(nhan_vien=self.people['outsider'])
+        leave = LeaveRequest.objects.get(employee=self.people['outsider'])
         url = reverse('nghi_phep:evidence', args=[leave.pk])
         self.assertEqual(self.client.get(url).status_code, 302)
-        self.client.force_login(self.people['employee'].user)
+        self.client.force_login(self.people['employee'].nguoi_dung)
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.client.force_login(self.people['manager'].user)
+        self.client.force_login(self.people['manager'].nguoi_dung)
         self.assertEqual(self.client.get(url).status_code, 404)
         self.client.force_login(self.reviewers[0])
         response = self.client.get(url)
@@ -408,12 +407,12 @@ class PrivateMediaTests(TestCase):
         self.assertEqual(self.client.post(url).status_code, 405)
 
     def test_non_image_upload_cannot_render_active_content_inline(self):
-        leave = DonNghiPhep.objects.get(nhan_vien=self.people['employee'])
+        leave = LeaveRequest.objects.get(employee=self.people['employee'])
         name = 'leave_evidence/2026/01/document.html'
         (self.media_root / name).write_bytes(b'<script>alert(1)</script>')
-        leave.tep_dinh_kem = name
-        leave.save(update_fields=['tep_dinh_kem'])
-        self.client.force_login(self.people['employee'].user)
+        leave.Tep_dinh_kem = name
+        leave.save(update_fields=['Tep_dinh_kem'])
+        self.client.force_login(self.people['employee'].nguoi_dung)
         for url in [self.url(name), reverse('nghi_phep:evidence', args=[leave.pk])]:
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
@@ -424,10 +423,10 @@ class PrivateMediaTests(TestCase):
 
 class BangCongURLTests(SimpleTestCase):
     def test_all_attendance_routes_use_new_namespace_and_prefix(self):
-        routes = {'list': [], 'personal': [], 'clock': [], 'create': [],
-                  'employee-month': [1], 'employee-approve': [1, 2],
-                  'history': [1], 'export': [1], 'detail': [1],
-                  'edit': [1], 'transition': [2]}
+        routes = {'danh-sach': [], 'ca-nhan': [], 'cham-cong': [], 'them': [],
+                  'cong-nhan-vien': [1], 'duyet-cong': [1, 2],
+                  'lich-su': [1], 'xuat': [1], 'chi-tiet': [1],
+                  'sua': [1], 'doi-trang-thai': [2]}
         for name, args in routes.items():
             with self.subTest(route=name):
                 url = reverse('bang_cong:' + name, args=args)

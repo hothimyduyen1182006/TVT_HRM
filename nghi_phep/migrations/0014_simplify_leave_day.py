@@ -88,7 +88,7 @@ class Migration(migrations.Migration):
                 db_column='Ma_nguoi_dung',
                 on_delete=django.db.models.deletion.PROTECT,
                 related_name='don_nghi_phep',
-                to='employees.employee',
+                to='employees.nhanvien',
             ),
         ),
         migrations.RemoveField(model_name='ngaynghi', name='da_duyet'),

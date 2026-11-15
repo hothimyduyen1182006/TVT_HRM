@@ -1,11 +1,11 @@
-﻿"""Tính lương, liên kết nguồn và chuẩn hóa dữ liệu đối chiếu."""
+"""Tính lương, liên kết nguồn và chuẩn hóa dữ liệu đối chiếu."""
 from datetime import date, time
 from decimal import Decimal, ROUND_HALF_UP
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Sum
-from nhan_vien.access import require_role, HR, DIRECTOR
-from nhan_vien.models import Employee
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
+from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_luong.models import PayrollPeriod as KyCong
 from thuong.models import Bonus, payroll_bonus_records
@@ -76,7 +76,7 @@ def phieu_luong_can_tinh_lai(period, attendance=None):
 
 @transaction.atomic
 def tinh_bang_luong(actor, period_id, reason):
-    require_role(actor, HR, DIRECTOR)
+    yeu_cau_vai_tro(actor, NHAN_SU, GIAM_DOC)
     # Cùng thứ tự khóa với workflow công: kỳ công trước, kỳ lương sau.
     link = PayrollPeriod.objects.get(pk=period_id)
     attendance = KyCong.objects.select_for_update().get(pk=link.attendance_period_id)
@@ -90,7 +90,7 @@ def tinh_bang_luong(actor, period_id, reason):
     if standard <= 0 or attendance.gio_chuan <= 0:
         raise ValidationError('Công chuẩn phải lớn hơn 0.')
     employee_ids = attendance.ds_nhan_vien if attendance.trang_thai == 'approved' else approved_ids
-    employees = Employee.objects.filter(pk__in=employee_ids)
+    employees = NhanVien.objects.filter(pk__in=employee_ids)
     if not employees.exists():
         raise ValidationError('Không có nhân viên trong kỳ.')
     replacing = phieu_luong_can_tinh_lai(period, attendance)
@@ -100,7 +100,7 @@ def tinh_bang_luong(actor, period_id, reason):
     reason = reason or f'Tạo phiếu lương mới kỳ {attendance.thang:02}/{attendance.nam}'
     PayrollAuditLog.objects.create(period=period, actor=actor, action='before_calculate', reason=reason, snapshot=chup_du_lieu_luong(period))
     # Cập nhật tại chỗ để giữ ID và các khoản lịch sử trong snapshot của phiếu.
-    for employee in employees.select_related('department'):
+    for employee in employees.select_related('phong_ban'):
         if period.records.filter(nhan_vien=employee, trang_thai__in=['approved', 'paid']).exists():
             continue  # Giữ nguyên phiếu đã duyệt khi tính lại phần còn chờ duyệt.
         from bang_cong.services.quy_trinh import cap_nhat_tong_hop
@@ -119,7 +119,7 @@ def tinh_bang_luong(actor, period_id, reason):
 def cap_nhat_luong_nhan_vien(actor, employee_id, year, month):
     """Cập nhật đúng một nhân viên/kỳ sau thao tác lưu nguồn đã được phân quyền."""
     from .quy_trinh import loi_duyet_luong
-    require_role(actor, HR, DIRECTOR)
+    yeu_cau_vai_tro(actor, NHAN_SU, GIAM_DOC)
     attendance = KyCong.objects.select_for_update().filter(nam=year, thang=month).first()
     if not attendance:
         return ''
@@ -134,24 +134,24 @@ def cap_nhat_luong_nhan_vien(actor, employee_id, year, month):
     dong = period.records.select_for_update().filter(nhan_vien_id=employee_id).first()
     if dong and dong.trang_thai != 'pending':
         return ''
-    employee = Employee.objects.select_related('department').get(pk=employee_id)
+    employee = NhanVien.objects.select_related('phong_ban').get(pk=employee_id)
     from bang_cong.services.quy_trinh import cap_nhat_tong_hop
     cap_nhat_tong_hop(employee, attendance)
     same_identity = dong and (dong.ma_nhan_vien, dong.ten_nhan_vien, dong.ma_phong_ban_luu, dong.ten_phong_ban) == (
-        employee.code, employee.full_name, employee.department_id, employee.department.name)
+        employee.ma_ho_so, employee.ho_va_ten, employee.phong_ban_id, employee.phong_ban.ten_phong_ban)
     if same_identity and not loi_duyet_luong(dong, period, attendance):
         return ''
     try:
         cac_gia_tri = du_lieu_tinh_luong(employee, attendance, period)
     except ValidationError as loi:
-        return f'{employee.code}: ' + '; '.join(loi.messages)
+        return f'{employee.ma_ho_so}: ' + '; '.join(loi.messages)
     du_lieu_cu = [{k: str(v) for k, v in phan_tu.items()} for phan_tu in period.records.filter(nhan_vien_id=employee_id).values()]
     dong, _ = Luong.objects.update_or_create(ky_luong=period, nhan_vien=employee, defaults=cac_gia_tri)
     period.attendance_revision = attendance.phien_ban
     period.save(update_fields=['attendance_revision'])
     du_lieu_moi = [{k: str(v) for k, v in phan_tu.items()} for phan_tu in period.records.filter(pk=dong.pk).values()]
     PayrollAuditLog.objects.create(period=period, actor=actor, action='auto_calculate',
-        reason=f'Tự cập nhật lương {employee.code} sau thay đổi dữ liệu nguồn',
+        reason=f'Tự cập nhật lương {employee.ma_ho_so} sau thay đổi dữ liệu nguồn',
         snapshot=[{'before': du_lieu_cu, 'after': du_lieu_moi}])
     return ''
 
@@ -169,12 +169,12 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
     from bang_cong.services.quy_trinh import tong_hop_dung_tinh_luong
     summary = tong_hop_dung_tinh_luong(employee, attendance)
     cong_huong_luong = summary.tong_cong
-    hourly = employee.base_salary / standard / attendance.gio_chuan
-    luong_theo_cong = employee.base_salary / standard * cong_huong_luong
+    hourly = employee.luong_co_ban / standard / attendance.gio_chuan
+    luong_theo_cong = employee.luong_co_ban / standard * cong_huong_luong
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     overtime=tong_hop_tang_ca_tinh_luong(employee,attendance.nam,attendance.thang)
     if overtime and (not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()):
-        raise ValidationError(f'{employee}: HR cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
+        raise ValidationError(f'{employee}: NHAN_SU cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
     ot_rate=inputs.overtime_hourly_rate or ZERO
     ot_lines=[{**{khoa: str(dong[khoa]) if khoa in ['hours','multiplier'] else dong[khoa]
                      for khoa in ['id','date','start','end','hours','multiplier']},
@@ -199,9 +199,9 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
     tax = tax_details['tax']
     net = luong_theo_cong + ot_pay + thuong + allowance - bao_hiem - tax - deductions
     cac_gia_tri = dict(
-        ky_luong=period, nhan_vien=employee, ma_nhan_vien=employee.code, ten_nhan_vien=employee.full_name,
-        ma_phong_ban_luu=employee.department_id, ten_phong_ban=employee.department.name,
-        luong_co_ban=employee.base_salary, cong_chuan=standard, cong_huong_luong=cong_huong_luong,
+        ky_luong=period, nhan_vien=employee, ma_nhan_vien=employee.ma_ho_so, ten_nhan_vien=employee.ho_va_ten,
+        ma_phong_ban_luu=employee.phong_ban_id, ten_phong_ban=employee.phong_ban.ten_phong_ban,
+        luong_co_ban=employee.luong_co_ban, cong_chuan=standard, cong_huong_luong=cong_huong_luong,
         cong_nghi_phep=NgayNghi.objects.filter(
             don_nghi_phep__nhan_vien=employee,
             don_nghi_phep__trang_thai='da_duyet',
@@ -249,7 +249,7 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
                         for dong in adjustments] if isinstance(adjustments,list) else
                         list(adjustments.order_by('pk').values('id','kind','amount','tax_category')))
     du_lieu = {
-        'base_salary': employee.base_salary,
+        'luong_co_ban': employee.luong_co_ban,
         'schedule': [attendance.gio_bat_dau, attendance.bat_dau_nghi_trua, attendance.ket_thuc_nghi_trua,
                      attendance.gio_ket_thuc, attendance.gio_chuan],
         'calendar': [{'date': lich.ngay, 'kind': lich.loai_ngay, 'expected_units': lich.cong_chuan}
@@ -262,11 +262,11 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
         } for r in ds_ban_ghi],
         'leave': [
             {
-                'date': leave.ngay,
+                'date': ngay_nghi.ngay,
                 'units': Decimal('1.0000'),
-                'paid': leave.huong_luong,
+                'paid': ngay_nghi.huong_luong,
             }
-            for leave in NgayNghi.objects.filter(
+            for ngay_nghi in NgayNghi.objects.filter(
                 don_nghi_phep__nhan_vien=employee,
                 don_nghi_phep__trang_thai='da_duyet',
                 ngay__year=attendance.nam,
@@ -288,8 +288,8 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
         du_lieu['tax_inputs'] = {'method': inputs.tax_method, 'dependents': inputs.tax_dependents,
             'personal_deduction': inputs.claim_personal_deduction, 'exempt_ot': inputs.tax_exempt_overtime}
         du_lieu['adjustments'] = adjustment_rows
-    if employee.payroll_settings is not None:
-        du_lieu['employee_settings'] = employee.payroll_settings
+    if employee.thiet_lap_luong is not None:
+        du_lieu['employee_settings'] = employee.thiet_lap_luong
     return chuan_hoa_du_lieu(du_lieu)
 
 
@@ -306,5 +306,3 @@ def doi_chieu_chi_tiet_cu(breakdown):
         'adjustments': sorted((phan_tu['id'], phan_tu['kind'], Decimal(phan_tu['amount']))
                               for phan_tu in breakdown.get('adjustments', [])),
     }
-
-

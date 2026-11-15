@@ -254,7 +254,7 @@ class AutomaticMonthClockTests(TestCase):
         self.assertEqual(client.post(url,{'action':'in'}).status_code,403)
         with self.at():
             with self.assertRaises(PermissionDenied): ghi_nhan_cham_cong(AnonymousUser(),'in')
-            self.emp.hire_date=date(2026,12,1)
+            self.emp.ngay_vao_lam=date(2026,12,1)
             self.emp.save()
             with self.assertRaises(ValidationError): ghi_nhan_cham_cong(self.user,'in')
         self.assertEqual(KyCong.objects.count(),1)

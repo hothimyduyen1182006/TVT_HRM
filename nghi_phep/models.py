@@ -52,7 +52,7 @@ class DonNghiPhep(models.Model):
     ma_don = models.BigAutoField(primary_key=True)
 
     nhan_vien = models.ForeignKey(
-        'employees.Employee',
+        'employees.NhanVien',
         on_delete=models.PROTECT,
         related_name='don_nghi_phep',
         db_column='Ma_nguoi_dung',
@@ -133,7 +133,7 @@ class DonNghiPhep(models.Model):
                 if don_trung.exists():
                     loi['ngay_bat_dau'] = 'Khoảng thời gian nghỉ bị trùng với một đơn khác.'
 
-            if self.nhan_vien_id and self.ngay_bat_dau < self.nhan_vien.hire_date:
+            if self.nhan_vien_id and self.ngay_bat_dau < self.nhan_vien.ngay_vao_lam:
                 loi['ngay_bat_dau'] = 'Ngày nghỉ không được trước ngày vào làm.'
 
             if self.nhan_vien_id and self.loai_nghi == 'phep_nam':

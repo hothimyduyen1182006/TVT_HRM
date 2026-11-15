@@ -20,7 +20,7 @@ class ChamCong(models.Model):
     # Khóa chính tự tăng, tên cột là Ma_cham_cong.
     id = models.BigAutoField(primary_key=True, db_column='Ma_cham_cong')
     # Nhân viên có bản công; employees là app label đã đăng ký.
-    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, db_column='Ma_nhan_vien')
+    nhan_vien = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT, db_column='Ma_nhan_vien')
     # Ngày ghi nhận công.
     ngay = models.DateField('Ngày', db_column='Ngay_cham_cong')
     # Giờ vào/ra có thể trống khi chưa chấm công đủ.
@@ -52,7 +52,7 @@ class ChamCong(models.Model):
     class Meta:
         # Tên bảng thực tế và thứ tự mặc định: ngày mới trước, rồi mã nhân viên.
         db_table = 'Cham_cong'
-        ordering = ['-ngay', 'nhan_vien__code']
+        ordering = ['-ngay', 'nhan_vien__ma_ho_so']
         constraints = [
             # Mỗi nhân viên chỉ có một bản ghi cho một ngày.
             models.UniqueConstraint(
@@ -73,7 +73,7 @@ class ChamCong(models.Model):
     def clean(self):
         # Được full_clean() hoặc ModelForm gọi; save() không tự gọi hàm này.
         # Không cho ghi công trước ngày nhân viên vào làm.
-        if self.nhan_vien_id and self.ngay and self.ngay < self.nhan_vien.hire_date:
+        if self.nhan_vien_id and self.ngay and self.ngay < self.nhan_vien.ngay_vao_lam:
             raise ValidationError('Ngày công không được trước ngày vào làm.')
         # bool chuyển việc có/không có giờ thành True/False.
         co_gio_vao, co_gio_ra = bool(self.gio_vao), bool(self.gio_ra)
@@ -141,7 +141,7 @@ class TongHopCong(models.Model):
     )
     # Nhân viên được tổng hợp; nhân viên.attendance_summaries.all() lấy lịch sử tổng hợp.
     nhan_vien = models.ForeignKey(
-        'employees.Employee', on_delete=models.CASCADE,
+        'employees.NhanVien', on_delete=models.CASCADE,
         related_name='attendance_summaries',
         db_column='Ma_nhan_vien',
     )

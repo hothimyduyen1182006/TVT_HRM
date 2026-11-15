@@ -3,8 +3,8 @@
 from django import forms  # Các trường nhập, widget và kiểm tra dữ liệu form.
 from django.contrib.auth import get_user_model  # Lấy model tài khoản đang cấu hình.
 
-from nhan_vien.access import visible_employees  # Phạm vi nhân viên được phép xem.
-from nhan_vien.filters import PeriodFilter  # Bộ lọc kỳ/phòng ban dùng chung.
+from nhan_vien.access import nhan_vien_duoc_hien_thi  # Phạm vi nhân viên được phép xem.
+from nhan_vien.filters import BoLocKy  # Bộ lọc kỳ/phòng ban dùng chung.
 
 from .models import ChamCong  # Model dùng để tạo form nhập công.
 
@@ -22,7 +22,7 @@ def _kiem_tra_khoang_ngay(du_lieu, thong_bao):
     return du_lieu  # Trả dữ liệu đã kiểm tra cho clean().
 
 
-class BoLocBangCong(PeriodFilter):
+class BoLocBangCong(BoLocKy):
     """Kế thừa lọc kỳ/phòng ban và thêm điều kiện tìm bảng công."""
     # Tên trường giữ nguyên để khớp GET, view và template hiện tại.
     # required=False cho phép bỏ trống; label là nhãn hiển thị.
@@ -41,11 +41,11 @@ class BoLocBangCong(PeriodFilter):
         # Khởi tạo bộ lọc cha với tài khoản và dữ liệu gửi lên.
         super().__init__(user, data)
         # Danh sách tháng 01–12; :02 thêm số 0 trước tháng có một chữ số.
-        self.fields['month'].widget = forms.Select(choices=[(thang, f'Tháng {thang:02}') for thang in range(1, 13)])
+        self.fields['thang'].widget = forms.Select(choices=[(thang, f'Tháng {thang:02}') for thang in range(1, 13)])
         # range không lấy mốc cuối: các năm từ 2000 đến 2100.
-        self.fields['year'].widget = forms.Select(choices=[(nam, f'Năm {nam}') for nam in range(2000, 2101)])
+        self.fields['nam'].widget = forms.Select(choices=[(nam, f'Năm {nam}') for nam in range(2000, 2101)])
         # Đặt nhãn lựa chọn phòng ban trống, vẫn giữ phạm vi quyền của bộ lọc cha.
-        self.fields['department'].empty_label = 'Tất cả'
+        self.fields['phong_ban'].empty_label = 'Tất cả'
 
     def clean(self):
         # Chạy kiểm tra của lớp cha, rồi kiểm tra quan hệ giữa các trường.
@@ -140,7 +140,7 @@ class ChamCongForm(forms.ModelForm):
             kwargs['initial'] = {ten_truong_cu.get(khoa, khoa): gia_tri for khoa, gia_tri in kwargs['initial'].items()}
         super().__init__(*args, **kwargs)  # Tạo các trường ModelForm trước khi cấu hình.
         # Chỉ cho chọn nhân viên thuộc phạm vi quyền của tài khoản.
-        self.fields['nhan_vien'].queryset = visible_employees(user)
+        self.fields['nhan_vien'].queryset = nhan_vien_duoc_hien_thi(user)
         # Có khóa chính nghĩa là sửa bản ghi đã tồn tại: cố định nhân viên và ngày.
         if self.instance.pk:
             for truong in ('nhan_vien', 'ngay'):
