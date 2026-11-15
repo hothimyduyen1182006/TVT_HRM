@@ -60,7 +60,8 @@ class LeaveDay(models.Model):
 
         if self.approved and self.employee_id:
             # Import cục bộ để tránh phụ thuộc vòng với app bảng công.
-            from bang_cong.models import ChotBangCong, KyCong
+            from bang_cong.models import ChotBangCong
+            from bang_luong.models import PayrollPeriod as KyCong
 
             periods = KyCong.objects.filter(
                 nam=self.date.year,
@@ -68,11 +69,11 @@ class LeaveDay(models.Model):
             )
             period_is_approved = periods.filter(trang_thai='approved').exists()
             employee_is_approved = ChotBangCong.objects.filter(
-                ky_cong__in=periods,
-                nhan_vien_id=self.employee_id,
+                tong_hop__ky_cong__in=periods,
+                tong_hop__nhan_vien_id=self.employee_id,
             ).exists()
             if period_is_approved or employee_is_approved:
-                raise ValidationError('Kỳ công đã duyệt. Cần mở lại trước khi sửa nghỉ phép.')
+                raise ValidationError('Bảng công đã duyệt, không được sửa nghỉ phép của kỳ này.')
 
 
 class LeaveRequest(models.Model):

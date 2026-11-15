@@ -6,8 +6,10 @@ from django.db import transaction
 from django.db.models import F, Sum
 from nhan_vien.access import require_role, HR, DIRECTOR
 from nhan_vien.models import Employee
-from bang_cong.models import KyCong, ChamCong, LichLamViec
+from bang_cong.models import ChamCong
+from bang_luong.models import PayrollPeriod as KyCong
 from thuong.models import Bonus, payroll_bonus_records
+from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang, nap_cong_ngay
 from nghi_phep.models import LeaveDay
 from bang_luong.models import PayrollPeriod, Luong, PayrollAuditLog
 from .thue import tinh_thue_tncn
@@ -68,7 +70,7 @@ def phieu_luong_can_tinh_lai(period, attendance=None):
     """Phiếu chờ duyệt sẽ bị thay thế trong lần tính này."""
     attendance = attendance or period.attendance_period
     employee_ids = (attendance.ds_nhan_vien if attendance.trang_thai == 'approved'
-                    else attendance.employee_approvals.values_list('nhan_vien_id', flat=True))
+                    else attendance.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True))
     return period.records.filter(trang_thai='pending', nhan_vien_id__in=employee_ids)
 
 
@@ -81,10 +83,10 @@ def tinh_bang_luong(actor, period_id, reason):
     period = PayrollPeriod.objects.select_for_update().get(pk=period_id)
     if period.status != 'pending':
         raise ValidationError('Không tính lại lương đã duyệt/chi trả.')
-    approved_ids = list(attendance.employee_approvals.values_list('nhan_vien_id', flat=True))
+    approved_ids = list(attendance.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True))
     if attendance.trang_thai != 'approved' and not approved_ids:
         raise ValidationError('Chưa có nhân viên được duyệt bảng công trong kỳ.')
-    standard = tong_gia_tri(LichLamViec.objects.filter(ngay__year=attendance.nam, ngay__month=attendance.thang), 'cong_chuan')
+    standard = cong_chuan_thang(attendance)
     if standard <= 0 or attendance.gio_chuan <= 0:
         raise ValidationError('Công chuẩn phải lớn hơn 0.')
     employee_ids = attendance.ds_nhan_vien if attendance.trang_thai == 'approved' else approved_ids
@@ -122,10 +124,10 @@ def cap_nhat_luong_nhan_vien(actor, employee_id, year, month):
     if not attendance:
         return ''
     approved = (employee_id in attendance.ds_nhan_vien if attendance.trang_thai == 'approved' else
-                attendance.employee_approvals.filter(nhan_vien_id=employee_id).exists())
+                attendance.employee_approvals.filter(tong_hop__nhan_vien_id=employee_id).exists())
     if not approved:
         return ''  # Chờ duyệt công, không tự duyệt hoặc dùng công chưa xác nhận.
-    period, _ = PayrollPeriod.objects.get_or_create(attendance_period=attendance)
+    period = attendance
     period = PayrollPeriod.objects.select_for_update().get(pk=period.pk)
     if period.status != 'pending':
         return ''
@@ -157,7 +159,7 @@ def cap_nhat_luong_nhan_vien(actor, employee_id, year, month):
 def du_lieu_tinh_luong(employee, attendance, period, standard=None):
     """Tính trong bộ nhớ để tạo hoặc đối chiếu phiếu; không ghi dữ liệu."""
     if standard is None:
-        standard = tong_gia_tri(LichLamViec.objects.filter(ngay__year=attendance.nam, ngay__month=attendance.thang), 'cong_chuan')
+        standard = cong_chuan_thang(attendance)
     if standard <= 0 or attendance.gio_chuan <= 0:
         raise ValidationError('Công chuẩn phải lớn hơn 0.')
     from .quy_trinh import can_cu_luong_nhan_vien,cac_khoan_phu_cap_khau_tru
@@ -237,6 +239,8 @@ def chuan_hoa_du_lieu(value):
 
 
 def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adjustments, tax_details):
+    ds_ban_ghi = list(records.order_by('ngay'))
+    nap_cong_ngay(ds_ban_ghi, attendance)
     adjustment_rows = ([{'id':dong.pk,'kind':dong.kind,'amount':dong.amount,'tax_category':dong.tax_category}
                         for dong in adjustments] if isinstance(adjustments,list) else
                         list(adjustments.order_by('pk').values('id','kind','amount','tax_category')))
@@ -244,14 +248,14 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
         'base_salary': employee.base_salary,
         'schedule': [attendance.gio_bat_dau, attendance.bat_dau_nghi_trua, attendance.ket_thuc_nghi_trua,
                      attendance.gio_ket_thuc, attendance.gio_chuan],
-        'calendar': list(LichLamViec.objects.filter(ngay__year=attendance.nam,
-            ngay__month=attendance.thang).order_by('ngay').values(**{'date': F('ngay'), 'kind': F('loai_ngay'), 'expected_units': F('cong_chuan')})),
-        'attendance': list(records.order_by('ngay').values(**{
-            'date': F('ngay'), 'check_in': F('gio_vao'), 'check_out': F('gio_ra'),
-            'status': F('trang_thai'), 'work_hours': F('so_gio_lam'),
-            'late_minutes': F('so_phut_tre'), 'actual_units': F('cong_thuc_te'),
-            'paid_leave_units': F('cong_nghi_co_luong'), 'paid_units': F('tong_cong'),
-        })),
+        'calendar': [{'date': lich.ngay, 'kind': lich.loai_ngay, 'expected_units': lich.cong_chuan}
+                     for lich in lich_thang(attendance.nam, attendance.thang, attendance).values()],
+        'attendance': [{
+            'date': r.ngay, 'check_in': r.gio_vao, 'check_out': r.gio_ra,
+            'status': r.trang_thai, 'work_hours': r.so_gio_lam,
+            'late_minutes': r.so_phut_tre, 'actual_units': r.cong_thuc_te,
+            'paid_leave_units': r.cong_nghi_co_luong, 'paid_units': r.tong_cong,
+        } for r in ds_ban_ghi],
         'leave': list(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
             date__month=attendance.thang, approved=True).order_by('date').values('date', 'units', 'paid')),
         'overtime': [{khoa: dong[khoa] for khoa in ['id','date','start','end','hours','multiplier']} for dong in overtime],

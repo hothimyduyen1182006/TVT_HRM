@@ -15,11 +15,11 @@ from nhan_vien.access import require_role, HR, DIRECTOR
 def phieu_luong_du_cong_duyet(queryset):
     """Giữ phiếu cũ trong database, chỉ công bố khi công đã duyệt."""
     ban_chot = ChotBangCong.objects.filter(
-        ky_cong_id=OuterRef('ky_luong__attendance_period_id'),
-        nhan_vien_id=OuterRef('nhan_vien_id'),
+        tong_hop__ky_cong_id=OuterRef('ky_luong_id'),
+        tong_hop__nhan_vien_id=OuterRef('nhan_vien_id'),
     )
     return queryset.annotate(cong_da_duyet=Exists(ban_chot)).filter(
-        Q(ky_luong__attendance_period__trang_thai='approved') | Q(cong_da_duyet=True),
+        Q(ky_luong__trang_thai='approved') | Q(cong_da_duyet=True),
     )
 
 
@@ -41,13 +41,16 @@ def du_lieu_hien_thi_luong(record):
     metrics = {'actual': None, 'absent': None, 'late_count': None}
     ky_luong = record.ky_luong
     ky_cong = ky_luong.attendance_period
-    employee_approved = ky_cong.employee_approvals.filter(nhan_vien_id=record.nhan_vien_id).exists()
+    employee_approved = ky_cong.employee_approvals.filter(tong_hop__nhan_vien_id=record.nhan_vien_id).exists()
     if ky_cong.trang_thai == 'approved' or employee_approved:
-        du_lieu = ChamCong.objects.filter(nhan_vien_id=record.nhan_vien_id,
-            ngay__year=ky_cong.nam, ngay__month=ky_cong.thang).aggregate(
-                actual=Sum('cong_thuc_te'), absent=Count('pk', filter=Q(trang_thai='absent')),
-                late_count=Count('pk', filter=Q(so_phut_tre__gt=0)))
-        metrics = du_lieu
+        from bang_cong.services.tinh_toan import nap_cong_ngay
+
+        ds_cong = list(ChamCong.objects.filter(nhan_vien_id=record.nhan_vien_id,
+            ngay__year=ky_cong.nam, ngay__month=ky_cong.thang))
+        nap_cong_ngay(ds_cong, ky_cong)
+        metrics = {'actual': sum((r.cong_thuc_te for r in ds_cong), Decimal(0)),
+                   'absent': sum(r.trang_thai == 'absent' for r in ds_cong),
+                   'late_count': sum(r.so_phut_tre > 0 for r in ds_cong)}
     return {'row': record, 'income_total': tong_thu_nhap, 'historical_overtime': tang_ca_lich_su,
             'deductions_total': total_deductions,
             'insurance_lines': bao_hiem, 'metrics': metrics,
@@ -61,9 +64,9 @@ def phieu_luong_trong_pham_vi(user, form):
     if not form.is_valid():
         return Luong.objects.none()
     du_lieu = form.cleaned_data
-    ds_dong = Luong.objects.select_related('ky_luong__attendance_period').filter(
-        nhan_vien__in=form.employee_scope(user), ky_luong__attendance_period__thang=du_lieu['month'],
-        ky_luong__attendance_period__nam=du_lieu['year'])
+    ds_dong = Luong.objects.select_related('ky_luong').filter(
+        nhan_vien__in=form.employee_scope(user), ky_luong__thang=du_lieu['month'],
+        ky_luong__nam=du_lieu['year'])
     if du_lieu.get('q'):
         ds_dong = ds_dong.filter(Q(ten_nhan_vien__icontains=du_lieu['q']) | Q(ma_nhan_vien__icontains=du_lieu['q']))
     if du_lieu.get('status'):
@@ -74,7 +77,7 @@ def phieu_luong_trong_pham_vi(user, form):
 def phieu_luong_ca_nhan(user):
     """Phiếu lương của tài khoản hiện tại, không mở rộng theo vai trò quản lý."""
     return phieu_luong_du_cong_duyet(
-        Luong.objects.select_related('ky_luong__attendance_period').filter(nhan_vien__user=user),
+        Luong.objects.select_related('ky_luong').filter(nhan_vien__user=user),
     )
 
 

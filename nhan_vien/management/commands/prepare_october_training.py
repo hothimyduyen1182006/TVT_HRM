@@ -10,7 +10,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from bang_cong.models import KyCong, ChamCong, LichLamViec, LichSuTangCa
+from bang_cong.models import ChamCong, LichSuTangCa
+from bang_luong.models import PayrollPeriod as KyCong
+from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang
 from bang_cong.services import tinh_toan as attendance_calculations
 from bang_cong.services.quy_trinh import luu_cham_cong, duyet_cong_nhan_vien
 from thuong.models import Bonus
@@ -38,8 +40,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if getattr(attendance_calculations, 'CHINH_SACH_OT', '') != 'automatic-checkout-1700-v1':
             raise CommandError('Cần bản OT tự động từ check-out trước khi chuẩn bị bộ dữ liệu này.')
-        if PayrollAuditLog.objects.filter(action=MARKER, period__attendance_period__nam=YEAR,
-                                         period__attendance_period__thang=MONTH).exists():
+        if PayrollAuditLog.objects.filter(action=MARKER, period__nam=YEAR,
+                                         period__thang=MONTH).exists():
             self.stdout.write('Bộ tình huống tháng 10/2026 đã có; giữ nguyên mọi thao tác bạn đã thực hiện.')
             return
         self._require_empty_month()
@@ -59,13 +61,9 @@ class Command(BaseCommand):
                 period = KyCong(nam=YEAR,thang=MONTH,gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
                     ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
                 period.full_clean(); period.save()
-                for number in range(1,32):
-                    day = date(YEAR,MONTH,number)
-                    LichLamViec.objects.create(ngay=day,loai_ngay='work' if day.weekday()<5 else 'rest',
-                        cong_chuan=1 if day.weekday()<5 else 0,ghi_chu='' if day.weekday()<5 else 'Nghỉ hằng tuần')
                 self._leaves(people, hr)
                 for code, employee in sorted(people.items()):
-                    for calendar_day in LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH,loai_ngay='work').order_by('ngay'):
+                    for calendar_day in [lich for lich in lich_thang(YEAR, MONTH, period).values() if lich.loai_ngay == 'work']:
                         day = calendar_day.ngay
                         values = dict(nhan_vien=employee,ngay=day,trang_thai='present',
                             gio_vao=time(7,55+day.day%3),gio_ra=time(17),ghi_chu='')
@@ -99,6 +97,7 @@ class Command(BaseCommand):
                             )
                         if code=='NV07' and day.day==13:
                             values.update(gio_vao=time(9),ghi_chu='Đi trễ một giờ; không tạo khoản phạt tiền riêng')
+                        values.pop('ghi_chu', None)
                         record = luu_cham_cong(hr,ChamCong(**values),'Nhập dữ liệu chấm công tháng 10/2026')
                         if code=='NV01' and day.day==9:
                             record.gio_vao=time(8,12)
@@ -106,12 +105,12 @@ class Command(BaseCommand):
                             record.gio_vao=time(7,58)
                             luu_cham_cong(hr,record,'Đã đối chiếu log máy, điều chỉnh đúng giờ vào thực tế')
                 luu_cham_cong(hr,ChamCong(nhan_vien=people['NV03'],ngay=date(YEAR,MONTH,24),
-                    trang_thai='present',gio_vao=time(8),gio_ra=time(12),ghi_chu='Sản xuất bổ sung sáng thứ Bảy; không cộng công thường'),
+                    trang_thai='present',gio_vao=time(8),gio_ra=time(12)),
                     'Ghi nhận giờ làm thực tế ngày nghỉ tuần')
                 for code in ['NV02','NV03','NV06']:
                     duyet_cong_nhan_vien(hr,people[code],period.pk)
                 self._bonuses(people,hr,director)
-                payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
+                payroll = period
                 self._inputs(people,period,payroll,hr)
                 tinh_bang_luong(hr,payroll.pk,'Chuẩn bị phiếu lương tháng 10 từ công đã duyệt và thưởng hợp lệ')
                 duyet_phieu_luong(director,Luong.objects.get(ky_luong=payroll,nhan_vien=people['NV02']).pk)
@@ -131,7 +130,6 @@ class Command(BaseCommand):
         checks = [
             KyCong.objects.filter(nam=YEAR,thang=MONTH),
             ChamCong.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
-            LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             LichSuTangCa.objects.filter(ngay__year=YEAR,ngay__month=MONTH),
             Bonus.objects.filter(year=YEAR,month=MONTH),
             LeaveDay.objects.filter(date__year=YEAR,date__month=MONTH),
@@ -184,7 +182,7 @@ class Command(BaseCommand):
                 row.full_clean();row.save()
 
     def _inputs(self, people, attendance, payroll, hr):
-        standard=sum(LichLamViec.objects.filter(ngay__year=YEAR,ngay__month=MONTH).values_list('cong_chuan',flat=True),Decimal(0))
+        standard=cong_chuan_thang(attendance)
         for code,employee in sorted(people.items()):
             rate=(employee.base_salary/standard/attendance.gio_chuan).quantize(Decimal('.0001'),rounding=ROUND_HALF_UP)
             basis=('Dữ liệu thực hành 10/2026: giả định cá nhân cư trú, 0 người phụ thuộc; giảm trừ bản thân '

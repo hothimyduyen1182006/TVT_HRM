@@ -49,9 +49,9 @@ class Command(BaseCommand):
         with transaction.atomic():
             order = ['payroll.PayrollExportLog', 'payroll.PayrollAuditLog', 'payroll.Luong',
                 'payroll.PayrollAdjustment', 'payroll.PayrollInput', 'payroll.PayrollPeriod',
-                'attendance.NhatKyCong', 'attendance.ChotBangCong',
+                'attendance.ChotBangCong',
                 'attendance.LichSuTangCa', 'attendance.ChamCong', 'leaves.LeaveRequest',
-                'leaves.LeaveDay', 'bonuses.Bonus', 'attendance.KyCong', 'attendance.LichLamViec',
+                'leaves.LeaveDay', 'bonuses.Bonus', 'attendance.KyCong',
                 'employees.Education', 'employees.LaborContract']
             for label in order:
                 apps.get_model(label).objects.all().delete()

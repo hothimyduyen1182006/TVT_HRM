@@ -26,7 +26,7 @@ def home(request):
     can_manage=has_role(request.user,HR,DIRECTOR,MANAGER)
     name=(employee.full_name if employee else '') or request.user.get_full_name() or request.user.get_username()
     latest=phieu_luong_ca_nhan(request.user).order_by(
-        '-ky_luong__attendance_period__nam','-ky_luong__attendance_period__thang','-ngay_tinh','-pk').first()
+        '-ky_luong__nam','-ky_luong__thang','-ngay_tinh','-pk').first()
     today=timezone.localdate()
     period=latest.ky_luong.attendance_period if latest else None
     payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,

@@ -10,7 +10,6 @@
     <div><dt>Giờ làm / phút muộn</dt><dd>{{ row.so_gio_lam }} giờ <span>/</span> {{ row.so_phut_tre }} phút</dd></div>
     <div><dt>Công thực tế / nghỉ hưởng lương</dt><dd>{{ row.cong_thuc_te }} <span>/</span> {{ row.cong_nghi_co_luong }}</dd></div>
     <div><dt>Công hưởng lương</dt><dd>{{ row.tong_cong }}</dd></div>
-    <div class="at-day-wide"><dt>Ghi chú</dt><dd class="at-day-note">{{ row.ghi_chu|default:'—' }}</dd></div>
   </dl>
   <section class="at-day-ot" aria-labelledby="ot-title">
     <h2 id="ot-title">Tăng ca</h2>
@@ -19,7 +18,6 @@
     {% for warning in automatic_ot.warnings %}<p class="at-muted">{{ warning }}</p>{% endfor %}
   </section>
   <footer class="at-day-footer">
-    <p>Cập nhật bởi <strong>{{ row.nguoi_cap_nhat|default:'—' }}</strong><span>{{ row.ngay_cap_nhat|date:'H:i · d/m/Y' }}</span></p>
     {% if can_edit %}<div class="at-day-action"><a class="at-button" href="{% url 'bang_cong:sua' row.pk %}">Chỉnh sửa chấm công</a><small>Kỳ đã duyệt sẽ bị khóa</small></div>{% endif %}
   </footer>
 </article>

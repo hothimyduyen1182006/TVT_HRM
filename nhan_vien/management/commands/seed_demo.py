@@ -11,7 +11,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from nhan_vien.models import Department, Employee
-from bang_cong.models import KyCong, ChamCong, LichLamViec
+from bang_cong.models import ChamCong
+from bang_luong.models import PayrollPeriod as KyCong
+from bang_cong.services.tinh_toan import lich_thang
 from bang_cong.services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong
 from nghi_phep.models import LeaveDay
 from thuong.models import Bonus
@@ -60,8 +62,7 @@ class Command(BaseCommand):
             raise CommandError('Employees already exist. Demo seeding requires an empty employee database; nothing changed.')
         if (not reuse_users and User.objects.filter(username__in=usernames).exists()) or Department.objects.filter(code__startswith='DEMO-').exists():
             raise CommandError('Demo account/department names already exist; nothing changed.')
-        if (KyCong.objects.filter(nam=year, thang__in=months).exists()
-                or LichLamViec.objects.filter(ngay__year=year, ngay__month__in=months).exists()):
+        if KyCong.objects.filter(nam=year, thang__in=months).exists():
             raise CommandError('Target periods/calendar already exist; nothing changed.')
         password = options.get('password') or secrets.token_urlsafe(12)
         if len(password) < 12:
@@ -93,13 +94,7 @@ class Command(BaseCommand):
             workdays, restdays = [], []
             for number in range(1, calendar.monthrange(year, month)[1] + 1):
                 day = date(year, month, number)
-                # Lịch minh họa do bộ demo lựa chọn; không phải chính sách chính thức.
-                holiday = month == 9 and number == 2
-                kind = 'holiday' if holiday else ('work' if day.weekday() < 5 else 'rest')
-                schedule = LichLamViec(ngay=day, loai_ngay=kind, cong_chuan=1 if kind == 'work' else 0,
-                                           ghi_chu='DEMO: lịch minh họa, không dùng cho lương thật')
-                schedule.full_clean()
-                schedule.save()
+                kind = lich_thang(year, month, period)[day].loai_ngay
                 if kind == 'work':
                     workdays.append(day)
                 elif kind == 'rest':
@@ -126,6 +121,7 @@ class Command(BaseCommand):
                         )
                     elif index in [1, 2, 4, 6] and number in [0, 5]:
                         values['gio_vao'] = time(8, 10 + index * 5)
+                    values.pop('ghi_chu', None)
                     row = luu_cham_cong(hr, ChamCong(**values), 'DEMO: nhập dữ liệu chấm công minh họa')
                     if index == 2 and number == 0:
                         row.gio_vao = time(8, 10)
@@ -141,7 +137,7 @@ class Command(BaseCommand):
                     bonus.full_clean()
                     bonus.save()
             xu_ly_trang_thai_ky_cong(director, period.pk, 'approve', 'DEMO: duyệt kỳ công minh họa; không phải dữ liệu thực tế')
-            payroll, _ = PayrollPeriod.objects.get_or_create(attendance_period=period)
+            payroll = period
             for index, employee in enumerate(employees):
                 inputs = PayrollInput(period=payroll, employee=employee, insurance_base=employee.base_salary,
                     insurance_rates={'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'},
@@ -162,13 +158,8 @@ class Command(BaseCommand):
             if month == 10:
                 xu_ly_trang_thai_luong(director, payroll.pk, 'paid', 'DEMO: mô phỏng trạng thái đã trả, không có giao dịch thật',
                                f'DEMO-PAY-{year}-10: chứng từ giả lập để thử giao diện, không chuyển tiền thật')
-            if month == 11:
-                xu_ly_trang_thai_ky_cong(director, period.pk, 'reopen',
-                              'DEMO: chuẩn bị kỳ công chờ duyệt để người dùng thử duyệt và tính lại lương')
         self.stdout.write(self.style.SUCCESS('Created 8 DEMO employees. Periods: ' + ', '.join(f'{month:02}/{year}' for month in months)))
         self.stdout.write(f'Year: {year}. Empty-period example: 12/{year}.')
-        if 11 in months:
-            self.stdout.write('Attendance 11 is reopened for approval practice; approve attendance then recalculate payroll 11.')
         self.stdout.write('New demo accounts (same generated password): ' + ', '.join(usernames))
         if not reuse_users:
             self.stdout.write('DEMO PASSWORD: ' + password)

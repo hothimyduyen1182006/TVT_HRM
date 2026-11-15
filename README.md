@@ -19,7 +19,7 @@ Máy khác cần sao lưu database và chạy `python manage.py migrate` sau khi
 
 ## Tên model và trường Bảng công
 
-App `bang_cong` dùng các model `KyCong`, `LichLamViec`, `ChamCong`, `TongHopCong`,
+App `bang_cong` dùng các model `ChamCong`, `TongHopCong`,
 `ChotBangCong`, `NhatKyCong`, `LichSuDieuChinhCong` và `LichSuTangCa`.
 Ví dụ: `month/year` → `thang/nam`, `check_in/check_out` → `gio_vao/gio_ra`,
 `employee` → `nhan_vien`, `paid_units` → `tong_cong`, `status` → `trang_thai`.
@@ -48,7 +48,7 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 - `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
 - `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
 - `LichSuDieuChinhCong` → `Lich_su_dieu_chinh_cong`: một dòng cho mỗi trường thay đổi, liên kết nhật ký JSON gốc.
-- `KyCong`, `LichLamViec` và lịch sử OT cũ tiếp tục được giữ. Không thêm quy trình phản hồi hoặc duyệt OT.
+- Không còn model KyCong; PayrollPeriod quản lý tháng dùng chung và lịch sử OT cũ tiếp tục được giữ; lịch ngày dùng hàm trong service, căn cứ cũ được lưu trong `PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên)`. Không thêm quy trình phản hồi hoặc duyệt OT.
 - Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
 - Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
 
@@ -119,19 +119,10 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
    lương cơ bản. Sau đó gán manager của Department tới Employee phụ trách phòng đó.
 4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
    nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
-5. Tạo lịch đủ tháng bằng lệnh dưới sau khi nhóm xác nhận ngày làm/ngày lễ; đây chỉ là
-   ví dụ tham số, không phải lịch chính thức. Lệnh không ghi đè tháng đã có lịch.
+5. Lịch năm 2026 được tính từ code: thứ Hai–thứ Sáu, lễ và nghỉ bù. Không tạo lịch hoặc sửa từng ngày trong Admin.
+6. Công chuẩn lấy từ hàm dùng chung; căn cứ lịch cũ và kỳ đã chốt được bảo toàn trong PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên).
 
-```powershell
-python manage.py create_calendar --year 2026 --month 11 --workdays 0,1,2,3,4
-# Nếu có ngày lễ trong tháng: thêm --holidays 2026-11-01,2026-11-02 theo lịch thực tế.
-```
-
-6. Kiểm tra từng ngày, kể cả nghỉ/lễ, trong Admin > Work calendar days. expected_units là
-   công chuẩn ngày; ngày nghỉ/lễ bằng 0. Sửa ngày nghỉ bù/làm bù nếu có. Hệ thống tự kiểm tra
-   giờ ca, số giờ/công và lịch đủ tháng; không cần ô xác nhận thủ công. Công chuẩn tháng lấy từ lịch này.
-
-   Với UC-3, sau cấu hình ban đầu, tháng mới tự kế thừa ca và lịch tuần của kỳ trước gần nhất
+   Với UC-3, sau cấu hình ban đầu, kỳ mới năm 2026 dùng ca cố định và lịch trong code
    có cấu hình hợp lệ. Mở trang chấm công chỉ xem trước; lần check-in thành công đầu tiên mới lưu
    kỳ mới và lịch đủ tháng. Không sao chép trạng thái duyệt, không ghi đè ngày lễ/nghỉ/làm bù
    đã cấu hình ở tháng đích. HR vẫn cần khai báo các ngoại lệ lễ/nghỉ bù theo lịch thực tế;

@@ -14,7 +14,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         if change and set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
             from bang_luong.models import PayrollPeriod
             from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
+            for period in PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk'):
                 attendance = period.attendance_period
                 error = cap_nhat_luong_nhan_vien(request.user, obj.pk, attendance.nam, attendance.thang)
                 if error:

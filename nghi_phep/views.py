@@ -261,7 +261,7 @@ def review_leave(request, pk, action):
             item.reviewed_at = timezone.now()
             item.save(update_fields=['Trang_thai', 'review_note', 'reviewed_by', 'reviewed_at'])
             if action == 'approve':
-                from bang_cong.models import KyCong
+                from bang_luong.models import PayrollPeriod as KyCong
                 from bang_cong.services.quy_trinh import cap_nhat_tong_hop
                 for period in KyCong.objects.filter(
                     nam__gte=item.Ngay_bat_dau.year, nam__lte=item.Ngay_ket_thuc.year,

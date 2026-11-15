@@ -8,10 +8,11 @@ from urllib.parse import urlencode
 from django.db.models import Count, Exists, F, OuterRef, Q, Sum
 
 from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocCongNgay, BoLocLichSuCong
-from bang_cong.models import ChamCong, ChotBangCong, KyCong, LichLamViec, NhatKyCong
+from bang_cong.models import ChamCong, ChotBangCong, LichSuDieuChinhCong
+from bang_luong.models import PayrollPeriod
 from nhan_vien.models import Employee
 
-from .tinh_toan import tinh_tang_ca_tu_dong
+from .tinh_toan import tinh_tang_ca_tu_dong, lich_thang, nap_cong_ngay
 
 KHONG = Decimal(0)
 CAC_THU = ('T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN')
@@ -25,7 +26,7 @@ TRUONG_LOC_CONG = {
 
 
 def _lay_lich_thang(nam, thang):
-    return {lich.ngay: lich for lich in LichLamViec.objects.filter(ngay__year=nam, ngay__month=thang)}
+    return lich_thang(nam, thang)
 
 
 def _lay_cong_thang(nam, thang, **pham_vi):
@@ -40,8 +41,7 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
     if ds_ban_ghi is None:
         ds_ban_ghi = _lay_cong_thang(nam, thang, nhan_vien_id__in=ds_nhan_vien.values('pk'))
     nhom_cong = ds_ban_ghi.values('nhan_vien_id').annotate(
-        paid=Sum('tong_cong'), actual=Sum('cong_thuc_te'),
-        leave=Sum('cong_nghi_co_luong'), hours=Sum('so_gio_lam'), late=Sum('so_phut_tre'),
+        hours=Sum('so_gio_lam'), late=Sum('so_phut_tre'),
         late_count=Count('pk', filter=Q(so_phut_tre__gt=0)),
         incomplete=Count('pk', filter=Q(trang_thai='incomplete')),
         absent=Count('pk', filter=Q(trang_thai='absent')),
@@ -49,8 +49,13 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
     cong_theo_nhan_vien = {dong['nhan_vien_id']: dong for dong in nhom_cong}
     if lich_thang is None:
         lich_thang = _lay_lich_thang(nam, thang)
+    if ky_cong:
+        nap_cong_ngay(ds_ban_ghi, ky_cong, lich_thang)
     tong_ot_theo_nhan_vien = {}
     for ban_ghi in ds_ban_ghi:
+        du_lieu = cong_theo_nhan_vien[ban_ghi.nhan_vien_id]
+        for khoa, gia_tri in [('actual', ban_ghi.cong_thuc_te), ('leave', ban_ghi.cong_nghi_co_luong), ('paid', ban_ghi.tong_cong)]:
+            du_lieu[khoa] = du_lieu.get(khoa, KHONG) + gia_tri
         phan_tu = (tang_ca[ban_ghi.pk] if tang_ca is not None else
                 tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay)))
         tong_ot_theo_nhan_vien[ban_ghi.nhan_vien_id] = tong_ot_theo_nhan_vien.get(ban_ghi.nhan_vien_id, KHONG) + phan_tu['hours']
@@ -58,13 +63,8 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
     ket_qua = []
     ds_ma_da_duyet = set()
     if ky_cong:
-        cong_thay_doi_sau_duyet = ChamCong.objects.filter(
-            nhan_vien_id=OuterRef('nhan_vien_id'), ngay__year=nam, ngay__month=thang,
-            ngay_cap_nhat__gt=OuterRef('ngay_duyet'),
-        )
-        ds_ma_da_duyet = set(ChotBangCong.objects.filter(ky_cong=ky_cong)
-            .annotate(co_thay_doi=Exists(cong_thay_doi_sau_duyet))
-            .filter(co_thay_doi=False).values_list('nhan_vien_id', flat=True))
+        ds_ma_da_duyet = set(ChotBangCong.objects.filter(tong_hop__ky_cong=ky_cong)
+            .values_list('tong_hop__nhan_vien_id', flat=True))
     ky_da_duyet = ky_cong and ky_cong.trang_thai == 'approved'
     for nhan_vien in ds_nhan_vien:
         du_lieu = cong_theo_nhan_vien.get(nhan_vien.pk, {})
@@ -88,7 +88,7 @@ def danh_sach_cong_ngay(nhan_vien, nam, thang, *, ds_ban_ghi=None, lich_thang=No
     if lich_thang is None:
         lich_thang = _lay_lich_thang(nam, thang)
     if tang_ca is None:
-        ky_cong = ky_cong or KyCong.objects.filter(nam=nam, thang=thang).first()
+        ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
         tang_ca = {dong.pk: tinh_tang_ca_tu_dong(dong, ky_cong, lich_thang.get(dong.ngay)) for dong in ds_ban_ghi.values()}
     ket_qua = []
     for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
@@ -114,36 +114,24 @@ def danh_sach_cong_ngay(nhan_vien, nam, thang, *, ds_ban_ghi=None, lich_thang=No
     return ket_qua
 
 
-def lay_nhat_ky_cong(nhan_vien, nam, thang):
-    # save_record là tên sự kiện cũ: chỉ giữ lần sửa có cả trước/sau, không lấy lần tạo.
-    return (NhatKyCong.objects.filter(
-        hanh_dong__in=['edit_record', 'save_record'],
-        du_lieu_moi__employee_id=str(nhan_vien.pk),
-        du_lieu_moi__date__startswith=f'{nam:04}-{thang:02}-')
-        .exclude(du_lieu_cu={}).exclude(du_lieu_cu=F('du_lieu_moi'))
-        .select_related('nguoi_thuc_hien').prefetch_related('adjustments')
-        .order_by('-ngay_tao', '-pk'))
+def lay_lich_su_cong(nhan_vien, nam, thang):
+    return LichSuDieuChinhCong.objects.filter(
+        cham_cong__nhan_vien=nhan_vien, cham_cong__ngay__year=nam, cham_cong__ngay__month=thang,
+    ).select_related('nguoi_thuc_hien', 'cham_cong__nhan_vien').order_by('-ngay_dieu_chinh', '-pk')
 
 
-def danh_sach_dieu_chinh(ds_nhat_ky, truong=''):
-    ket_qua = []
-    cac_nhan = dict(ChamCong._meta.get_field('trang_thai').choices)
-    cac_nhan.update({'pending': 'Chờ duyệt', 'approved': 'Đã duyệt'})
-    cac_truong = [(khoa, ten) for khoa, ten in CAC_TRUONG_DIEU_CHINH.items() if not truong or khoa == truong]
-    for nhat_ky in ds_nhat_ky:
-        if nhat_ky.hanh_dong not in ['edit_record', 'save_record'] or not nhat_ky.du_lieu_cu or nhat_ky.du_lieu_cu == nhat_ky.du_lieu_moi:
-            continue
-        thay_doi = {phan_tu.truong_dieu_chinh: (phan_tu.gia_tri_cu, phan_tu.gia_tri_moi) for phan_tu in nhat_ky.adjustments.all()}
-        nguoi_sua = nhat_ky.nguoi_thuc_hien.get_full_name() or nhat_ky.nguoi_thuc_hien.username
-        for khoa, ten_truong in cac_truong:
-            cu, moi = thay_doi.get(khoa, (nhat_ky.du_lieu_cu.get(khoa, ''), nhat_ky.du_lieu_moi.get(khoa, '')))
-            if cu == moi:
-                continue
-            ket_qua.append({'time': nhat_ky.ngay_tao, 'date': nhat_ky.du_lieu_moi.get('date'), 'field': ten_truong,
-                'old': cac_nhan.get(cu, cu) if khoa in ['status', 'approval_status'] else cu,
-                'new': cac_nhan.get(moi, moi) if khoa in ['status', 'approval_status'] else moi,
-                'actor': nguoi_sua, 'reason': nhat_ky.ly_do})
-    return ket_qua
+def danh_sach_dieu_chinh(ds_dieu_chinh, truong=''):
+    if truong:
+        ds_dieu_chinh = ds_dieu_chinh.filter(truong_dieu_chinh=truong)
+    nhan = dict(ChamCong._meta.get_field('trang_thai').choices)
+    return [{
+        'time': dong.ngay_dieu_chinh, 'date': dong.ngay_cong,
+        'field': CAC_TRUONG_DIEU_CHINH.get(dong.truong_dieu_chinh, dong.truong_dieu_chinh),
+        'old': nhan.get(dong.gia_tri_cu, dong.gia_tri_cu) if dong.truong_dieu_chinh == 'status' else dong.gia_tri_cu,
+        'new': nhan.get(dong.gia_tri_moi, dong.gia_tri_moi) if dong.truong_dieu_chinh == 'status' else dong.gia_tri_moi,
+        'actor': dong.nguoi_thuc_hien.get_full_name() or dong.nguoi_thuc_hien.username,
+        'reason': dong.ly_do,
+    } for dong in ds_dieu_chinh]
 
 
 def du_lieu_cong_thang(request, nhan_vien):
@@ -155,7 +143,7 @@ def du_lieu_cong_thang(request, nhan_vien):
     if hop_le:
         du_lieu = bieu_mau.cleaned_data
         tham_so_thang = urlencode({'month': du_lieu['month'], 'year': du_lieu['year']})
-        ky_cong = KyCong.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
+        ky_cong = PayrollPeriod.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
         # Cùng một lần tải nguồn và tính OT cho tổng hợp lẫn bảng chi tiết.
         ds_ban_ghi = _lay_cong_thang(du_lieu['year'], du_lieu['month'], nhan_vien=nhan_vien)
         lich_thang = _lay_lich_thang(du_lieu['year'], du_lieu['month'])
@@ -203,20 +191,20 @@ def du_lieu_cong_thang(request, nhan_vien):
 def du_lieu_lich_su_cong(request, nhan_vien):
     """Lọc lịch sử theo kỳ công và điều kiện người dùng đã chọn."""
     bo_loc_ky = BoLocBangCong(request.user, request.GET)
-    ds_nhat_ky = NhatKyCong.objects.none()
+    ds_nhat_ky = LichSuDieuChinhCong.objects.none()
     tham_so_thang = ''
     ky_hop_le = bo_loc_ky.is_valid()
     if ky_hop_le:
         du_lieu = bo_loc_ky.cleaned_data
         tham_so_thang = urlencode({'month': du_lieu['month'], 'year': du_lieu['year']})
-        ds_nhat_ky = lay_nhat_ky_cong(nhan_vien, du_lieu['year'], du_lieu['month'])
+        ds_nhat_ky = lay_lich_su_cong(nhan_vien, du_lieu['year'], du_lieu['month'])
     bieu_mau = BoLocLichSuCong(request.GET, ds_nhat_ky)
     ds_dong = []
     if bieu_mau.is_valid() and ky_hop_le:
         du_lieu = bieu_mau.cleaned_data
         dieu_kien = {
             truong: du_lieu[khoa] for truong, khoa in (
-                ('ngay_tao__date__gte', 'start'), ('ngay_tao__date__lte', 'end'),
+                ('ngay_dieu_chinh__date__gte', 'start'), ('ngay_dieu_chinh__date__lte', 'end'),
                 ('nguoi_thuc_hien', 'actor'),
             ) if du_lieu[khoa]
         }

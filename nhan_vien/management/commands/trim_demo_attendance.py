@@ -4,8 +4,9 @@ from django.db.models import F
 from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from bang_cong.models import KyCong, ChamCong, ChotBangCong, NhatKyCong
+from django.db import transaction, connection
+from bang_cong.models import ChamCong, ChotBangCong
+from bang_luong.models import PayrollPeriod as KyCong
 from nghi_phep.models import LeaveDay
 from bang_luong.models import PayrollPeriod, Luong, PayrollAuditLog
 
@@ -19,15 +20,22 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         cutoff = options['from_date']
+        ma_cong_mau = []
+        if 'attendance_chamcong_archive_0017' in connection.introspection.table_names():
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT Ma_cham_cong FROM attendance_chamcong_archive_0017 WHERE ghi_chu LIKE %s', ['DEMO:%'])
+                ma_cong_mau = [row[0] for row in cursor.fetchall()]
         records = ChamCong.objects.filter(nhan_vien__code__startswith='DEMO-',
-            ngay__gte=cutoff, ghi_chu__startswith='DEMO:')
+            ngay__gte=cutoff, pk__in=ma_cong_mau)
         periods = list(KyCong.objects.select_for_update().filter(
             nam__gte=cutoff.year))
         periods = [p for p in periods if (p.nam, p.thang) >= (cutoff.year, cutoff.month)]
+        if any(p.trang_thai == 'approved' or p.employee_approvals.exists() for p in periods):
+            raise CommandError('Công đã duyệt không được xóa hoặc mở lại.')
         actor = get_user_model().objects.filter(username='demo_hr').first()
         if not actor:
             raise CommandError('Không tìm thấy tài khoản demo_hr.')
-        payrolls = PayrollPeriod.objects.select_for_update().filter(attendance_period__in=periods)
+        payrolls = PayrollPeriod.objects.select_for_update().filter(pk__in=periods)
         salary = Luong.objects.filter(ky_luong__in=payrolls, nhan_vien__code__startswith='DEMO-')
         if salary.filter(trang_thai='paid').exists():
             raise CommandError('Có lương đã chi trả; không tự sửa dữ liệu này.')
@@ -45,13 +53,9 @@ class Command(BaseCommand):
                 payroll.attendance_revision = 0
                 payroll.save()
         for period in periods:
-            approvals = ChotBangCong.objects.filter(ky_cong=period, nhan_vien__code__startswith='DEMO-')
+            approvals = ChotBangCong.objects.filter(tong_hop__ky_cong=period, tong_hop__nhan_vien__code__startswith='DEMO-')
             if approvals.exists():
-                NhatKyCong.objects.create(nguoi_thuc_hien=actor, hanh_dong='trim_demo',
-                    ly_do=f'Gỡ duyệt công demo cả tháng sau khi xóa công từ {cutoff}',
-                    du_lieu_cu={'employee_ids': list(approvals.values_list('nhan_vien_id', flat=True))},
-                    du_lieu_moi={'period': period.pk, 'status': 'pending'})
-                approvals.delete()
+                raise CommandError('Công đã duyệt không được xóa hoặc mở lại.')
             if period.trang_thai == 'approved' and not period.employee_approvals.exists():
                 period.trang_thai = 'pending'
                 period.nguoi_duyet = None

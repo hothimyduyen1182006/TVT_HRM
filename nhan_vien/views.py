@@ -188,7 +188,7 @@ def employee_edit(request, employee_id):
         if set(form.changed_data) & {'base_salary', 'code', 'full_name', 'department'}:
             from bang_luong.models import PayrollPeriod
             from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            periods = PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id')
+            periods = PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk')
             for period in periods:
                 attendance = period.attendance_period
                 error = cap_nhat_luong_nhan_vien(request.user, employee.pk, attendance.nam, attendance.thang)

@@ -1,14 +1,77 @@
 """Tính công ngày và tăng ca; không tự lưu hoặc phê duyệt dữ liệu."""
-from datetime import datetime, time
+import calendar
+from datetime import date, datetime, time
+from types import SimpleNamespace
 from decimal import Decimal, ROUND_DOWN
 
 from django.core.exceptions import ValidationError
 
 from nghi_phep.models import LeaveDay
-from bang_cong.models import LichLamViec, KyCong, ChamCong
+from bang_cong.models import ChamCong
+from bang_luong.models import PayrollPeriod
 
 CHINH_SACH_OT = 'automatic-checkout-1700-v1'
 KHONG = Decimal(0)
+
+
+NGAY_LE_2026 = {
+    date(2026, 1, 1): 'Tết Dương lịch',
+    **{date(2026, 2, ngay): 'Tết Âm lịch' for ngay in range(16, 21)},
+    date(2026, 4, 26): 'Giỗ Tổ Hùng Vương',
+    date(2026, 4, 30): 'Ngày Chiến thắng',
+    date(2026, 5, 1): 'Quốc tế Lao động',
+    date(2026, 9, 1): 'Quốc khánh - ngày liền kề',
+    date(2026, 9, 2): 'Quốc khánh',
+    date(2026, 11, 24): 'Ngày Văn hóa Việt Nam',
+}
+NGHI_BU_2026 = {date(2026, 4, 27): 'Nghỉ bù ngày nghỉ tuần trùng Giỗ Tổ'}
+
+
+def lich_du_kien(ngay):
+    """Lịch TVT 2026; năm khác phải được cấu hình riêng."""
+    if ngay.year != 2026:
+        raise ValidationError('Chưa cấu hình lịch lễ cho năm này.')
+    if ngay in NGAY_LE_2026:
+        return 'holiday', Decimal(0), NGAY_LE_2026[ngay]
+    if ngay in NGHI_BU_2026:
+        return 'rest', Decimal(0), NGHI_BU_2026[ngay]
+    if ngay.weekday() >= 5:
+        return 'rest', Decimal(0), 'Nghỉ hằng tuần'
+    return 'work', Decimal(1), ''
+
+
+def lich_thang(nam, thang, ky_cong=None):
+    """Lịch thuần tính toán; ưu tiên căn cứ cũ đã lưu trong kỳ."""
+    ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
+    luu_tru = ky_cong.lich_luu_tru if ky_cong else {}
+    if not luu_tru and nam != 2026:
+        return {}
+    ket_qua = {}
+    for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
+        ngay = date(nam, thang, so_ngay)
+        cu = luu_tru.get(ngay.isoformat())
+        if cu is None and luu_tru:
+            raise ValidationError('Lịch lưu trữ chưa đầy đủ, cần kiểm tra kỳ công.')
+        loai, cong, ghi_chu = cu if cu is not None else lich_du_kien(ngay)
+        ket_qua[ngay] = SimpleNamespace(ngay=ngay, loai_ngay=loai,
+                                       cong_chuan=Decimal(str(cong)), ghi_chu=ghi_chu)
+    return ket_qua
+
+
+def cong_chuan_thang(ky_cong):
+    return sum((ngay.cong_chuan for ngay in lich_thang(
+        ky_cong.nam, ky_cong.thang, ky_cong,
+    ).values()), KHONG)
+
+
+def luu_can_cu_lich(ky_cong, ds_ngay):
+    """Cố định lịch khi duyệt lần đầu để đổi cấu hình không đổi lịch sử."""
+    if not ky_cong.lich_luu_tru:
+        ky_cong.lich_luu_tru = {
+            lich.ngay.isoformat(): [lich.loai_ngay, str(lich.cong_chuan), lich.ghi_chu]
+            for lich in ds_ngay
+        }
+        ky_cong.save(update_fields=['can_cu_cong'])
 
 
 def tinh_so_gio(ngay, gio_bat_dau, gio_ket_thuc):
@@ -32,10 +95,10 @@ def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
             or ban_ghi.gio_ra <= ban_ghi.gio_vao or ban_ghi.ngay < ban_ghi.nhan_vien.hire_date):
         return ket_qua
 
-    ky_cong = ky_cong or KyCong.objects.filter(
+    ky_cong = ky_cong or PayrollPeriod.objects.filter(
         nam=ban_ghi.ngay.year, thang=ban_ghi.ngay.month,
     ).first()
-    lich_ngay = lich_ngay or LichLamViec.objects.filter(ngay=ban_ghi.ngay).first()
+    lich_ngay = lich_ngay or lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     if not ky_cong or not lich_ngay:
         ket_qua['error'] = 'Thiếu cấu hình kỳ công hoặc lịch ngày để xác định OT.'
         return ket_qua
@@ -66,16 +129,13 @@ def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
 
 def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
     """Lấy OT trong tháng và cảnh báo tổng giờ tăng ca theo tháng/năm."""
-    ky_cong = KyCong.objects.filter(nam=nam, thang=thang).first()
-    lich_thang = {
-        lich.ngay: lich
-        for lich in LichLamViec.objects.filter(ngay__year=nam, ngay__month=thang)
-    }
+    ky_cong = PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
+    lich_cua_thang = lich_thang(nam, thang, ky_cong)
     danh_sach = []
     for ban_ghi in ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=nam, ngay__month=thang,
     ).select_related('nhan_vien').order_by('ngay'):
-        tang_ca = tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay))
+        tang_ca = tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_cua_thang.get(ban_ghi.ngay))
         if tang_ca['error']:
             raise ValidationError(f"{ban_ghi.ngay}: {tang_ca['error']}")
         if tang_ca['hours']:
@@ -83,8 +143,8 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
 
     tong_gio_thang = sum((tang_ca['hours'] for tang_ca in danh_sach), KHONG)
     tong_gio_nam = KHONG
-    cac_ky_cong = {(ky.nam, ky.thang): ky for ky in KyCong.objects.filter(nam=nam)}
-    lich_nam = {lich.ngay: lich for lich in LichLamViec.objects.filter(ngay__year=nam)}
+    cac_ky_cong = {(ky.nam, ky.thang): ky for ky in PayrollPeriod.objects.filter(nam=nam)}
+    lich_nam = {ngay: lich for ky in cac_ky_cong.values() for ngay, lich in lich_thang(nam, ky.thang, ky).items()}
     for ban_ghi in ChamCong.objects.filter(nhan_vien=nhan_vien, ngay__year=nam).select_related('nhan_vien'):
         tong_gio_nam += tinh_tang_ca_tu_dong(
             ban_ghi, cac_ky_cong.get((nam, ban_ghi.ngay.month)), lich_nam.get(ban_ghi.ngay),
@@ -96,15 +156,19 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
     return danh_sach
 
 
-def tinh_cong_ngay(ban_ghi, ky_cong):
-    """Tính giờ làm trong ca, phút trễ, công hưởng lương và OT của một ngày."""
-    ban_ghi.full_clean()
-    lich_ngay = LichLamViec.objects.filter(ngay=ban_ghi.ngay).first()
+def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
+    """Tính trong bộ nhớ; không ghi công ngày vào database."""
+    ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=ban_ghi.ngay.year, thang=ban_ghi.ngay.month).first()
+    if not ky_cong:
+        raise ValidationError('Chưa cấu hình tháng chấm công.')
+    lich_ngay = lich_ngay or lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     if lich_ngay is None:
         raise ValidationError('Chưa cấu hình lịch cho ngày này.')
-    ban_ghi.so_gio_lam = Decimal(0)
-    ban_ghi.cong_thuc_te = Decimal(0)
-    ban_ghi.so_phut_tre = 0
+    da_chot = ky_cong.can_cu_cong.get('cong_ngay_da_chot', {}).get(str(ban_ghi.pk))
+    if da_chot:
+        return {'hours': Decimal(ban_ghi.so_gio_lam), 'actual': Decimal(da_chot['actual']),
+                'leave': Decimal(da_chot['leave']), 'late': ban_ghi.so_phut_tre}
+    ket_qua = {'hours': KHONG, 'actual': KHONG, 'leave': KHONG, 'late': 0}
     if ban_ghi.gio_vao and ban_ghi.gio_ra:
         thoi_diem = lambda gio: datetime.combine(ban_ghi.ngay, gio)
         bat_dau = max(thoi_diem(ban_ghi.gio_vao), thoi_diem(ky_cong.gio_bat_dau))
@@ -115,20 +179,41 @@ def tinh_cong_ngay(ban_ghi, ky_cong):
             - max(bat_dau, thoi_diem(ky_cong.bat_dau_nghi_trua))
         ).total_seconds()))
         if lich_ngay.loai_ngay == 'work':
-            ban_ghi.so_gio_lam = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
-            ban_ghi.cong_thuc_te = min(lich_ngay.cong_chuan, ban_ghi.so_gio_lam / ky_cong.gio_chuan)
+            ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
+            ket_qua['actual'] = min(lich_ngay.cong_chuan, ket_qua['hours'] / ky_cong.gio_chuan)
             # Ghi nhận phút trễ, làm tròn lên khi có giây; tiền phạt tính ở Bảng lương.
             giay_di_tre = max(0, int((thoi_diem(ban_ghi.gio_vao) - thoi_diem(ky_cong.gio_bat_dau)).total_seconds()))
-            ban_ghi.so_phut_tre = (giay_di_tre + 59) // 60
+            ket_qua['late'] = (giay_di_tre + 59) // 60
 
-    nghi_phep = LeaveDay.objects.filter(employee=ban_ghi.nhan_vien, date=ban_ghi.ngay, approved=True).first()
-    ban_ghi.cong_nghi_co_luong = nghi_phep.units if nghi_phep and nghi_phep.paid else Decimal(0)
-    if nghi_phep and ban_ghi.cong_thuc_te + nghi_phep.units > lich_ngay.cong_chuan:
+    if nghi_phep is None:
+        nghi_phep = LeaveDay.objects.filter(employee_id=ban_ghi.nhan_vien_id, date=ban_ghi.ngay, approved=True).first()
+    ket_qua['leave'] = nghi_phep.units if nghi_phep and nghi_phep.paid else KHONG
+    if nghi_phep and ket_qua['actual'] + nghi_phep.units > lich_ngay.cong_chuan:
         raise ValidationError('Công thực tế và nghỉ phép vượt công chuẩn ngày; cần kiểm tra dữ liệu.')
-    ban_ghi.tong_cong = ban_ghi.cong_thuc_te + ban_ghi.cong_nghi_co_luong
     if ban_ghi.trang_thai == 'leave' and not nghi_phep:
         raise ValidationError('Chưa có nghỉ phép được duyệt cho ngày này.')
-    for truong in ['so_gio_lam', 'cong_thuc_te', 'cong_nghi_co_luong', 'tong_cong']:
-        setattr(ban_ghi, truong, getattr(ban_ghi, truong).quantize(Decimal('0.0001')))
+    for truong in ['hours', 'actual', 'leave']:
+        ket_qua[truong] = ket_qua[truong].quantize(Decimal('0.0001'))
+    return ket_qua
+
+
+def nap_cong_ngay(ds_ban_ghi, ky_cong, lich=None):
+    """Nạp nguồn nghỉ phép một lần cho cả tháng, dùng lại khi hiển thị/tính lương."""
+    lich = lich if lich is not None else lich_thang(ky_cong.nam, ky_cong.thang, ky_cong)
+    ds_phep = {(phep.employee_id, phep.date): phep for phep in LeaveDay.objects.filter(
+        employee_id__in={r.nhan_vien_id for r in ds_ban_ghi},
+        date__year=ky_cong.nam, date__month=ky_cong.thang, approved=True)}
+    for r in ds_ban_ghi:
+        r._ket_qua_cong = ket_qua_cong_ngay(r, ky_cong, lich.get(r.ngay), ds_phep.get((r.nhan_vien_id, r.ngay), False))
+
+
+def tinh_cong_ngay(ban_ghi, ky_cong):
+    """Kiểm tra dữ liệu một lần trước khi tính giờ làm, phút trễ và tăng ca."""
+    ban_ghi.full_clean()
+    ket_qua = ket_qua_cong_ngay(ban_ghi, ky_cong)
+    ban_ghi._ket_qua_cong = ket_qua
+    ban_ghi.so_gio_lam = ket_qua['hours']
+    ban_ghi.so_phut_tre = ket_qua['late']
+    lich_ngay = lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     ban_ghi.so_gio_tang_ca = tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_ngay)['hours']
     return ban_ghi

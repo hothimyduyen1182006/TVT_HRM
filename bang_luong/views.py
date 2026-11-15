@@ -39,8 +39,8 @@ def danh_sach_bang_luong(request):
             dong.approval_error = loi_duyet_luong(dong) if dong.trang_thai == 'pending' else ''
     ky_luong = None
     if bieu_mau.is_valid():
-        ky_luong = PayrollPeriod.objects.filter(attendance_period__thang=bieu_mau.cleaned_data['month'],
-                                               attendance_period__nam=bieu_mau.cleaned_data['year']).first()
+        ky_luong = PayrollPeriod.objects.filter(thang=bieu_mau.cleaned_data['month'],
+                                               nam=bieu_mau.cleaned_data['year']).first()
     ngu_canh = {'form': bieu_mau, 'rows': ds_dong, 'period': ky_luong,
                   'has_approved_records': ky_luong.records.filter(trang_thai='approved').exists() if ky_luong else False,
                   'month_label': str(bieu_mau['month'].value()).zfill(2), 'year_label': bieu_mau['year'].value(),
@@ -53,8 +53,8 @@ def luong_ca_nhan(request):
     bieu_mau = BoLocPhieuLuong(request.GET)
     dong = None
     if bieu_mau.is_valid():
-        dong = phieu_luong_ca_nhan(request.user).filter(ky_luong__attendance_period__thang=bieu_mau.cleaned_data['month'],
-            ky_luong__attendance_period__nam=bieu_mau.cleaned_data['year']).first()
+        dong = phieu_luong_ca_nhan(request.user).filter(ky_luong__thang=bieu_mau.cleaned_data['month'],
+            ky_luong__nam=bieu_mau.cleaned_data['year']).first()
     ngu_canh = du_lieu_hien_thi_luong(dong) if dong else {}
     ngu_canh.update({'form': bieu_mau, 'row': dong, 'personal': True,
                     'month_label': str(bieu_mau['month'].value()).zfill(2), 'year_label': bieu_mau['year'].value(),
@@ -65,7 +65,7 @@ def luong_ca_nhan(request):
 @login_required
 def chi_tiet_luong(request, pk):
     co_quyen_xem_nhom = has_role(request.user, HR, DIRECTOR, MANAGER)
-    truy_van = Luong.objects.select_related('ky_luong__attendance_period').filter(
+    truy_van = Luong.objects.select_related('ky_luong').filter(
         nhan_vien__in=visible_employees(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
     dong = get_object_or_404(phieu_luong_du_cong_duyet(truy_van), pk=pk)
     ky_luong = dong.ky_luong.attendance_period
@@ -80,7 +80,7 @@ def chi_tiet_luong(request, pk):
 @require_POST
 def duyet_luong_nhan_vien(request, pk):
     require_role(request.user, DIRECTOR)
-    dong = get_object_or_404(Luong.objects.select_related('ky_luong__attendance_period'), pk=pk,
+    dong = get_object_or_404(Luong.objects.select_related('ky_luong'), pk=pk,
                             nhan_vien__in=visible_employees(request.user))
     try:
         duyet_phieu_luong(request.user, dong.pk)
@@ -96,7 +96,7 @@ def duyet_luong_nhan_vien(request, pk):
 @require_POST
 def doi_trang_thai_ky_luong(request, pk):
     require_role(request.user, HR, DIRECTOR)
-    ky_luong = get_object_or_404(PayrollPeriod.objects.select_related('attendance_period'), pk=pk)
+    ky_luong = get_object_or_404(PayrollPeriod.objects.select_related(), pk=pk)
     try:
         action = request.POST.get('action')
         if action == 'calculate':

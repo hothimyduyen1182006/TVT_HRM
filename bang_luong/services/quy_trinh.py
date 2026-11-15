@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.utils import timezone
-from bang_cong.models import KyCong
+from bang_luong.models import PayrollPeriod as KyCong
 from nhan_vien.access import require_role, HR, DIRECTOR
 from bang_luong.models import PayrollPeriod, PayrollAuditLog, Luong
 from .tinh_toan import chup_du_lieu_luong, du_lieu_tinh_luong, doi_chieu_chi_tiet_cu
@@ -64,7 +64,7 @@ def loi_duyet_luong(record, period=None, attendance=None):
         return loi
     period = period or record.ky_luong
     attendance = attendance or period.attendance_period
-    approval = attendance.employee_approvals.filter(nhan_vien_id=record.nhan_vien_id).first()
+    approval = attendance.employee_approvals.filter(tong_hop__nhan_vien_id=record.nhan_vien_id).first()
     if not approval and attendance.trang_thai != 'approved':
         return 'Bảng công của nhân viên này chưa được duyệt.'
     try:
@@ -314,13 +314,13 @@ def luu_thiet_lap_luong(actor, employee, settings):
         return employee
     employee.payroll_settings={**settings,'_updated_by':actor.pk,'_updated_at':timezone.now().isoformat()}
     employee.save(update_fields=['payroll_settings'])
-    period=PayrollPeriod.objects.filter(records__nhan_vien=employee).order_by('-attendance_period__nam','-attendance_period__thang').first()
+    period=PayrollPeriod.objects.filter(records__nhan_vien=employee).order_by('-nam','-thang').first()
     if period:
         PayrollAuditLog.objects.create(period=period,actor=actor,action='employee_settings',
             reason=f'Cập nhật thiết lập tính lương dùng chung của {employee.code}',
             snapshot=[{'employee_id':employee.pk,'before':du_lieu_cu,'after':employee.payroll_settings}])
     from .tinh_toan import cap_nhat_luong_nhan_vien
-    for period in PayrollPeriod.objects.filter(status='pending').select_related('attendance_period').order_by('attendance_period_id'):
+    for period in PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk'):
         attendance=period.attendance_period
         loi=cap_nhat_luong_nhan_vien(actor,employee.pk,attendance.nam,attendance.thang)
         if loi: employee.payroll_errors.append(loi)

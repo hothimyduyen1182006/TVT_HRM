@@ -18,7 +18,8 @@ from django.views.decorators.http import require_POST
 from nhan_vien.access import visible_employees, require_role, has_role, HR, DIRECTOR, MANAGER
 from nhan_vien.models import Employee
 from .forms import ChamCongForm, BoLocBangCong
-from .models import ChamCong, KyCong
+from .models import ChamCong
+from bang_luong.models import PayrollPeriod
 from .services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong, duyet_cong_nhan_vien, cham_cong_da_khoa
 from .services.hien_thi import tong_hop_cong_thang, du_lieu_cong_thang, du_lieu_lich_su_cong, du_lieu_tang_ca
 
@@ -39,7 +40,7 @@ def danh_sach_bang_cong(request):
             ds_nhan_vien = ds_nhan_vien.filter(
                 Q(full_name__icontains=du_lieu['q']) | Q(code__icontains=du_lieu['q']),
             )
-        ky_cong = KyCong.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
+        ky_cong = PayrollPeriod.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
         if du_lieu.get('day'):
             ds_nhan_vien = ds_nhan_vien.filter(is_active=True, hire_date__lte=du_lieu['day'])
             da_cham_cong = ChamCong.objects.filter(ngay=du_lieu['day'], gio_vao__isnull=False)
@@ -108,7 +109,7 @@ def bang_cong_nhan_vien(request, employee_id, chi_xem_ban_than=False):
 def duyet_bang_cong_nhan_vien(request, employee_id, period_id):
     require_role(request.user, HR, DIRECTOR)
     nhan_vien = get_object_or_404(visible_employees(request.user), pk=employee_id)
-    ky_cong = get_object_or_404(KyCong, pk=period_id)
+    ky_cong = get_object_or_404(PayrollPeriod, pk=period_id)
     try:
         ban_chot = duyet_cong_nhan_vien(request.user, nhan_vien, ky_cong.pk)
     except ValidationError as loi:
@@ -158,7 +159,7 @@ def xuat_bang_cong(request, employee_id):
     else:
         tieu_de = [
             'Mã NV', 'Họ tên', 'Ngày', 'Giờ vào', 'Giờ ra', 'Tình trạng',
-            'Phút muộn', 'Giờ làm', 'Công hưởng lương', 'Ghi chú', 'OT tự động (giờ)',
+            'Phút muộn', 'Giờ làm', 'Công hưởng lương', 'Tăng ca (giờ)',
         ]
         gia_tri = []
         for dong in ngu_canh['rows']:
@@ -167,7 +168,7 @@ def xuat_bang_cong(request, employee_id):
                 nhan_vien.code, nhan_vien.full_name, dong['date'],
                 getattr(ban_ghi, 'gio_vao', ''), getattr(ban_ghi, 'gio_ra', ''), dong['label'],
                 getattr(ban_ghi, 'so_phut_tre', ''), getattr(ban_ghi, 'so_gio_lam', ''),
-                getattr(ban_ghi, 'tong_cong', ''), getattr(ban_ghi, 'ghi_chu', ''), dong['ot'],
+                getattr(ban_ghi, 'tong_cong', ''), dong['ot'],
             ])
     bo_ghi = csv.writer(tep_csv)
     bo_ghi.writerow(tieu_de)
@@ -206,7 +207,7 @@ def sua_cham_cong(request, pk=None):
     if request.method == 'POST' and form.is_valid():
         try:
             da_luu = luu_cham_cong(request.user, form.save(commit=False), form.cleaned_data['reason'])
-        except KyCong.DoesNotExist:
+        except PayrollPeriod.DoesNotExist:
             form.add_error(None, 'Chưa tạo kỳ công cho tháng này trong trang quản trị.')
         except ValidationError as loi:
             form.add_error(None, '; '.join(loi.messages))
@@ -222,7 +223,7 @@ def sua_cham_cong(request, pk=None):
 @require_POST
 def doi_trang_thai_ky_cong(request, pk):
     require_role(request.user, DIRECTOR)
-    ky_cong = get_object_or_404(KyCong, pk=pk)
+    ky_cong = get_object_or_404(PayrollPeriod, pk=pk)
     try:
         xu_ly_trang_thai_ky_cong(request.user, pk, request.POST.get('action'), request.POST.get('reason', ''))
     except ValidationError as loi:

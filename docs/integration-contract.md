@@ -26,8 +26,8 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 
 ## Phạm vi phần bảng công
 
-- LichLamViec: ngày làm việc/nghỉ/lễ và công chuẩn theo lịch áp dụng.
-- KyCong: tháng/năm, phạm vi áp dụng, trạng thái duyệt, người/thời gian duyệt.
+- Lịch làm việc: hàm `bang_cong.services.tinh_toan.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; căn cứ lịch sử lưu trong `PayrollPeriod.can_cu_cong`. Không còn model LichLamViec hoạt động.
+- PayrollPeriod: tháng/năm dùng chung, trạng thái công và trạng thái lương tách biệt; không còn model KyCong. Tổng hợp/chốt công liên kết tháng này; căn cứ lịch sử nằm trong PayrollPeriod.can_cu_cong.
 - ChamCong: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
   công thực tế, công nghỉ hưởng lương, công hưởng lương và ghi chú.
 - Ràng buộc database duy nhất (employee, date); kiểm tra checkout > checkin khi có cả hai.
