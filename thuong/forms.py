@@ -3,9 +3,9 @@ import re
 from django import forms
 from django.utils import timezone
 
-from nhan_vien.access import visible_employees
-from nhan_vien.filters import PeriodFilter
-from nhan_vien.models import Employee
+from nhan_vien.access import nhan_vien_duoc_hien_thi
+from nhan_vien.filters import BoLocKy
+from nhan_vien.models import NhanVien
 
 from .models import Bonus
 
@@ -27,7 +27,7 @@ class VNDField(forms.DecimalField):
         return super().to_python(normalized_value)
 
 
-class BonusFilter(PeriodFilter):
+class BonusFilter(BoLocKy):
     q = forms.CharField(
         label='Từ khóa (Họ tên)',
         required=False,
@@ -40,21 +40,21 @@ class BonusFilter(PeriodFilter):
 
     def __init__(self, user, data=None, default_current_period=False):
         super().__init__(user, data)
-        self.fields['month'].required = False
-        self.fields['year'].required = False
-        self.fields['department'].empty_label = 'Tất cả'
-        self.fields['employee'].empty_label = 'Tất cả'
-        self.fields['month'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+        self.fields['thang'].required = False
+        self.fields['nam'].required = False
+        self.fields['phong_ban'].empty_label = 'Tất cả'
+        self.fields['nhan_vien'].empty_label = 'Tất cả'
+        self.fields['thang'].widget = forms.Select(choices=[('', 'Tất cả')] + [
             (m, f'Tháng {m:02}') for m in range(1, 13)
         ])
-        self.fields['year'].widget = forms.Select(choices=[('', 'Tất cả')] + [
+        self.fields['nam'].widget = forms.Select(choices=[('', 'Tất cả')] + [
             (y, f'Năm {y}') for y in range(2000, timezone.localdate().year + 2)
         ])
         if not default_current_period:
-            if not data or 'month' not in data:
-                self.data['month'] = ''
-            if not data or 'year' not in data:
-                self.data['year'] = ''
+            if not data or not ('thang' in data or 'month' in data):
+                self.data['thang'] = ''
+            if not data or not ('nam' in data or 'year' in data):
+                self.data['nam'] = ''
 
 
 class PersonalBonusFilter(forms.Form):
@@ -83,7 +83,7 @@ class PersonalBonusFilter(forms.Form):
 class BonusProposalForm(forms.Form):
     month = forms.IntegerField(label='Tháng', min_value=1, max_value=12)
     year = forms.IntegerField(label='Năm', min_value=2000, max_value=2100)
-    employee = forms.ModelChoiceField(label='Nhân viên', queryset=Employee.objects.none())
+    employee = forms.ModelChoiceField(label='Nhân viên', queryset=NhanVien.objects.none())
     name = forms.CharField(label='Tên khoản thưởng khác', max_length=100, required=False)
     reason = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea(attrs={'rows': 3}), required=False)
     amount = VNDField(
@@ -96,9 +96,9 @@ class BonusProposalForm(forms.Form):
 
     def __init__(self, user, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['employee'].queryset = visible_employees(user).filter(is_active=True)
+        self.fields['employee'].queryset = nhan_vien_duoc_hien_thi(user).filter(dang_hoat_dong=True)
         self.fields['employee'].label_from_instance = (
-            lambda item: f'{item.code} · {item.full_name} · {item.department.name}'
+            lambda item: f'{item.ma_ho_so} · {item.ho_va_ten} · {item.phong_ban.ten_phong_ban}'
         )
         self.fields['employee'].empty_label = 'Chọn nhân viên'
         self.fields['name'].widget.attrs['placeholder'] = 'Ví dụ: Thưởng dự án'

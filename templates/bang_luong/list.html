@@ -1,4 +1,4 @@
-{% extends 'payroll/base.html' %}{% load payroll_display %}
+{% extends 'bang_luong/base.html' %}{% load payroll_display %}
 {% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' %}{% endblock %}
 {% block title %}Bảng lương chính · TVT{% endblock %}
 {% block payroll_content %}
@@ -6,12 +6,12 @@
 <h1 class="pr-title pr-main-title">BẢNG LƯƠNG CHÍNH</h1>
 <form class="pr-filter" method="get">
  <div class="pr-field pr-keyword">{{ form.q.label_tag }}{{ form.q }}</div>
- <div class="pr-field">{{ form.department.label_tag }}{{ form.department }}</div>
+ <div class="pr-field">{{ form.phong_ban.label_tag }}{{ form.phong_ban }}</div>
  <div class="pr-field">{{ form.status.label_tag }}{{ form.status }}</div>
- <div class="pr-field pr-short">{{ form.month.label_tag }}{{ form.month }}</div>
- <div class="pr-field pr-short">{{ form.year.label_tag }}{{ form.year }}</div>
+ <div class="pr-field pr-short">{{ form.thang.label_tag }}{{ form.thang }}</div>
+ <div class="pr-field pr-short">{{ form.nam.label_tag }}{{ form.nam }}</div>
  <button class="pr-button" type="submit">Lọc</button>
- {% if form.employee.value %}<input type="hidden" name="employee" value="{{ form.employee.value }}">{% endif %}
+ {% if form.nhan_vien.value %}<input type="hidden" name="employee" value="{{ form.nhan_vien.value }}">{% endif %}
  {% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}
 </form>
 {% if can_manage %}<div class="pr-actions">
@@ -31,9 +31,9 @@
  <td class="{% if row.thue_tncn %}pr-deduct{% else %}pr-muted{% endif %} pr-money">{% if row.thue_tncn %}− {% endif %}{{ row.thue_tncn|money }}</td>
  <td class="pr-net-cell pr-money">{{ row.luong_thuc_linh|money }}</td><td class="pr-status pr-status-{{ row.trang_thai }}">{{ row.get_trang_thai_display }}</td>
  {% if director %}<td>{% if row.trang_thai == 'pending' %}<form method="post" action="{% url 'bang_luong:employee-approve' row.pk %}">{% csrf_token %}<button class="pr-button pr-approve-record" type="submit">Duyệt bảng lương</button></form>{% else %}<span class="pr-muted">{{ row.get_trang_thai_display }}</span>{% endif %}</td>{% endif %}
-</tr>{% empty %}<tr><td colspan="{% if director %}12{% else %}11{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'payroll/empty_icon.html' %}
+</tr>{% empty %}<tr><td colspan="{% if director %}12{% else %}11{% endif %}" class="pr-empty-table"><div class="pr-empty-content">{% include 'bang_luong/empty_icon.html' %}
  <h2>CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG</h2>
- {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Chọn kỳ lương khác hoặc hoàn thiện công đã duyệt và căn cứ tính lương để hệ thống tự cập nhật.</p>{% if form.q.value or form.department.value or form.status.value or form.employee.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
+ {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Chọn kỳ lương khác hoặc hoàn thiện công đã duyệt và căn cứ tính lương để hệ thống tự cập nhật.</p>{% if form.q.value or form.phong_ban.value or form.status.value or form.nhan_vien.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
 </div></td></tr>{% endfor %}
 </tbody></table></div>
 {% if rows %}<p class="pr-table-note">Bảo hiểm và thuế TNCN đã được trừ khi tính lương thực lĩnh. Các khoản thành phần được trình bày trong phiếu chi tiết; không tự tính tiền phạt từ thời gian đi trễ.</p>{% endif %}

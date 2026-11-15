@@ -9,7 +9,7 @@ from bang_luong.models import Luong, PayrollAuditLog, PayrollPeriod
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponse
-from nhan_vien.access import require_role, HR, DIRECTOR
+from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 
 
 def phieu_luong_du_cong_duyet(queryset):
@@ -93,7 +93,7 @@ def o_du_lieu_an_toan(value):
 
 @transaction.atomic
 def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope):
-    require_role(actor, HR, DIRECTOR)
+    yeu_cau_vai_tro(actor, NHAN_SU, GIAM_DOC)
     if queryset.exclude(pk__in=phieu_luong_du_cong_duyet(queryset).values('pk')).exists():
         raise ValidationError('Bảng công chưa duyệt, không được xuất phiếu lương.')
     if fmt not in ['csv', 'json', 'txt']:

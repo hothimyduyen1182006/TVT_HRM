@@ -128,9 +128,9 @@
             <tr>
               <td>{{ forloop.counter }}</td>
               {% if manage_view %}
-                <td class="leave-management-code">{{ item.employee.code }}</td>
-                <td class="leave-management-name">{{ item.employee.full_name }}</td>
-                <td class="leave-management-department">{{ item.employee.department.name }}</td>
+                <td class="leave-management-code">{{ item.employee.ma_ho_so }}</td>
+                <td class="leave-management-name">{{ item.employee.ho_va_ten }}</td>
+                <td class="leave-management-department">{{ item.employee.phong_ban.ten_phong_ban }}</td>
                 <td>{{ item.get_leave_type_display }}</td>
               {% else %}
                 <td>{{ item.Ngay_bat_dau|date:'d/m/Y' }}</td>

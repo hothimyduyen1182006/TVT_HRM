@@ -14,20 +14,20 @@ class OctoberDemoTests(TestCase):
         call_command('seed_demo', year=2026, month=10, reuse_users=True, stdout=StringIO())
         user.refresh_from_db()
         self.assertEqual(user.password, password_hash)
-        self.assertEqual(user.employee.user_id, user.pk)
+        self.assertEqual(user.employee.nguoi_dung_id, user.pk)
         self.assertEqual(list(KyCong.objects.values_list('thang', flat=True)), [10])
         self.assertFalse(ChamCong.objects.exclude(ngay__month=10).exists())
         self.assertEqual(Luong.objects.count(), 8)
         self.assertEqual(User.objects.filter(username='demo_hr').count(), 1)
 
     def test_shared_dataset_is_complete_and_reset_preserves_accounts(self):
-        from nhan_vien.models import Employee, LaborContract
+        from nhan_vien.models import NhanVien, HopDongLaoDong
         from nghi_phep.models import LeaveRequest
         user = User.objects.create_user('existing-admin', password='KeepExistingPassword', is_superuser=True)
         old_hash = user.password
         call_command('seed_october', stdout=StringIO())
-        self.assertEqual(Employee.objects.exclude(gender__in=['Nam', 'Nữ']).count(), 0)
-        self.assertEqual(LaborContract.objects.count(), 8)
+        self.assertEqual(NhanVien.objects.exclude(gioi_tinh__in=['Nam', 'Nữ']).count(), 0)
+        self.assertEqual(HopDongLaoDong.objects.count(), 8)
         self.assertEqual(LeaveRequest.objects.count(), 5)
         self.assertEqual(ChamCong.objects.count(), 176)
         self.assertEqual(Luong.objects.count(), 8)

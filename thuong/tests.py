@@ -8,15 +8,15 @@ from django.urls import reverse
 from django.utils import timezone
 
 from bang_cong.models import KyCong, ChamCong, LichLamViec
-from nhan_vien.models import Department, Employee
+from nhan_vien.models import PhongBan, NhanVien
 from .models import Bonus
 
 
 class AutomaticBonusPostTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        department = Department.objects.create(code='BA', name='Phòng A')
-        other_department = Department.objects.create(code='BB', name='Phòng B')
+        department = PhongBan.objects.create(ma_phong_ban='BA', ten_phong_ban='Phòng A')
+        other_department = PhongBan.objects.create(ma_phong_ban='BB', ten_phong_ban='Phòng B')
         cls.people = {}
         for name, room, role in [
             ('employee', department, 'Nhân viên'),
@@ -25,10 +25,10 @@ class AutomaticBonusPostTests(TestCase):
         ]:
             user = get_user_model().objects.create_user(name)
             user.groups.add(Group.objects.get_or_create(name=role)[0])
-            cls.people[name] = Employee.objects.create(user=user, code=name,
-                full_name=name, department=room, hire_date=date(2020, 1, 1), base_salary=10000000)
-        department.manager = cls.people['manager']
-        department.save(update_fields=['manager'])
+            cls.people[name] = NhanVien.objects.create(nguoi_dung=user, ma_ho_so=name,
+                ho_va_ten=name, phong_ban=room, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000)
+        department.truong_phong = cls.people['manager']
+        department.save(update_fields=['truong_phong'])
         cls.hr = get_user_model().objects.create_user('hr')
         cls.hr.groups.add(Group.objects.get_or_create(name='Nhân sự')[0])
         cls.director = get_user_model().objects.create_user('director')
@@ -62,7 +62,7 @@ class AutomaticBonusPostTests(TestCase):
             approved_at=timezone.now() if status == 'approved' else None)
 
     def test_get_list_only_hr_references_sources(self):
-        for user in [self.people['employee'].user, self.people['manager'].user, self.director]:
+        for user in [self.people['employee'].nguoi_dung, self.people['manager'].nguoi_dung, self.director]:
             with self.subTest(user=user.username):
                 self.client.force_login(user)
                 response = self.client.get(self.list_url, {'month': 1, 'year': 2026})
@@ -116,7 +116,7 @@ class AutomaticBonusPostTests(TestCase):
         self.assertFalse(Bonus.objects.exists())
 
     def test_employee_manager_and_director_cannot_calculate_as_hr(self):
-        for user in [self.people['employee'].user, self.people['manager'].user, self.director]:
+        for user in [self.people['employee'].nguoi_dung, self.people['manager'].nguoi_dung, self.director]:
             self.client.force_login(user)
             self.assertEqual(self.post().status_code, 403)
             self.assertFalse(Bonus.objects.exists())

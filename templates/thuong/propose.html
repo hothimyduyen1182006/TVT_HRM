@@ -101,7 +101,7 @@
         {% for row in history %}
         <tr>
           <td data-label="STT">{{ forloop.counter }}</td>
-          <td data-label="Nhân viên" class="fw-semibold">{{ row.employee.full_name }}</td>
+          <td data-label="Nhân viên" class="fw-semibold">{{ row.employee.ho_va_ten }}</td>
           <td data-label="Kỳ">{{ row.month|stringformat:'02d' }}/{{ row.year }}</td>
           <td data-label="Khoản thưởng" class="fw-semibold">{{ row.name }}</td>
           <td data-label="Lý do đề xuất" class="history-reason">{{ row.reason }}</td>

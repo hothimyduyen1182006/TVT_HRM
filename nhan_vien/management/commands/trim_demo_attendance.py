@@ -66,6 +66,6 @@ class Command(BaseCommand):
         count = records.count()
         records.delete()
         # Các khoản nghỉ/OT tạo bởi bộ demo cho ngày tương lai cũng cần gỡ.
-        LeaveDay.objects.filter(employee__code__startswith='DEMO-', date__gte=cutoff,
+        LeaveDay.objects.filter(employee__ma_ho_so__startswith='DEMO-', date__gte=cutoff,
                                 reason__startswith='DEMO:').delete()
         self.stdout.write(self.style.SUCCESS(f'Removed {count} demo attendance records from {cutoff}.'))

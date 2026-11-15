@@ -105,20 +105,20 @@ class AttendanceSchemaMigrationTests(TransactionTestCase):
 
     def test_existing_data_is_transferred_and_backfill_is_idempotent(self):
         executor = MigrationExecutor(connection)
-        executor.migrate(self.migrate_from)
+        executor.migrate([('employees', '0005_shared_salary_settings'), *self.migrate_from])
         apps = executor.loader.project_state(self.migrate_from).apps
         try:
             User = apps.get_model('auth', 'User')
-            Employee = apps.get_model('employees', 'Employee')
-            Department = apps.get_model('employees', 'Department')
+            NhanVien = apps.get_model('employees', 'Employee')
+            PhongBan = apps.get_model('employees', 'Department')
             Period = apps.get_model('attendance', 'AttendancePeriod')
             Record = apps.get_model('attendance', 'AttendanceRecord')
             Audit = apps.get_model('attendance', 'AttendanceAuditLog')
             Approval = apps.get_model('attendance', 'EmployeeAttendanceApproval')
             Day = apps.get_model('attendance', 'WorkCalendarDay')
             user = User.objects.create(username='migration-user')
-            department = Department.objects.create(code='MIG', name='Migration')
-            employee = Employee.objects.create(user_id=user.pk, code='MIG-01', full_name='Migration',
+            department = PhongBan.objects.create(code='MIG', name='Migration')
+            employee = NhanVien.objects.create(user_id=user.pk, code='MIG-01', full_name='Migration',
                 department_id=department.pk, hire_date=date(2020, 1, 1), base_salary=10000000)
             period = Period.objects.create(year=2026, month=10, start_time=time(8), lunch_start=time(12),
                 lunch_end=time(13), end_time=time(17), standard_hours=8, status='approved')

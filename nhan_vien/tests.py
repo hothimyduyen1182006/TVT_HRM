@@ -2,7 +2,7 @@ from io import StringIO
 from django.contrib.auth import get_user_model
 from django.core.management import call_command, CommandError
 from django.test import TestCase
-from nhan_vien.models import Employee
+from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_cong.models import KyCong
 from bang_luong.models import PayrollPeriod, Luong
@@ -16,7 +16,7 @@ class DemoDataTests(TestCase):
         call_command('seed_demo', year=2026, password='OnlyForDemoTest@2026', stdout=cls.output)
 
     def test_periods_sources_and_scope(self):
-        self.assertEqual(Employee.objects.count(), 8)
+        self.assertEqual(NhanVien.objects.count(), 8)
         states = dict(PayrollPeriod.objects.values_list('attendance_period__thang', 'status'))
         self.assertEqual(states, {9: 'approved', 10: 'paid', 11: 'pending'})
         self.assertEqual(KyCong.objects.get(nam=2026, thang=11).trang_thai, 'pending')
@@ -63,7 +63,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(response.context['page_obj'].paginator.count, 8)
         self.assertEqual(len(response.context['rows']), 5)
         self.assertContains(response, 'aria-current="page">BẢNG THƯỞNG</a>')
-        LeaveRequest.objects.create(employee=Employee.objects.get(code='DEMO-NV01'),
+        LeaveRequest.objects.create(employee=NhanVien.objects.get(ma_ho_so='DEMO-NV01'),
             Ngay_bat_dau='2026-09-10', Ngay_ket_thuc='2026-09-10', Ly_do='Test leave request')
         response = self.client.get('/nghi_phep/?month=9&year=2026')
         self.assertEqual(response.status_code, 200)
@@ -83,11 +83,11 @@ class DemoDataTests(TestCase):
         bonuses = self.client.get('/thuong/')
         self.assertEqual(bonuses.status_code, 200)
         self.assertTrue(bonuses.context['personal'])
-        self.assertTrue(all(row['employee'].user_id == employee.pk for row in bonuses.context['rows']))
+        self.assertTrue(all(row['employee'].nguoi_dung_id == employee.pk for row in bonuses.context['rows']))
         leaves = self.client.get('/nghi_phep/')
         self.assertEqual(leaves.status_code, 200)
         self.assertFalse(leaves.context['manage_view'])
-        self.assertFalse(leaves.context['requests'].exclude(employee__user=employee).exists())
+        self.assertFalse(leaves.context['requests'].exclude(employee__nguoi_dung=employee).exists())
 
     def test_hr_has_full_navigation_without_director_or_admin_privileges(self):
         hr = get_user_model().objects.get(username='demo_hr')
@@ -113,4 +113,4 @@ class DemoCollisionTests(TestCase):
             call_command('seed_demo', stdout=StringIO())
         user.refresh_from_db()
         self.assertEqual(user.password, password_hash)
-        self.assertEqual(Employee.objects.count(), 0)
+        self.assertEqual(NhanVien.objects.count(), 0)

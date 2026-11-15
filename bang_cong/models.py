@@ -52,7 +52,7 @@ class ChamCong(models.Model):
     class Meta:
         # Tên bảng thực tế và thứ tự mặc định: ngày mới trước, rồi mã nhân viên.
         db_table = 'Cham_cong'
-        ordering = ['-ngay', 'nhan_vien__code']
+        ordering = ['-ngay', 'nhan_vien__ma_ho_so']
         constraints = [
             # Mỗi nhân viên chỉ có một bản ghi cho một ngày.
             models.UniqueConstraint(
@@ -141,7 +141,7 @@ class TongHopCong(models.Model):
     )
     # Nhân viên được tổng hợp; nhân viên.attendance_summaries.all() lấy lịch sử tổng hợp.
     nhan_vien = models.ForeignKey(
-        'employees.Employee', on_delete=models.CASCADE,
+        'employees.NhanVien', on_delete=models.CASCADE,
         related_name='attendance_summaries',
         db_column='Ma_nhan_vien',
     )

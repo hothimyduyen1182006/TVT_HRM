@@ -40,15 +40,15 @@
   "employees": [
     {
       "code": "NV01",
-      "full_name": "Hồ Thị Mỹ Duyên",
-      "gender": "Nữ",
-      "date_of_birth": "2000-03-15",
-      "phone": "0905123401",
-      "address": "25 Nguyễn Văn Linh, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "10000000.00",
+      "ho_va_ten": "Hồ Thị Mỹ Duyên",
+      "gioi_tinh": "Nữ",
+      "ngay_sinh": "2000-03-15",
+      "so_dien_thoai": "0905123401",
+      "dia_chi": "25 Nguyễn Văn Linh, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "10000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "hothimyduyen",
       "first_name": "Hồ Thị Mỹ",
       "last_name": "Duyên",
@@ -60,41 +60,41 @@
       "department_code": "MKT",
       "position": {
         "name": "Nhân viên Marketing",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV01-2022",
-          "degree": "Cử nhân Marketing (xếp loại Khá)",
-          "major": "Marketing",
-          "school": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
-          "graduation_year": 2022
+          "bang_cap": "Cử nhân Marketing (xếp loại Khá)",
+          "chuyen_nganh": "Marketing",
+          "truong_hoc": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
+          "nam_tot_nghiep": 2022
         }
       ],
       "contracts": [
         {
           "code": "HD-NV01-2025",
           "number": "01/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "10000000",
+          "luong_thoa_thuan": "10000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV02",
-      "full_name": "Đoàn Thị Trà My",
-      "gender": "Nữ",
-      "date_of_birth": "1999-08-12",
-      "phone": "0905123402",
-      "address": "18 Trường Chinh, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "8000000.00",
+      "ho_va_ten": "Đoàn Thị Trà My",
+      "gioi_tinh": "Nữ",
+      "ngay_sinh": "1999-08-12",
+      "so_dien_thoai": "0905123402",
+      "dia_chi": "18 Trường Chinh, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "8000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "quanlyphongban",
       "first_name": "Đoàn Thị Trà",
       "last_name": "My",
@@ -106,41 +106,41 @@
       "department_code": "SX",
       "position": {
         "name": "Nhân viên sản xuất",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV02-2020",
-          "degree": "Cao đẳng Công nghệ kỹ thuật cơ khí (xếp loại Xuất sắc)",
-          "major": "Công nghệ kỹ thuật cơ khí",
-          "school": "Trường Cao đẳng Công nghệ Đà Nẵng",
-          "graduation_year": 2020
+          "bang_cap": "Cao đẳng Công nghệ kỹ thuật cơ khí (xếp loại Xuất sắc)",
+          "chuyen_nganh": "Công nghệ kỹ thuật cơ khí",
+          "truong_hoc": "Trường Cao đẳng Công nghệ Đà Nẵng",
+          "nam_tot_nghiep": 2020
         }
       ],
       "contracts": [
         {
           "code": "HD-NV02-2025",
           "number": "02/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "8000000",
+          "luong_thoa_thuan": "8000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV03",
-      "full_name": "Lê Duy",
-      "gender": "Nam",
-      "date_of_birth": "1998-06-20",
-      "phone": "0905123403",
-      "address": "42 Tôn Đức Thắng, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "8500000.00",
+      "ho_va_ten": "Lê Duy",
+      "gioi_tinh": "Nam",
+      "ngay_sinh": "1998-06-20",
+      "so_dien_thoai": "0905123403",
+      "dia_chi": "42 Tôn Đức Thắng, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "8500000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "leduy",
       "first_name": "Lê",
       "last_name": "Duy",
@@ -152,41 +152,41 @@
       "department_code": "SX",
       "position": {
         "name": "Nhân viên sản xuất",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV03-2019",
-          "degree": "Cao đẳng Công nghệ kỹ thuật cơ khí (xếp loại Khá)",
-          "major": "Công nghệ kỹ thuật cơ khí",
-          "school": "Trường Cao đẳng Công nghệ Đà Nẵng",
-          "graduation_year": 2019
+          "bang_cap": "Cao đẳng Công nghệ kỹ thuật cơ khí (xếp loại Khá)",
+          "chuyen_nganh": "Công nghệ kỹ thuật cơ khí",
+          "truong_hoc": "Trường Cao đẳng Công nghệ Đà Nẵng",
+          "nam_tot_nghiep": 2019
         }
       ],
       "contracts": [
         {
           "code": "HD-NV03-2025",
           "number": "03/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "8500000",
+          "luong_thoa_thuan": "8500000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV04",
-      "full_name": "Phạm Nhi",
-      "gender": "Nữ",
-      "date_of_birth": "2001-11-10",
-      "phone": "0905123404",
-      "address": "56 Lê Duẩn, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "12000000.00",
+      "ho_va_ten": "Phạm Nhi",
+      "gioi_tinh": "Nữ",
+      "ngay_sinh": "2001-11-10",
+      "so_dien_thoai": "0905123404",
+      "dia_chi": "56 Lê Duẩn, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "12000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "phamnhi",
       "first_name": "Phạm",
       "last_name": "Nhi",
@@ -198,41 +198,41 @@
       "department_code": "TK",
       "position": {
         "name": "Nhân viên thiết kế nội thất",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV04-2023",
-          "degree": "Cử nhân Thiết kế nội thất (xếp loại Giỏi)",
-          "major": "Thiết kế nội thất",
-          "school": "Trường Đại học Kiến trúc Đà Nẵng",
-          "graduation_year": 2023
+          "bang_cap": "Cử nhân Thiết kế nội thất (xếp loại Giỏi)",
+          "chuyen_nganh": "Thiết kế nội thất",
+          "truong_hoc": "Trường Đại học Kiến trúc Đà Nẵng",
+          "nam_tot_nghiep": 2023
         }
       ],
       "contracts": [
         {
           "code": "HD-NV04-2025",
           "number": "04/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "12000000",
+          "luong_thoa_thuan": "12000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV05",
-      "full_name": "Lê Thị Yến Nhi",
-      "gender": "Nữ",
-      "date_of_birth": "2006-10-29",
-      "phone": "0362685364",
-      "address": "39 Khuê Mỹ Đông 4, Đà Nẵng",
-      "hire_date": "2026-09-01",
-      "base_salary": "15000000.00",
+      "ho_va_ten": "Lê Thị Yến Nhi",
+      "gioi_tinh": "Nữ",
+      "ngay_sinh": "2006-10-29",
+      "so_dien_thoai": "0362685364",
+      "dia_chi": "39 Khuê Mỹ Đông 4, Đà Nẵng",
+      "ngay_vao_lam": "2026-09-01",
+      "luong_co_ban": "15000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "quanlynhansu",
       "first_name": "Lê Thị Yến",
       "last_name": "Nhi",
@@ -244,41 +244,41 @@
       "department_code": "NS",
       "position": {
         "name": "Quản lý",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV05-2026",
-          "degree": "Bằng Cử nhân Quản trị nhân lực (xếp loại Giỏi)",
-          "major": "Quản trị nhân lực",
-          "school": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
-          "graduation_year": 2026
+          "bang_cap": "Bằng Cử nhân Quản trị nhân lực (xếp loại Giỏi)",
+          "chuyen_nganh": "Quản trị nhân lực",
+          "truong_hoc": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
+          "nam_tot_nghiep": 2026
         }
       ],
       "contracts": [
         {
           "code": "HD-NV05-2026",
           "number": "05/2026/HDLD-TVT",
-          "contract_type": "Hợp đồng lao động xác định thời hạn",
-          "signed_date": "2026-08-28",
+          "loai_hop_dong": "Hợp đồng lao động xác định thời hạn",
+          "ngay_ky": "2026-08-28",
           "start_date": "2026-09-01",
           "end_date": "2027-08-31",
-          "agreed_salary": "15000000",
+          "luong_thoa_thuan": "15000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV06",
-      "full_name": "Đặng Huy",
-      "gender": "Nam",
-      "date_of_birth": "1999-04-05",
-      "phone": "0905123406",
-      "address": "30 Hàm Nghi, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "13000000.00",
+      "ho_va_ten": "Đặng Huy",
+      "gioi_tinh": "Nam",
+      "ngay_sinh": "1999-04-05",
+      "so_dien_thoai": "0905123406",
+      "dia_chi": "30 Hàm Nghi, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "13000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "danghuy",
       "first_name": "Đặng",
       "last_name": "Huy",
@@ -290,41 +290,41 @@
       "department_code": "IT",
       "position": {
         "name": "Nhân viên IT",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV06-2022",
-          "degree": "Kỹ sư Công nghệ thông tin (xếp loại Khá)",
-          "major": "Công nghệ thông tin",
-          "school": "Trường Đại học Bách khoa – Đại học Đà Nẵng",
-          "graduation_year": 2022
+          "bang_cap": "Kỹ sư Công nghệ thông tin (xếp loại Khá)",
+          "chuyen_nganh": "Công nghệ thông tin",
+          "truong_hoc": "Trường Đại học Bách khoa – Đại học Đà Nẵng",
+          "nam_tot_nghiep": 2022
         }
       ],
       "contracts": [
         {
           "code": "HD-NV06-2025",
           "number": "06/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "13000000",
+          "luong_thoa_thuan": "13000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV07",
-      "full_name": "Bùi Nam",
-      "gender": "Nam",
-      "date_of_birth": "1998-09-18",
-      "phone": "0905123407",
-      "address": "77 Điện Biên Phủ, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "11000000.00",
+      "ho_va_ten": "Bùi Nam",
+      "gioi_tinh": "Nam",
+      "ngay_sinh": "1998-09-18",
+      "so_dien_thoai": "0905123407",
+      "dia_chi": "77 Điện Biên Phủ, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "11000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "buinam",
       "first_name": "Bùi",
       "last_name": "Nam",
@@ -336,41 +336,41 @@
       "department_code": "KD",
       "position": {
         "name": "Nhân viên kinh doanh",
-        "salary_coefficient": "1.0"
+        "he_so_luong_chuc_vu": "1.0"
       },
       "educations": [
         {
           "code": "HV-NV07-2020",
-          "degree": "Cử nhân Quản trị kinh doanh (xếp loại Khá)",
-          "major": "Quản trị kinh doanh",
-          "school": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
-          "graduation_year": 2020
+          "bang_cap": "Cử nhân Quản trị kinh doanh (xếp loại Khá)",
+          "chuyen_nganh": "Quản trị kinh doanh",
+          "truong_hoc": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
+          "nam_tot_nghiep": 2020
         }
       ],
       "contracts": [
         {
           "code": "HD-NV07-2025",
           "number": "07/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "11000000",
+          "luong_thoa_thuan": "11000000",
           "status": "Đang hiệu lực"
         }
       ]
     },
     {
       "code": "NV08",
-      "full_name": "Lê Thị My Na",
-      "gender": "Nữ",
-      "date_of_birth": "2000-12-25",
-      "phone": "0905123408",
-      "address": "19 Phan Đăng Lưu, Đà Nẵng",
-      "hire_date": "2025-01-01",
-      "base_salary": "20000000.00",
+      "ho_va_ten": "Lê Thị My Na",
+      "gioi_tinh": "Nữ",
+      "ngay_sinh": "2000-12-25",
+      "so_dien_thoai": "0905123408",
+      "dia_chi": "19 Phan Đăng Lưu, Đà Nẵng",
+      "ngay_vao_lam": "2025-01-01",
+      "luong_co_ban": "20000000.00",
       "is_active": true,
-      "employment_status": "Đang làm việc",
+      "trang_thai_nv": "Đang làm việc",
       "username": "giamdoc",
       "first_name": "Lê Thị My",
       "last_name": "Na",
@@ -384,21 +384,21 @@
       "educations": [
         {
           "code": "HV-NV08-2022",
-          "degree": "Cử nhân Tài chính – Ngân hàng (xếp loại Giỏi)",
-          "major": "Tài chính – Ngân hàng",
-          "school": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
-          "graduation_year": 2022
+          "bang_cap": "Cử nhân Tài chính – Ngân hàng (xếp loại Giỏi)",
+          "chuyen_nganh": "Tài chính – Ngân hàng",
+          "truong_hoc": "Trường Đại học Kinh tế – Đại học Đà Nẵng",
+          "nam_tot_nghiep": 2022
         }
       ],
       "contracts": [
         {
           "code": "HD-NV08-2025",
           "number": "08/2025/HDLD-TVT",
-          "contract_type": "Không xác định thời hạn",
-          "signed_date": "2024-12-30",
+          "loai_hop_dong": "Không xác định thời hạn",
+          "ngay_ky": "2024-12-30",
           "start_date": "2025-01-01",
           "end_date": null,
-          "agreed_salary": "11500000",
+          "luong_thoa_thuan": "11500000",
           "status": "Đang hiệu lực"
         }
       ]

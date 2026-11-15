@@ -92,7 +92,7 @@ def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
         'hours': KHONG, 'multiplier': KHONG, 'warnings': [], 'error': '',
     }
     if (ban_ghi.trang_thai != 'present' or not ban_ghi.gio_vao or not ban_ghi.gio_ra
-            or ban_ghi.gio_ra <= ban_ghi.gio_vao or ban_ghi.ngay < ban_ghi.nhan_vien.hire_date):
+            or ban_ghi.gio_ra <= ban_ghi.gio_vao or ban_ghi.ngay < ban_ghi.nhan_vien.ngay_vao_lam):
         return ket_qua
 
     ky_cong = ky_cong or PayrollPeriod.objects.filter(

@@ -87,7 +87,7 @@ class Luong(models.Model):
         related_name='phieu_luong', db_column='Ma_thuong',
     )
     ky_luong = models.ForeignKey(PayrollPeriod, on_delete=models.PROTECT, related_name='records')
-    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    nhan_vien = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
     trang_thai = models.CharField(max_length=10, default='pending', choices=[
         ('pending', 'Chờ duyệt'), ('approved', 'Đã duyệt'), ('paid', 'Đã chi trả')], db_column='Trang_thai')
     nguoi_duyet = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,

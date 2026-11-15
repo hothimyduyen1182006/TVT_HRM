@@ -14,33 +14,33 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
-from nhan_vien.access import DIRECTOR, HR, MANAGER, has_role, require_role, visible_employees
-from nhan_vien.models import Department, Employee
+from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, yeu_cau_vai_tro, nhan_vien_duoc_hien_thi
+from nhan_vien.models import PhongBan, NhanVien
 
 from .forms import EVIDENCE_CONTENT_TYPES, LeaveEvidenceForm, LeaveFilterForm, LeaveRequestForm
 from .models import ANNUAL_LEAVE_DAYS, LeaveDay, LeaveRequest, annual_leave_days_used
 
-REVIEWER_ROLES = (HR, DIRECTOR, MANAGER)
+REVIEWER_ROLES = (NHAN_SU, GIAM_DOC, TRUONG_PHONG)
 
 
 def reviewer_scope(user):
-    if has_role(user, *REVIEWER_ROLES):
-        return visible_employees(user)
-    return Employee.objects.none()
+    if co_vai_tro(user, *REVIEWER_ROLES):
+        return nhan_vien_duoc_hien_thi(user)
+    return NhanVien.objects.none()
 
 
 def request_scope(user, own_employee=None):
-    scope = visible_employees(user)
+    scope = nhan_vien_duoc_hien_thi(user)
     if own_employee:
-        scope |= Employee.objects.filter(pk=own_employee.pk)
+        scope |= NhanVien.objects.filter(pk=own_employee.pk)
     return scope
 
 
 @login_required
 def leave_list(request):
-    own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
+    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     scope = reviewer_scope(request.user)
-    is_reviewer = has_role(request.user, *REVIEWER_ROLES)
+    is_reviewer = co_vai_tro(request.user, *REVIEWER_ROLES)
     default_view = 'manage' if is_reviewer else 'mine'
     requested_view = request.POST.get('view') if request.method == 'POST' else request.GET.get('view')
     active_view = requested_view or default_view
@@ -48,7 +48,7 @@ def leave_list(request):
         active_view = default_view
     manage_view = is_reviewer and active_view == 'manage'
     requests = LeaveRequest.objects.select_related(
-        'employee', 'employee__department', 'reviewed_by'
+        'employee', 'employee__phong_ban', 'reviewed_by'
     )
     if manage_view:
         requests = requests.filter(employee__in=scope)
@@ -88,9 +88,9 @@ def leave_list(request):
                     return redirect(f"{reverse('nghi_phep:list')}?view=mine")
                 return redirect('nghi_phep:list')
     departments = (
-        Department.objects.filter(employee__in=scope).distinct()
+        PhongBan.objects.filter(pk__in=scope.values('phong_ban_id')).distinct()
         if is_reviewer
-        else Department.objects.none()
+        else PhongBan.objects.none()
     )
     filters = LeaveFilterForm(departments, request.GET)
     if not filters.is_valid():
@@ -99,11 +99,11 @@ def leave_list(request):
         data = filters.cleaned_data
         if data['q']:
             requests = requests.filter(
-                Q(employee__full_name__icontains=data['q'])
-                | Q(employee__code__icontains=data['q'])
+                Q(employee__ho_va_ten__icontains=data['q'])
+                | Q(employee__ma_ho_so__icontains=data['q'])
             )
         if data['department']:
-            requests = requests.filter(employee__department_id=data['department'])
+            requests = requests.filter(employee__phong_ban_id=data['department'])
         if data['status']:
             requests = requests.filter(Trang_thai=data['status'])
         if data['leave_type']:
@@ -112,13 +112,13 @@ def leave_list(request):
             requests = requests.filter(Ngay_ket_thuc__gte=data['start_date'])
         if data['end_date']:
             requests = requests.filter(Ngay_bat_dau__lte=data['end_date'])
-    selected_start = form.cleaned_data.get('Ngay_bat_dau') if form.is_bound else None
+    selected_start = filters.cleaned_data.get('start_date') if filters.is_valid() else None
     annual_leave_year = selected_start.year if selected_start else timezone.localdate().year
     annual_leave_used = (
         annual_leave_days_used(own_employee, annual_leave_year)
         if own_employee else 0
     )
-    return render(request, 'leaves/list.html', {
+    return render(request, 'nghi_phep/list.html', {
         'requests': requests,
         'form': form,
         'filters': filters,
@@ -135,14 +135,14 @@ def leave_list(request):
 
 @login_required
 def leave_detail(request, pk):
-    linked_employee_id = Employee.objects.filter(user=request.user).values_list('pk', flat=True).first()
-    own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
+    linked_employee_id = NhanVien.objects.filter(nguoi_dung=request.user).values_list('pk', flat=True).first()
+    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     item = get_object_or_404(
-        LeaveRequest.objects.select_related('employee', 'employee__department', 'reviewed_by'),
+        LeaveRequest.objects.select_related('employee', 'employee__phong_ban', 'reviewed_by'),
         pk=pk,
         employee__in=request_scope(request.user, own_employee),
     )
-    can_review = has_role(request.user, *REVIEWER_ROLES)
+    can_review = co_vai_tro(request.user, *REVIEWER_ROLES)
     if item.employee_id == linked_employee_id:
         can_review = False
     back_view = request.GET.get('view', 'manage' if can_review else 'mine')
@@ -154,7 +154,7 @@ def leave_detail(request, pk):
             evidence_available = item.Tep_dinh_kem.storage.exists(item.Tep_dinh_kem.name)
         except (OSError, SuspiciousFileOperation):
             evidence_available = False
-    return render(request, 'leaves/detail.html', {
+    return render(request, 'nghi_phep/detail.html', {
         'item': item,
         'can_review': can_review,
         'days_count': item.days_count,
@@ -168,7 +168,7 @@ def leave_detail(request, pk):
 @login_required
 @require_POST
 def attach_leave_evidence(request, pk):
-    own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
+    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     if not own_employee:
         raise PermissionDenied
     item = get_object_or_404(LeaveRequest, pk=pk, employee=own_employee, Trang_thai='pending')
@@ -190,7 +190,7 @@ def attach_leave_evidence(request, pk):
 @login_required
 @require_safe
 def leave_evidence(request, pk):
-    own_employee = Employee.objects.filter(user=request.user, is_active=True).first()
+    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     item = get_object_or_404(
         LeaveRequest,
         pk=pk,
@@ -217,13 +217,13 @@ def leave_evidence(request, pk):
 @login_required
 @require_POST
 def review_leave(request, pk, action):
-    require_role(request.user, *REVIEWER_ROLES)
+    yeu_cau_vai_tro(request.user, *REVIEWER_ROLES)
     item = get_object_or_404(
         LeaveRequest.objects.select_related('employee'),
         pk=pk,
-        employee__in=visible_employees(request.user),
+        employee__in=nhan_vien_duoc_hien_thi(request.user),
     )
-    own_employee = Employee.objects.filter(user=request.user).only('pk').first()
+    own_employee = NhanVien.objects.filter(nguoi_dung=request.user).only('pk').first()
     if own_employee and item.employee_id == own_employee.pk:
         raise PermissionDenied
     if item.Trang_thai != 'pending' or action not in ('approve', 'reject'):

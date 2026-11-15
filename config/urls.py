@@ -20,7 +20,6 @@ from django.contrib.auth import views as auth_views
 from .views import home, dashboard, departments, protected_media
 from django.contrib.auth.forms import AuthenticationForm
 from django.conf import settings
-from nhan_vien import views as employee_views
 
 
 class TVTAuthenticationForm(AuthenticationForm):
@@ -46,20 +45,7 @@ urlpatterns = [
     path('', home, name='home'),
     path('dashboard/', dashboard, name='dashboard'),
     path('departments/', departments, name='departments'),
-    path('nhan_vien/', employee_views.employee_list, name='employees'),
-    path('nhan_vien/me/', employee_views.personal_profile, name='personal_profile'),
-    path('nhan_vien/me/edit/', employee_views.personal_profile_edit, name='personal_profile_edit'),
-    path('nhan_vien/new/', employee_views.employee_create, name='employee_create'),
-    path('nhan_vien/<int:employee_id>/edit/', employee_views.employee_edit, name='employee_edit'),
-    path('nhan_vien/<int:employee_id>/bang_luong/<str:kind>/new/', employee_views.payroll_settings_edit, name='employee_payroll_create'),
-    path('nhan_vien/<int:employee_id>/bang_luong/<str:kind>/<int:record_id>/', employee_views.payroll_settings_edit, name='employee_payroll_edit'),
-    path('nhan_vien/<int:employee_id>/education/new/', employee_views.education_edit, name='education_create'),
-    path('nhan_vien/<int:employee_id>/education/<int:record_id>/edit/', employee_views.education_edit, name='education_edit'),
-    path('nhan_vien/<int:employee_id>/education/<int:record_id>/delete/', employee_views.education_delete, name='education_delete'),
-    path('nhan_vien/<int:employee_id>/contracts/new/', employee_views.contract_edit, name='contract_create'),
-    path('nhan_vien/<int:employee_id>/contracts/<int:record_id>/edit/', employee_views.contract_edit, name='contract_edit'),
-    path('nhan_vien/<int:employee_id>/contracts/<int:record_id>/delete/', employee_views.contract_delete, name='contract_delete'),
-    path('nhan_vien/<int:employee_id>/', employee_views.employee_detail, name='employee_detail'),
+    path('nhan_vien/', include('nhan_vien.urls')),
     path('accounts/login/', TVTLoginView.as_view(authentication_form=TVTAuthenticationForm), name='login'),
     path('accounts/logout/', TVTLogoutView.as_view(), name='logout'),
     path('bang_cong/', include('bang_cong.urls')),

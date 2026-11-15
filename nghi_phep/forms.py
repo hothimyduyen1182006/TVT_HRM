@@ -69,5 +69,5 @@ class LeaveFilterForm(forms.Form):
     def __init__(self, departments, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['department'].widget = forms.Select(choices=[('', 'Tất cả phòng ban'),
-            *[(d.pk, d.name) for d in departments]])
+            *[(d.pk, d.ten_phong_ban) for d in departments]])
 

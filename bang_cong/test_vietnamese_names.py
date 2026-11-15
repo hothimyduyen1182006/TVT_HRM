@@ -11,6 +11,7 @@ class VietnameseNamesMigrationTests(TransactionTestCase):
     def test_existing_records_and_permissions_keep_their_identity(self):
         old_target = [('attendance', '0008_attendance_summary_and_adjustments')]
         try:
+            call_command('migrate', 'employees', '0005_shared_salary_settings', verbosity=0, interactive=False)
             call_command('migrate', 'attendance', old_target[0][1], verbosity=0, interactive=False)
             old_apps = MigrationExecutor(connection).loader.project_state(old_target).apps
             user = old_apps.get_model('auth', 'User').objects.create(username='rename-test')
@@ -44,7 +45,7 @@ class VietnameseNamesMigrationTests(TransactionTestCase):
             user.user_permissions.add(permission)
             permission_id, content_type_id = permission.pk, permission.content_type_id
 
-            call_command('migrate', 'attendance', '0009_vietnamese_attendance_names', verbosity=0, interactive=False)
+            call_command('migrate', verbosity=0, interactive=False)
             from .models import ChamCong, KyCong, NhatKyCong
             from django.contrib.auth.models import Group, Permission, User
             current = ChamCong.objects.get(pk=record.pk)

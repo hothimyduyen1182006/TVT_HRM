@@ -27,7 +27,7 @@ from .models import Bonus, approved_bonus_records, complete_bonus_records, displ
 
 
 def access_denied(request):
-    return render(request, 'bonuses/access_denied.html', status=403)
+    return render(request, 'thuong/access_denied.html', status=403)
 
 
 def bonus_rows(user, form):
@@ -36,21 +36,21 @@ def bonus_rows(user, form):
     data = form.cleaned_data
     rows = displayed_bonus_records(
         Bonus.objects.select_related(
-            'employee__department', 'proposed_by', 'approved_by'
-        ).filter(employee__in=form.employee_scope(user))
+            'employee__phong_ban', 'proposed_by', 'approved_by'
+        ).filter(employee__in=form.nhan_vien_trong_pham_vi(user))
     )
     if data.get('month'):
         rows = rows.filter(month=data['month'])
     if data.get('year'):
         rows = rows.filter(year=data['year'])
-    if has_role(user, DIRECTOR):
+    if co_vai_tro(user, GIAM_DOC):
         rows = rows.exclude(status='draft')
     if data.get('q'):
         rows = rows.filter(
-            Q(employee__full_name__icontains=data['q'])
-            | Q(employee__code__icontains=data['q'])
+            Q(employee__ho_va_ten__icontains=data['q'])
+            | Q(employee__ma_ho_so__icontains=data['q'])
         )
-    return rows.order_by('employee__code', 'bonus_type', 'name')
+    return rows.order_by('employee__ma_ho_so', 'bonus_type', 'name')
 
 
 def grouped_bonuses(rows):
@@ -95,20 +95,20 @@ def grouped_bonuses(rows):
         group['total'] = group['attendance'] + group['seniority'] + group['other']
         group['employee_id'] = employee_id
         results.append(group)
-    return sorted(results, key=lambda row: (row['employee'].code, -row['year'], -row['month']))
+    return sorted(results, key=lambda row: (row['employee'].ma_ho_so, -row['year'], -row['month']))
 
 
 @login_required
 def bonus_list(request):
-    if not has_role(request.user, HR, DIRECTOR, MANAGER):
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         return personal_list(request)
     form = BonusFilter(request.user, request.GET, default_current_period=True)
     if not form.is_valid() and {'employee', 'department'} & set(form.errors):
         return access_denied(request)
-    if form.is_valid() and has_role(request.user, HR):
+    if form.is_valid() and co_vai_tro(request.user, NHAN_SU):
         period = form.cleaned_data
         if period.get('month') and period.get('year'):
-            for employee in form.employee_scope(request.user):
+            for employee in form.nhan_vien_trong_pham_vi(request.user):
                 sync_automatic_bonuses(employee, period['month'], period['year'])
     source_rows = bonus_rows(request.user, form)
     rows = grouped_bonuses(source_rows)
@@ -117,39 +117,39 @@ def bonus_list(request):
     total_amount = sum((row['total'] for row in rows), Decimal(0))
     period = form.cleaned_data if form.is_valid() else {}
     period_rows = complete_bonus_records(Bonus.objects.filter(
-        employee__in=visible_employees(request.user),
+        employee__in=nhan_vien_duoc_hien_thi(request.user),
         month=period.get('month'), year=period.get('year'),
     )) if period.get('month') and period.get('year') else Bonus.objects.none()
     page_query = request.GET.copy()
     page_query.pop('page', None)
     page_obj = Paginator(rows, 5).get_page(request.GET.get('page'))
-    return render(request, 'bonuses/list_redesign.html', {
+    return render(request, 'thuong/list_redesign.html', {
         'form': form,
         'page_obj': page_obj,
         'rows': page_obj.object_list,
         'page_query': page_query.urlencode(),
         'total_amount': total_amount,
-        'can_propose': has_role(request.user, HR, MANAGER),
-        'can_submit': has_role(request.user, HR),
-        'can_send_period': has_role(request.user, HR) and period_rows.filter(status='draft').exists(),
-        'can_decide_period': has_role(request.user, DIRECTOR) and bool(
+        'can_propose': co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG),
+        'can_submit': co_vai_tro(request.user, NHAN_SU),
+        'can_send_period': co_vai_tro(request.user, NHAN_SU) and period_rows.filter(status='draft').exists(),
+        'can_decide_period': co_vai_tro(request.user, GIAM_DOC) and bool(
             period.get('month') and period.get('year')
         ),
         'selected_month': period.get('month'),
         'selected_year': period.get('year'),
-        'can_export': has_role(request.user, HR, DIRECTOR),
+        'can_export': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
     })
 
 
 @login_required
 def personal_list(request):
-    employee = Employee.objects.filter(user=request.user).first()
-    if employee is None and not has_role(request.user, HR, DIRECTOR, MANAGER):
+    employee = NhanVien.objects.filter(nguoi_dung=request.user).first()
+    if employee is None and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         return access_denied(request)
 
     form = PersonalBonusFilter(request.GET)
-    rows = displayed_bonus_records(Bonus.objects.select_related('employee__department').filter(
-        employee__user=request.user)).order_by('-year', '-month', 'name')
+    rows = displayed_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
+        employee__nguoi_dung=request.user)).order_by('-year', '-month', 'name')
     month = year = status = None
     if form.is_valid():
         month = form.cleaned_data.get('month')
@@ -161,7 +161,7 @@ def personal_list(request):
             rows = rows.filter(year=year)
         if status:
             rows = rows.filter(status=status)
-    all_rows = displayed_bonus_records(Bonus.objects.filter(employee__user=request.user))
+    all_rows = displayed_bonus_records(Bonus.objects.filter(employee__nguoi_dung=request.user))
     approved_rows = all_rows.filter(status='approved')
     year_rows = approved_rows
     if year:
@@ -200,7 +200,7 @@ def personal_list(request):
         f'{personal_url}?month={latest_month}&year={latest_month_year}&status=approved'
         if latest_month and latest_month_year else personal_url
     )
-    return render(request, 'bonuses/personal.html', {'form': form, 'rows': grouped,
+    return render(request, 'thuong/personal.html', {'form': form, 'rows': grouped,
         'total_amount': total_amount,
         'total_received': total_received,
         'received_label': received_label,
@@ -215,9 +215,9 @@ def personal_list(request):
 
 def calculate_seniority(employee, month, year):
     period_end = date(year, month, calendar.monthrange(year, month)[1])
-    completed_years = period_end.year - employee.hire_date.year
+    completed_years = period_end.year - employee.ngay_vao_lam.year
     anniversary_not_reached = (period_end.month, period_end.day) < (
-        employee.hire_date.month, employee.hire_date.day
+        employee.ngay_vao_lam.month, employee.ngay_vao_lam.day
     )
     years = max(0, completed_years - anniversary_not_reached)
 
@@ -282,7 +282,7 @@ def calculate_automatic(employee, month, year):
 @transaction.atomic
 def sync_automatic_bonuses(employee, month, year):
     """Refresh editable source-derived bonuses without changing approval decisions."""
-    Employee.objects.select_for_update().get(pk=employee.pk)
+    NhanVien.objects.select_for_update().get(pk=employee.pk)
     automatic, attendance_error = calculate_automatic(employee, month, year)
     for bonus_type, name, amount, reason in automatic:
         rows = Bonus.objects.filter(
@@ -306,17 +306,17 @@ def sync_automatic_bonuses(employee, month, year):
 
 @login_required
 def detail(request, employee_id, year, month):
-    if (Employee.objects.filter(pk=employee_id).exists()
-            and not visible_employees(request.user).filter(pk=employee_id).exists()):
+    if (NhanVien.objects.filter(pk=employee_id).exists()
+            and not nhan_vien_duoc_hien_thi(request.user).filter(pk=employee_id).exists()):
         return access_denied(request)
-    employee = get_object_or_404(visible_employees(request.user), pk=employee_id)
+    employee = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=employee_id)
     rows = displayed_bonus_records(Bonus.objects.select_related(
-        'employee__department', 'proposed_by', 'approved_by').filter(
+        'employee__phong_ban', 'proposed_by', 'approved_by').filter(
             employee=employee, year=year, month=month))
-    is_own_profile = employee.user_id == request.user.id
-    if not is_own_profile and not has_role(request.user, HR, DIRECTOR, MANAGER):
+    is_own_profile = employee.nguoi_dung_id == request.user.id
+    if not is_own_profile and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         rows = rows.filter(status='approved')
-    elif not is_own_profile and has_role(request.user, DIRECTOR) and not has_role(request.user, HR):
+    elif not is_own_profile and co_vai_tro(request.user, GIAM_DOC) and not co_vai_tro(request.user, NHAN_SU):
         rows = rows.exclude(status='draft')
     grouped = grouped_bonuses(rows)
     if not grouped:
@@ -340,18 +340,18 @@ def detail(request, employee_id, year, month):
         'proposed_at': item.proposed_at,
     } for item in group['records']]
     order = {'seniority': 0, 'attendance': 1, 'other': 2}
-    can_manage_drafts = has_role(request.user, HR) and group['status'] in {'draft', 'rejected'}
+    can_manage_drafts = co_vai_tro(request.user, NHAN_SU) and group['status'] in {'draft', 'rejected'}
     for item in display_records:
         item['can_edit'] = can_manage_drafts and item['bonus_type'] == 'other'
         item['can_delete'] = can_manage_drafts and item['bonus_type'] == 'other'
         item['automatic'] = item['bonus_type'] in {'attendance', 'seniority'}
     group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
-    return render(request, 'bonuses/detail.html', {'row': group})
+    return render(request, 'thuong/detail.html', {'row': group})
 
 
 @login_required
 def propose(request):
-    if not has_role(request.user, HR, MANAGER):
+    if not co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG):
         return access_denied(request)
     form = BonusProposalForm(request.user, request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -376,7 +376,7 @@ def propose(request):
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
         else:
-            if has_role(request.user, HR):
+            if co_vai_tro(request.user, NHAN_SU):
                 messages.success(
                     request,
                     'Đã thêm khoản thưởng vào Bảng thưởng tổng ở trạng thái Bản nháp. '
@@ -390,20 +390,20 @@ def propose(request):
                 'Đề xuất đã được thêm vào Bản nháp và gửi Quản lý nhân sự rà soát.',
             )
             return redirect('thuong:detail', data['employee'].pk, data['year'], data['month'])
-    history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
-        employee__in=visible_employees(request.user), proposed_by=request.user,
+    history = complete_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
+        employee__in=nhan_vien_duoc_hien_thi(request.user), proposed_by=request.user,
         bonus_type='other')).order_by('-proposed_at', '-pk')
-    return render(request, 'bonuses/propose.html', {'form': form, 'history': history})
+    return render(request, 'thuong/propose.html', {'form': form, 'history': history})
 
 
 @login_required
 def edit_rejected_proposal(request, bonus_id):
-    if not has_role(request.user, HR):
+    if not co_vai_tro(request.user, NHAN_SU):
         return access_denied(request)
 
     editable_rows = complete_bonus_records(Bonus.objects.filter(
         pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-        employee__in=visible_employees(request.user)))
+        employee__in=nhan_vien_duoc_hien_thi(request.user)))
     bonus = get_object_or_404(editable_rows)
     initial = {
         'month': bonus.month,
@@ -423,7 +423,7 @@ def edit_rejected_proposal(request, bonus_id):
             with transaction.atomic():
                 bonus = get_object_or_404(complete_bonus_records(Bonus.objects.select_for_update().filter(
                     pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-                    employee__in=visible_employees(request.user))))
+                    employee__in=nhan_vien_duoc_hien_thi(request.user))))
                 bonus.name = data['name']
                 bonus.reason = data['reason']
                 bonus.amount = data['amount']
@@ -443,10 +443,10 @@ def edit_rejected_proposal(request, bonus_id):
             messages.success(request, 'Đã cập nhật khoản thưởng khác trong bản nháp.')
             return redirect('thuong:detail', bonus.employee_id, bonus.year, bonus.month)
 
-    history = complete_bonus_records(Bonus.objects.select_related('employee__department').filter(
-        employee__in=visible_employees(request.user), proposed_by=request.user,
+    history = complete_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
+        employee__in=nhan_vien_duoc_hien_thi(request.user), proposed_by=request.user,
         bonus_type='other')).order_by('-proposed_at', '-pk')
-    return render(request, 'bonuses/propose.html', {
+    return render(request, 'thuong/propose.html', {
         'form': form, 'history': history, 'editing_rejected': True,
     })
 
@@ -454,11 +454,11 @@ def edit_rejected_proposal(request, bonus_id):
 @login_required
 @require_POST
 def delete_proposal(request, bonus_id):
-    if not has_role(request.user, HR):
+    if not co_vai_tro(request.user, NHAN_SU):
         return access_denied(request)
     bonus = get_object_or_404(complete_bonus_records(Bonus.objects.filter(
         pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-        employee__in=visible_employees(request.user))))
+        employee__in=nhan_vien_duoc_hien_thi(request.user))))
     employee_id, year, month = bonus.employee_id, bonus.year, bonus.month
     bonus.delete()
     messages.success(request, 'Đã xóa khoản thưởng chưa được Giám đốc duyệt.')
@@ -468,7 +468,7 @@ def delete_proposal(request, bonus_id):
 @login_required
 @require_POST
 def calculate_period(request):
-    if not has_role(request.user, HR):
+    if not co_vai_tro(request.user, NHAN_SU):
         return access_denied(request)
     form = BonusFilter(request.user, request.POST)
     if not form.is_valid():
@@ -478,9 +478,9 @@ def calculate_period(request):
     if not data.get('month') or not data.get('year'):
         messages.error(request, 'Vui lòng chọn tháng và năm trước khi tính thưởng tự động.')
         return redirect('thuong:list')
-    employees = form.employee_scope(request.user)
+    employees = form.nhan_vien_trong_pham_vi(request.user)
     if data.get('q'):
-        employees = employees.filter(Q(full_name__icontains=data['q']) | Q(code__icontains=data['q']))
+        employees = employees.filter(Q(ho_va_ten__icontains=data['q']) | Q(ma_ho_so__icontains=data['q']))
     created, seniority_calculated, attendance_calculated, locked, errors = 0, 0, 0, 0, []
     for employee in employees:
         locked_types = set(Bonus.objects.filter(
@@ -508,7 +508,7 @@ def calculate_period(request):
         if 'attendance' in saved_types:
             attendance_calculated += 1
         if attendance_error and 'attendance' not in locked_types:
-            errors.append(f'{employee.code}: {"; ".join(attendance_error.messages)}')
+            errors.append(f'{employee.ma_ho_so}: {"; ".join(attendance_error.messages)}')
     if seniority_calculated or attendance_calculated:
         messages.success(
             request,
@@ -530,9 +530,9 @@ def calculate_period(request):
 @login_required
 @require_POST
 def submit_period(request, year, month):
-    if not has_role(request.user, HR):
+    if not co_vai_tro(request.user, NHAN_SU):
         return access_denied(request)
-    employees = visible_employees(request.user)
+    employees = nhan_vien_duoc_hien_thi(request.user)
     count = complete_bonus_records(Bonus.objects.filter(
         employee__in=employees, year=year, month=month, status='draft')).update(status='pending')
     if not count:
@@ -545,10 +545,10 @@ def submit_period(request, year, month):
 @login_required
 @require_POST
 def decision_period(request, year, month):
-    if not has_role(request.user, DIRECTOR):
+    if not co_vai_tro(request.user, GIAM_DOC):
         return access_denied(request)
     rows = complete_bonus_records(Bonus.objects.filter(
-        employee__in=visible_employees(request.user), year=year, month=month, status='pending'))
+        employee__in=nhan_vien_duoc_hien_thi(request.user), year=year, month=month, status='pending'))
     if not rows.exists():
         messages.error(request, 'Không có bảng thưởng nào đang chờ duyệt trong kỳ này.')
         return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
@@ -579,7 +579,7 @@ def decision_period(request, year, month):
 @login_required
 @require_POST
 def export(request):
-    if not has_role(request.user, HR, DIRECTOR):
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
         return access_denied(request)
     form = BonusFilter(request.user, request.POST)
     if not form.is_valid():
@@ -597,7 +597,7 @@ def export(request):
     writer = csv.writer(output)
     writer.writerow(['Mã nhân viên', 'Nhân viên', 'Phòng ban', 'Tháng', 'Năm', 'Loại thưởng', 'Khoản thưởng', 'Lý do', 'Số tiền', 'Trạng thái'])
     for row in rows:
-        writer.writerow([row.employee.code, row.employee.full_name, row.employee.department.name, row.month, row.year,
+        writer.writerow([row.employee.ma_ho_so, row.employee.ho_va_ten, row.employee.phong_ban.ten_phong_ban, row.month, row.year,
                          row.get_bonus_type_display(), row.name, row.reason, row.amount, row.get_status_display()])
     response = HttpResponse('\ufeff' + output.getvalue(), content_type='text/csv; charset=utf-8')
     data = form.cleaned_data

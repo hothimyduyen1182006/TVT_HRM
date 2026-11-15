@@ -34,7 +34,7 @@ def annual_leave_days_used(employee, year, exclude_request_id=None):
 
 class LeaveDay(models.Model):
     """Ngày nghỉ đã duyệt, được bảng công và bảng lương dùng để tính công."""
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    employee = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
     date = models.DateField('Ngày nghỉ')
     units = models.DecimalField(
         'Số công nghỉ',
@@ -93,7 +93,7 @@ class LeaveRequest(models.Model):
     Ma_don = models.BigAutoField(primary_key=True)
     # employee vẫn là tên quan hệ trong Python; Ma_nguoi_dung là tên cột khóa ngoại.
     employee = models.ForeignKey(
-        'employees.Employee',
+        'employees.NhanVien',
         on_delete=models.PROTECT,
         related_name='leave_requests',
         db_column='Ma_nguoi_dung',
@@ -149,7 +149,7 @@ class LeaveRequest(models.Model):
         if (
             self.employee_id
             and self.Ngay_bat_dau
-            and self.Ngay_bat_dau < self.employee.hire_date
+            and self.Ngay_bat_dau < self.employee.ngay_vao_lam
         ):
             raise ValidationError('Ngày nghỉ không được trước ngày vào làm.')
 

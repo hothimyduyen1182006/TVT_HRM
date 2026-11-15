@@ -1,4 +1,4 @@
-{% extends 'attendance/base.html' %}{% block attendance_content %}
+{% extends 'bang_cong/base.html' %}{% block attendance_content %}
 <div class="at-breadcrumb"><a href="{% url 'bang_cong:cong-nhan-vien' row.nhan_vien_id %}?month={{ row.ngay.month }}&year={{ row.ngay.year }}">‹ Chi tiết chấm công tháng {{ row.ngay.month }}/{{ row.ngay.year }}</a></div>
 <article class="at-day-detail">
   <header class="at-day-heading">

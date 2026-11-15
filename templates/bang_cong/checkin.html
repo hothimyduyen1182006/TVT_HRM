@@ -12,7 +12,7 @@
         <div class="tvt-card-mark">TVT <span>WOOD &amp; INTERIOR</span></div>
         {% if page_state == 'done' %}
           <h1 class="tvt-main-title">CHECK-OUT THÀNH CÔNG</h1>
-          <p class="tvt-greeting">Cảm ơn {{ employee.full_name }} đã làm việc hết mình hôm nay! 💚</p>
+          <p class="tvt-greeting">Cảm ơn {{ employee.ho_va_ten }} đã làm việc hết mình hôm nay! 💚</p>
           <p class="tvt-encouragement">Hẹn gặp lại bạn vào ngày mai.</p>
           <div class="tvt-day-date">{{ today|date:'d/m/Y' }}</div>
           <div class="tvt-clock" data-clock>--:--:--</div>
@@ -20,7 +20,7 @@
           <button class="tvt-punch-button tvt-complete-button" type="button" disabled>Đã Check-out</button>
         {% elif page_state == 'checkout' %}
           <h1 class="tvt-main-title">KẾT THÚC NGÀY LÀM VIỆC</h1>
-          <p class="tvt-greeting">Cảm ơn {{ employee.full_name }} đã làm việc hết mình hôm nay! 💪</p>
+          <p class="tvt-greeting">Cảm ơn {{ employee.ho_va_ten }} đã làm việc hết mình hôm nay! 💪</p>
           <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
           <div class="tvt-clock" data-clock>--:--:--</div>
           <div class="tvt-status-strip tvt-status-working"><span></span>Đang trong ca{% if is_late %} · Đi trễ {{ today_record.so_phut_tre }} phút{% else %} · Đúng giờ{% endif %}</div>
@@ -28,7 +28,7 @@
           <div class="tvt-shift-caption">Check-in lúc {{ today_record.gio_vao|time:'H:i:s' }}{% if period %} · Ca làm việc: {{ period.gio_bat_dau|time:'H:i' }} – {{ period.gio_ket_thuc|time:'H:i' }}{% endif %}</div>
         {% else %}
           <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
-          <p class="tvt-greeting">Chào {{ employee.full_name }} 👋</p>
+          <p class="tvt-greeting">Chào {{ employee.ho_va_ten }} 👋</p>
           <p class="tvt-encouragement">Chúc bạn một ngày làm việc hiệu quả! Hãy Check-in để bắt đầu nhé!</p>
           <div class="tvt-day-date">{{ today|date:'d/m/Y' }}</div>
           <div class="tvt-clock" data-clock>--:--:--</div>

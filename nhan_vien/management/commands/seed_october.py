@@ -10,7 +10,7 @@ from django.contrib.auth.models import User
 from django.core.management import BaseCommand, CommandError, call_command
 from django.db import connection, transaction
 from django.utils import timezone
-from nhan_vien.models import Employee, Department, Position, LaborContract
+from nhan_vien.models import NhanVien, PhongBan, ChucVu, HopDongLaoDong
 from nghi_phep.models import LeaveDay, LeaveRequest
 from thuong.models import Bonus
 from .seed_demo import PEOPLE
@@ -55,24 +55,24 @@ class Command(BaseCommand):
                 'employees.Education', 'employees.LaborContract']
             for label in order:
                 apps.get_model(label).objects.all().delete()
-            Department.objects.update(manager=None)
-            Employee.objects.all().delete()
-            Position.objects.all().delete()
-            Department.objects.all().delete()
+            PhongBan.objects.update(truong_phong=None)
+            NhanVien.objects.all().delete()
+            ChucVu.objects.all().delete()
+            PhongBan.objects.all().delete()
             call_command('seed_demo', year=2026, month=10, reuse_users=True, password=password, stdout=StringIO())
             call_command('seed_positions', stdout=StringIO())
             hr = User.objects.get(username='demo_hr')
             director = User.objects.get(username='demo_director')
-            for index, employee in enumerate(Employee.objects.select_related('department', 'user').order_by('code')):
-                employee.gender = 'Nam' if index in [0, 1, 2, 5, 7] else 'Nữ'
-                if employee.user.groups.filter(name='Trưởng phòng').exists():
-                    employee.position = Position.objects.filter(department=employee.department, name__startswith='Trưởng phòng').first()
-                elif employee.user == director:
-                    employee.position, _ = Position.objects.get_or_create(department=employee.department, name='Giám đốc', defaults={'salary_coefficient': 1})
-                employee.save(update_fields=['gender', 'position'])
-                LaborContract.objects.create(employee=employee, code=f'DEMO-HD-{index+1:02}', number=f'DEMO/2026/10/{index+1:02}',
-                    contract_type='Hợp đồng minh họa 12 tháng', signed_date=date(2026, 10, 1), start_date=date(2026, 10, 1),
-                    end_date=date(2027, 9, 30), agreed_salary=employee.base_salary, status='Đang hiệu lực')
+            for index, employee in enumerate(NhanVien.objects.select_related('phong_ban', 'nguoi_dung').order_by('ma_ho_so')):
+                employee.gioi_tinh = 'Nam' if index in [0, 1, 2, 5, 7] else 'Nữ'
+                if employee.nguoi_dung.groups.filter(name='Trưởng phòng').exists():
+                    employee.chuc_vu = ChucVu.objects.filter(phong_ban=employee.phong_ban, ten_chuc_vu__startswith='Trưởng phòng').first()
+                elif employee.nguoi_dung == director:
+                    employee.chuc_vu, _ = ChucVu.objects.get_or_create(phong_ban=employee.phong_ban, ten_chuc_vu='Giám đốc', defaults={'he_so_luong_chuc_vu': 1})
+                employee.save(update_fields=['gioi_tinh', 'chuc_vu'])
+                HopDongLaoDong.objects.create(ho_so_ca_nhan=employee, ma_hop_dong=f'DEMO-HD-{index+1:02}', so_hop_dong=f'DEMO/2026/10/{index+1:02}',
+                    loai_hop_dong='Hợp đồng minh họa 12 tháng', ngay_ky=date(2026, 10, 1), ngay_bat_dau=date(2026, 10, 1),
+                    ngay_ket_thuc=date(2027, 9, 30), luong_thoa_thuan=employee.luong_co_ban, trang_thai='Đang hiệu lực')
             for leave in LeaveDay.objects.all():
                 LeaveRequest.objects.create(employee=leave.employee, Ngay_bat_dau=leave.date, Ngay_ket_thuc=leave.date,
                     leave_type='annual' if leave.paid else 'unpaid', paid=leave.paid,

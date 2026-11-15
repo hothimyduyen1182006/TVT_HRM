@@ -5,7 +5,7 @@
 Trạng thái: bản thiết kế ban đầu để nhóm review. Các model tích hợp đã được triển khai
 theo yêu cầu tiếp theo tạo toàn bộ dự án; xem README.md để biết tên trường và hành vi thực tế.
 Đã xác nhận: Django 4.2.8; dùng app attendance và payroll.
-Đã tạo Employee, Department, Bonus trong bản tích hợp; vẫn dùng User mặc định Django.
+Đã tạo NhanVien, PhongBan, Bonus trong bản tích hợp; vẫn dùng User mặc định Django.
 Khi đưa lên repository nhóm cần các thành viên review và thống nhất trước khi merge.
 
 ## Dữ liệu module khác cần cung cấp
@@ -14,13 +14,13 @@ Tên dưới đây là tên đề xuất. Khi nhóm chốt phải cập nhật t
 
 | Nguồn | Trường/quan hệ đề xuất | Điều kiện |
 | --- | --- | --- |
-| employees.Employee | code, full_name, user, department, hire_date, base_salary, is_active | code duy nhất; user OneToOne tới settings.AUTH_USER_MODEL; department ForeignKey; tiền Decimal |
-| employees.Department | code, name, manager | code duy nhất; manager liên kết Employee; xác định cách xử lý phòng chưa có quản lý |
+| employees.NhanVien | code, ho_va_ten, user, department, ngay_vao_lam, luong_co_ban, is_active | code duy nhất; user OneToOne tới settings.AUTH_USER_MODEL; department ForeignKey; tiền Decimal |
+| employees.PhongBan | code, name, manager | code duy nhất; manager liên kết NhanVien; xác định cách xử lý phòng chưa có quản lý |
 | bonuses.Bonus | employee, month, year, amount, bonus_type, status, approved_by, approved_at | Chỉ approved mới được tính; không xóa khoản đã dùng trong lương đã duyệt |
 | leaves (tên model chờ chốt) | employee, start/end, loại nghỉ, mức hưởng công, status | Cần hỗ trợ nghỉ một phần ngày và ngăn cộng trùng với công thực tế |
-| accounts | đăng nhập, Group, Permission, liên kết Employee | Không tạo User thứ hai; thiếu hồ sơ hoặc phạm vi thì từ chối truy cập |
+| accounts | đăng nhập, Group, Permission, liên kết NhanVien | Không tạo User thứ hai; thiếu hồ sơ hoặc phạm vi thì từ chối truy cập |
 
-Lương cơ bản có thể lấy từ hợp đồng thay vì Employee nếu nhóm thống nhất.
+Lương cơ bản có thể lấy từ hợp đồng thay vì NhanVien nếu nhóm thống nhất.
 Phải xác định lương có hiệu lực theo kỳ; lương đóng bảo hiểm là dữ liệu riêng.
 Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sinh hay cộng trùng.
 
@@ -50,15 +50,15 @@ Cần chốt duyệt theo phòng hay toàn công ty, và xử lý dữ liệu c�
 Chỉ tính khi công đã duyệt và dữ liệu chính sách đầy đủ. Thiếu thuế/bảo hiểm phải báo rõ,
 không tự gán 0. Mọi phép tính tiền dùng Decimal; chỉ làm tròn kết quả cuối tới đồng.
 Kỳ đã duyệt bị khóa; không tự chuyển paid khi approved. Xuất chỉ approved/paid.
-Dữ liệu lịch sử phải độc lập với thay đổi Employee, Bonus và chính sách hiện tại.
+Dữ liệu lịch sử phải độc lập với thay đổi NhanVien, Bonus và chính sách hiện tại.
 Khi mở lại phải bảo toàn lịch sử phiên bản; nhóm cần chốt cách xử lý kỳ đã chi trả.
 
 ## Quyền đề xuất
 
 | Vai trò | Phạm vi | Thao tác |
 | --- | --- | --- |
-| Nhân viên | Bản thân qua Employee.user | Xem công/lương; không xuất tổng hợp |
-| Trưởng phòng | Department.manager | Xem nhân viên phòng; không tự sửa/duyệt lương |
+| Nhân viên | Bản thân qua NhanVien.user | Xem công/lương; không xuất tổng hợp |
+| Trưởng phòng | PhongBan.manager | Xem nhân viên phòng; không tự sửa/duyệt lương |
 | Nhân sự | Phạm vi được cấp, chờ chốt | Sửa công, tính lương, xuất lương đã duyệt |
 | Giám đốc | Toàn công ty | Xem, duyệt lương, xuất lương đã duyệt |
 

@@ -6,7 +6,7 @@ from .models import ChamCong, ChotBangCong, LichSuDieuChinhCong
 
 
 @admin.register(ChamCong)
-class ChamCongAdmin(ReadOnlyAdmin):
+class ChamCongAdmin(QuanTriChiDoc):
     list_display = ('nhan_vien', 'ngay', 'trang_thai', 'so_gio_lam', 'tong_cong')
 
 
@@ -16,5 +16,5 @@ class LichSuDieuChinhCongAdmin(ReadOnlyAdmin):
 
 
 @admin.register(ChotBangCong)
-class ChotBangCongAdmin(ReadOnlyAdmin):
+class ChotBangCongAdmin(QuanTriChiDoc):
     list_display = ('nhan_vien', 'ky_cong', 'nguoi_duyet', 'ngay_duyet')

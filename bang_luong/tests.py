@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
-from nhan_vien.models import Employee, Department
+from nhan_vien.models import NhanVien, PhongBan
 from bang_cong.models import KyCong, ChamCong, LichLamViec, LichSuTangCa
 from bang_cong.services.quy_trinh import xu_ly_trang_thai_ky_cong
 from thuong.models import Bonus
@@ -31,12 +31,12 @@ class PayrollTests(TestCase):
         self.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
         self.user = User.objects.create_user('employee')
         self.other_user = User.objects.create_user('other')
-        self.dep = Department.objects.create(code='A', name='Phòng A')
-        self.other_dep = Department.objects.create(code='B', name='Phòng B')
-        self.emp = Employee.objects.create(code='NV01', full_name='Nhân viên 1', user=self.user,
-                  department=self.dep, hire_date=date(2020, 1, 1), base_salary=Decimal('8000000'))
-        self.other = Employee.objects.create(code='NV02', full_name='Nhân viên 2', user=self.other_user,
-                  department=self.other_dep, hire_date=date(2020, 1, 1), base_salary=Decimal('8000000'))
+        self.dep = PhongBan.objects.create(ma_phong_ban='A', ten_phong_ban='Phòng A')
+        self.other_dep = PhongBan.objects.create(ma_phong_ban='B', ten_phong_ban='Phòng B')
+        self.emp = NhanVien.objects.create(ma_ho_so='NV01', ho_va_ten='Nhân viên 1', nguoi_dung=self.user,
+                  phong_ban=self.dep, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=Decimal('8000000'))
+        self.other = NhanVien.objects.create(ma_ho_so='NV02', ho_va_ten='Nhân viên 2', nguoi_dung=self.other_user,
+                  phong_ban=self.other_dep, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=Decimal('8000000'))
         self.attendance = KyCong.objects.create(thang=1, nam=2026, gio_bat_dau=time(8),
                    bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8,
                    trang_thai='approved', ds_nhan_vien=[self.emp.pk, self.other.pk])
@@ -72,7 +72,7 @@ class PayrollTests(TestCase):
         for log in logs:
             self.assertEqual(log.actor, self.hr)
             self.assertTrue(log.created_at)
-            self.assertIn(self.emp.code, log.reason)
+            self.assertIn(self.emp.ma_ho_so, log.reason)
 
     def test_source_changes_update_existing_payslip_once_without_manual_calculation(self):
         from .services.quy_trinh import save_input
@@ -231,15 +231,15 @@ class PayrollTests(TestCase):
             self.calculate()
 
     def test_final_rounding(self):
-        self.emp.base_salary = Decimal('8000000.60')
+        self.emp.luong_co_ban = Decimal('8000000.60')
         self.emp.save()
         self.assertEqual(self.calculate().net_pay, Decimal('7100001'))
 
     def test_snapshot_survives_salary_change(self):
         row = self.calculate()
         self.approve()
-        self.emp.base_salary = Decimal('90000000')
-        self.emp.full_name = 'Tên mới'
+        self.emp.luong_co_ban = Decimal('90000000')
+        self.emp.ho_va_ten = 'Tên mới'
         self.emp.save()
         row.refresh_from_db()
         self.assertEqual(row.luong_co_ban, Decimal('8000000'))
@@ -298,7 +298,7 @@ class PayrollTests(TestCase):
     def test_manager_payroll_scope(self):
         self.calculate()
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
-        self.dep.manager = self.emp
+        self.dep.truong_phong = self.emp
         self.dep.save()
         self.client.force_login(self.user)
         other = Luong.objects.get(nhan_vien=self.other)
@@ -419,7 +419,7 @@ class PayrollTests(TestCase):
         self.assertContains(response, 'CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG')
         response = self.client.get('/bang_luong/', {'month': 1, 'year': 2026, 'department': self.dep.pk, 'status': 'pending'})
         self.assertEqual(response.context['rows'].count(), 1)
-        self.assertEqual(response.context['form'].cleaned_data['department'], self.dep)
+        self.assertEqual(response.context['form'].cleaned_data['phong_ban'], self.dep)
 
     def test_personal_approved_layout_and_amounts(self):
         own = self.calculate()
@@ -501,11 +501,11 @@ class PayrollTests(TestCase):
             kind='deduction', amount=150000, basis='Căn cứ kiểm thử', approved=True)
         row = self.calculate()
         self.approve()
-        self.emp.base_salary = 99000000
+        self.emp.luong_co_ban = 99000000
         self.emp.save()
         self.client.force_login(self.user)
         response = self.client.get('/bang_luong/personal/', {'month': 1, 'year': 2026})
-        self.assertEqual(response.context['row'].base_salary, row.luong_co_ban)
+        self.assertEqual(response.context['row'].luong_co_ban, row.luong_co_ban)
         self.assertContains(response, '6,950,000 VNĐ')
         self.assertContains(response, 'Chưa có khoản phạt tách riêng')
         self.assertEqual(response.context['deductions_total'], Decimal('1050000'))
@@ -571,9 +571,9 @@ class PayrollTests(TestCase):
         row = self.calculate()
         original_id, original_net = row.pk, row.luong_thuc_linh
         duyet_phieu_luong(self.director, row.pk)
-        self.emp.base_salary = 99000000
+        self.emp.luong_co_ban = 99000000
         self.emp.save()
-        self.other.base_salary = 9000000
+        self.other.luong_co_ban = 9000000
         self.other.save()
         recalculated = self.calculate()
         self.assertEqual(recalculated.pk, original_id)
@@ -604,7 +604,7 @@ class PayrollTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = json.loads(response.content)
         self.assertEqual(len(payload), 1)
-        self.assertEqual(payload[0]['employee_code'], self.emp.code)
+        self.assertEqual(payload[0]['employee_code'], self.emp.ma_ho_so)
         self.client.force_login(self.user)
         response = self.client.get('/bang_luong/personal/?month=1&year=2026')
         self.assertContains(response, 'Đã duyệt · Chưa chi trả')
@@ -684,11 +684,11 @@ class PayrollTests(TestCase):
 
     def test_real_salary_tax_bonus_and_ot_changes_require_recalculation(self):
         row = self.calculate()
-        self.emp.base_salary += 100000
+        self.emp.luong_co_ban += 100000
         self.emp.save()
         with self.assertRaises(ValidationError):
             duyet_phieu_luong(self.director, row.pk)
-        self.emp.base_salary -= 100000
+        self.emp.luong_co_ban -= 100000
         self.emp.save()
         inputs = PayrollInput.objects.get(employee=self.emp)
         inputs.tax_amount += 1000
@@ -721,7 +721,7 @@ class PayrollTests(TestCase):
     def test_note_or_other_employee_changes_do_not_block_approval(self):
         row = self.calculate()
         ChamCong.objects.filter(nhan_vien=self.emp).update(ghi_chu='Chỉ sửa ghi chú')
-        self.other.base_salary += 500000
+        self.other.luong_co_ban += 500000
         self.other.save()
         duyet_phieu_luong(self.director, row.pk)
         row.refresh_from_db()
@@ -752,7 +752,7 @@ class PayrollTests(TestCase):
         response = self.client.get('/bang_luong/inputs/', {'employee':self.other.pk,'month':1,'year':2026}, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertIn(url,response.redirect_chain[0][0])
-        self.assertTemplateUsed(response, 'employees/detail.html')
+        self.assertTemplateUsed(response, 'nhan_vien/detail.html')
         self.assertContains(response, 'id="payroll-settings"')
         self.assertNotContains(response, 'DỮ LIỆU ĐẦU VÀO THEO KỲ LƯƠNG')
         self.assertNotContains(response, 'Lưu thiết lập tính lương')
@@ -804,7 +804,7 @@ class PayrollTests(TestCase):
         url = f'/bang_luong/inputs/tax/new/?period={self.period.pk}&employee={self.other.pk}'
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['form'].fields['employee'].disabled)
+        self.assertTrue(response.context['form'].fields['nhan_vien'].disabled)
         self.assertTrue(response.context['form'].fields['period'].disabled)
         self.assertContains(response, 'insurance-TOTAL_FORMS')
         data = self.insurance_form_data()
@@ -990,10 +990,10 @@ class AutomaticOvertimePayrollTests(TestCase):
         before=list(Luong.objects.values())
         response=xuat_du_lieu_luong(self.hr,Luong.objects.all(),'json',10,2026,{})
         rows={item['employee_code']:item for item in json.loads(response.content)}
-        self.assertEqual(Decimal(rows[self.emp.code]['historical_ot_pay']),300000)
-        self.assertEqual(Decimal(rows[self.emp.code]['ot_pay']),0)
-        self.assertEqual(Decimal(rows[self.other.code]['ot_pay']),300000)
-        self.assertEqual(Decimal(rows[self.other.code]['historical_ot_pay']),0)
+        self.assertEqual(Decimal(rows[self.emp.ma_ho_so]['historical_ot_pay']),300000)
+        self.assertEqual(Decimal(rows[self.emp.ma_ho_so]['ot_pay']),0)
+        self.assertEqual(Decimal(rows[self.other.ma_ho_so]['ot_pay']),300000)
+        self.assertEqual(Decimal(rows[self.other.ma_ho_so]['historical_ot_pay']),0)
         self.assertEqual(list(Luong.objects.values()),before)
 
 
@@ -1101,11 +1101,11 @@ class PayrollBonusSourceTests(TestCase):
         cls.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
         cls.user = get_user_model().objects.create_user('bonus-source-employee')
         other_user = get_user_model().objects.create_user('bonus-source-other')
-        department = Department.objects.create(code='SOURCE', name='Phòng kiểm thử')
-        cls.employee = Employee.objects.create(code='SOURCE-1', full_name='Nhân viên nguồn thưởng',
-            user=cls.user, department=department, hire_date=date(2020, 1, 1), base_salary=8000000)
-        cls.other = Employee.objects.create(code='SOURCE-2', full_name='Nhân viên khác',
-            user=other_user, department=department, hire_date=date(2020, 1, 1), base_salary=8000000)
+        department = PhongBan.objects.create(ma_phong_ban='SOURCE', ten_phong_ban='Phòng kiểm thử')
+        cls.employee = NhanVien.objects.create(ma_ho_so='SOURCE-1', ho_va_ten='Nhân viên nguồn thưởng',
+            nguoi_dung=cls.user, phong_ban=department, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=8000000)
+        cls.other = NhanVien.objects.create(ma_ho_so='SOURCE-2', ho_va_ten='Nhân viên khác',
+            nguoi_dung=other_user, phong_ban=department, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=8000000)
         cls.attendance = KyCong.objects.create(thang=9, nam=2026, gio_bat_dau=time(8),
             bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8,
             trang_thai='approved', ds_nhan_vien=[cls.employee.pk])
@@ -1267,7 +1267,7 @@ class PayrollBonusSourceTests(TestCase):
 
     def test_other_employee_cannot_view_legacy_bonus_by_direct_url(self):
         self.bonus(reason='', proposed_at=None)
-        self.client.force_login(self.other.user)
+        self.client.force_login(self.other.nguoi_dung)
         response = self.client.get(reverse('thuong:personal'), {'month': 9, 'year': 2026})
         self.assertEqual(response.context['total_amount'], 0)
         self.assertEqual(self.client.get(reverse('thuong:detail',
@@ -1281,7 +1281,7 @@ class SharedEmployeeSettingsTests(TestCase):
         self.attendance.save()
         LichLamViec.objects.update(ngay=date(2026,11,2))
         ChamCong.objects.update(ngay=date(2026,11,2))
-        self.emp.base_salary=20000000
+        self.emp.luong_co_ban=20000000
         self.emp.save()
 
     def settings(self,**changes):
@@ -1345,38 +1345,47 @@ class SharedEmployeeSettingsTests(TestCase):
 
     def post_data(self):
         values=self.settings()
-        data={'salary-'+key:value for key,value in values.items() if key!='insurance_rates'}
-        data.update({'salary-bhxh':'8','salary-bhyt':'1.5','salary-bhtn':'1','action':'save_salary','employee':self.other.pk})
+        ten_truong = {
+            'insurance_base': 'luong_dong_bao_hiem', 'insurance_basis': 'can_cu_bao_hiem',
+            'tax_method': 'doi_tuong_tinh_thue', 'claim_personal_deduction': 'giam_tru_ban_than',
+            'tax_basis': 'can_cu_thue', 'lunch_allowance': 'phu_cap_an_trua',
+            'overtime_hourly_rate': 'luong_gio_tang_ca', 'overtime_basis': 'can_cu_luong_gio_tang_ca',
+            'verified': 'da_kiem_tra',
+        }
+        data = {'salary-' + ten_truong.get(khoa, khoa): gia_tri
+                for khoa, gia_tri in values.items() if khoa not in ('insurance_rates', 'tax_dependents')}
+        data.update({'salary-ty_le_bhxh': '8', 'salary-ty_le_bhyt': '1.5',
+                     'salary-ty_le_bhtn': '1', 'action': 'save_salary', 'employee': self.other.pk})
         return data
 
     def test_hr_edits_common_settings_from_employee_edit_and_ignores_forged_owner(self):
         self.client.force_login(self.hr)
         url=reverse('employee_edit',args=[self.emp.pk])
-        before=Employee.objects.filter(pk=self.other.pk).values().get()
+        before=NhanVien.objects.filter(pk=self.other.pk).values().get()
         data=self.post_data()
-        data.update({'salary-insurance_number':'0012345678','salary-tax_code':'001234567890',
-                     'salary-bank_name':'Test bank','salary-bank_account':'000123456789'})
+        data.update({'salary-ma_so_bhxh':'0012345678','salary-ma_so_thue':'001234567890',
+                     'salary-ten_ngan_hang':'Test bank','salary-so_tai_khoan':'000123456789'})
         response=self.client.post(url,data)
         self.assertEqual(response.status_code,302)
         self.emp.refresh_from_db()
-        self.assertEqual(self.emp.payroll_settings['lunch_allowance'],'450000')
-        self.assertEqual(self.emp.payroll_settings['tax_dependents'],0)
-        self.assertEqual(self.emp.payroll_settings['insurance_number'],'0012345678')
-        self.assertEqual(self.emp.payroll_settings['tax_code'],'001234567890')
-        self.assertEqual(self.emp.payroll_settings['bank_account'],'000123456789')
-        self.assertEqual(before,Employee.objects.filter(pk=self.other.pk).values().get())
+        self.assertEqual(self.emp.thiet_lap_luong['lunch_allowance'],'450000')
+        self.assertEqual(self.emp.thiet_lap_luong['tax_dependents'],0)
+        self.assertEqual(self.emp.thiet_lap_luong['insurance_number'],'0012345678')
+        self.assertEqual(self.emp.thiet_lap_luong['tax_code'],'001234567890')
+        self.assertEqual(self.emp.thiet_lap_luong['bank_account'],'000123456789')
+        self.assertEqual(before,NhanVien.objects.filter(pk=self.other.pk).values().get())
         response=self.client.get(reverse('employee_detail',args=[self.emp.pk]))
         self.assertContains(response, 'readonly aria-readonly="true"', count=9)
-        self.assertNotContains(response, 'name="salary-lunch_allowance"')
+        self.assertNotContains(response, 'name="salary-phu_cap_an_trua"')
         self.assertNotContains(response, 'class="salary-settings-form"')
         response=self.client.get(url)
-        self.assertContains(response, 'name="salary-lunch_allowance" value="450000"')
+        self.assertContains(response, 'name="salary-phu_cap_an_trua" value="450000"')
         self.assertContains(response, 'salary-settings-grid')
         self.assertNotContains(response, 'salary-identity-table')
-        for field in ['insurance_number', 'tax_code', 'bank_name', 'bank_account']:
+        for field in ['ma_so_bhxh', 'ma_so_thue', 'ten_ngan_hang', 'so_tai_khoan']:
             self.assertContains(response, f'<label for="id_salary-{field}">')
             self.assertContains(response, f'type="text" name="salary-{field}"')
-        for field in ['insurance_basis', 'tax_method', 'tax_basis', 'overtime_basis', 'overtime_hourly_rate', 'claim_personal_deduction', 'verified']:
+        for field in ['can_cu_bao_hiem', 'doi_tuong_tinh_thue', 'can_cu_thue', 'can_cu_luong_gio_tang_ca', 'luong_gio_tang_ca', 'giam_tru_ban_than', 'da_kiem_tra']:
             self.assertContains(response, f'type="hidden" name="salary-{field}"')
             self.assertNotContains(response, f'<label for="id_salary-{field}">')
         self.assertNotContains(response,'name="month"')
@@ -1392,11 +1401,11 @@ class SharedEmployeeSettingsTests(TestCase):
         self.assertNotContains(response, 'id="salary-national-id"')
         self.assertContains(response,'450,000')
         self.assertNotContains(response,'Chỉnh sửa trong quản lý nhân viên')
-        self.assertNotContains(response, 'name="salary-insurance_base"')
+        self.assertNotContains(response, 'name="salary-luong_dong_bao_hiem"')
         self.assertNotContains(response, 'value="save_salary"')
         self.assertContains(response, 'salary-settings-grid')
         self.assertContains(response, 'readonly aria-readonly="true"', count=9)
-        self.assertNotContains(response, 'name="salary-bank_account"')
+        self.assertNotContains(response, 'name="salary-so_tai_khoan"')
         self.assertEqual(self.client.post(reverse('employee_edit',args=[self.emp.pk]),self.post_data()).status_code,403)
         self.client.force_login(self.other_user)
         self.assertNotContains(self.client.get(reverse('personal_profile')),'450,000')
@@ -1416,4 +1425,4 @@ class SharedEmployeeSettingsTests(TestCase):
         response=client.post(reverse('employee_edit',args=[self.emp.pk]),self.post_data())
         self.assertEqual(response.status_code,403)
         self.emp.refresh_from_db()
-        self.assertIsNone(self.emp.payroll_settings)
+        self.assertIsNone(self.emp.thiet_lap_luong)

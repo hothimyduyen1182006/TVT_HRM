@@ -5,7 +5,7 @@
 ## Kế thừa và phạm vi
 
 Template cha thực tế là templates/base.html, Navbar dùng includes/navigation.html.
-payroll/base.html kế thừa cha, bổ sung CSS/JS riêng và chỉ thay nội dung block content.
+bang_luong/base.html kế thừa cha, bổ sung CSS/JS riêng và chỉ thay nội dung block content.
 Không sửa template cha, Navbar, CSS chung, model, migration hoặc công thức lương.
 
 ## Điều hướng

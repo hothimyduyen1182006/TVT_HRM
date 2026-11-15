@@ -10,7 +10,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from nhan_vien.models import Employee
+from nhan_vien.models import NhanVien
 
 from .models import ChamCong
 from .services.cham_cong import ghi_nhan_cham_cong, xem_lich_cham_cong
@@ -57,7 +57,7 @@ def _calculate_work_hours(record, now, period):
 @login_required
 @require_http_methods(['GET', 'POST'])
 def cham_cong_hom_nay(request):
-    nhan_vien = Employee.objects.filter(user=request.user, is_active=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     if not nhan_vien:
         raise PermissionDenied('Tài khoản chưa liên kết nhân viên đang làm việc.')
     hien_tai = timezone.localtime().replace(microsecond=0)
@@ -78,7 +78,7 @@ def cham_cong_hom_nay(request):
     da_khoa = ky_cong_da_khoa(ky_cong, nhan_vien.pk, hom_nay) if ky_cong and ky_cong.pk else False
     duoc_cham_cong = bool(
         not ke_hoach['error'] and ky_cong and not da_khoa
-        and lich_ngay and lich_ngay.loai_ngay == 'work' and nhan_vien.hire_date <= hom_nay
+        and lich_ngay and lich_ngay.loai_ngay == 'work' and nhan_vien.ngay_vao_lam <= hom_nay
     )
     dang_trong_ca = bool(ban_ghi and ban_ghi.gio_vao and not ban_ghi.gio_ra)
     trang_thai_trang = 'done' if ban_ghi and ban_ghi.gio_ra else (
@@ -90,7 +90,7 @@ def cham_cong_hom_nay(request):
     so_gio, tong_gio_vao_ra = _calculate_work_hours(ban_ghi, hien_tai, ky_cong)
     so_phut = int(so_gio * 60)
 
-    return render(request, 'attendance/checkin.html', {
+    return render(request, 'bang_cong/checkin.html', {
         'employee': nhan_vien, 'record': ban_ghi, 'today_record': ban_ghi,
         'period': ky_cong, 'now': hien_tai, 'today': hom_nay,
         'success': thanh_cong.get('action'), 'page_state': trang_thai_trang,

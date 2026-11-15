@@ -2,7 +2,7 @@ from datetime import date, time
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from django.urls import reverse
-from nhan_vien.models import Department, Employee
+from nhan_vien.models import PhongBan, NhanVien
 from bang_cong.models import KyCong, ChamCong
 
 
@@ -12,14 +12,14 @@ class DashboardTests(TestCase):
         self.hr.groups.add(Group.objects.get_or_create(name='Nhân sự')[0])
         self.manager = User.objects.create_user('dash-manager')
         self.manager.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
-        a = Department.objects.create(code='A', name='Phòng A')
-        b = Department.objects.create(code='B', name='Phòng B')
+        a = PhongBan.objects.create(ma_phong_ban='A', ten_phong_ban='Phòng A')
+        b = PhongBan.objects.create(ma_phong_ban='B', ten_phong_ban='Phòng B')
         self.people = []
-        for index, (department, gender) in enumerate([(a, 'Nam'), (a, 'Nữ'), (b, '')]):
+        for index, (department, gioi_tinh) in enumerate([(a, 'Nam'), (a, 'Nữ'), (b, '')]):
             user = self.manager if index == 0 else User.objects.create_user(f'dash-person{index}')
-            self.people.append(Employee.objects.create(user=user, code=f'DASH{index}', full_name=f'Người {index}',
-                department=department, gender=gender, hire_date=date(2020, 1, 1), base_salary=10000000))
-        a.manager = self.people[0]
+            self.people.append(NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'DASH{index}', ho_va_ten=f'Người {index}',
+                phong_ban=department, gioi_tinh=gioi_tinh, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000))
+        a.truong_phong = self.people[0]
         a.save()
         KyCong.objects.create(nam=2026, thang=1, gio_bat_dau=time(8), bat_dau_nghi_trua=time(12),
             ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8)
@@ -40,13 +40,13 @@ class DashboardTests(TestCase):
         response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertEqual(response.context['total_employees'], 2)
         self.assertNotContains(response, 'DASH2')
-        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].phong_ban_id})
         self.assertTrue(response.context['form'].errors)
         self.assertNotContains(response, 'DASH2')
 
     def test_department_only_filters_list_and_bad_date_is_handled(self):
         self.client.force_login(self.hr)
-        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get(reverse('dashboard'), {'date': '2026-01-05', 'department': self.people[2].phong_ban_id})
         self.assertEqual(response.context['total_employees'], 3)
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
         self.assertEqual(response.context['page_obj'][0]['employee'], self.people[2])
@@ -55,9 +55,9 @@ class DashboardTests(TestCase):
         self.assertTrue(response.context['form'].errors)
 
     def test_employee_still_redirects_and_empty_scope_is_supported(self):
-        self.client.force_login(self.people[1].user)
+        self.client.force_login(self.people[1].nguoi_dung)
         self.assertRedirects(self.client.get(reverse('dashboard')), '/bang_cong/', fetch_redirect_response=False)
-        Employee.objects.update(is_active=False)
+        NhanVien.objects.update(dang_hoat_dong=False)
         self.client.force_login(self.hr)
         response = self.client.get(reverse('dashboard'), {'date': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
@@ -78,14 +78,14 @@ class DashboardTests(TestCase):
     def test_employee_gender_and_department_links_preserve_scope(self):
         self.client.force_login(self.hr)
         for value, expected in [('Nam', self.people[0]), ('Nữ', self.people[1]), ('unknown', self.people[2])]:
-            response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'gender': value})
+            response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'gioi_tinh': value})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(list(response.context['rows']), [expected])
         self.client.force_login(self.manager)
         response = self.client.get('/departments/', {'date': '2026-01-05'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['departments']), 1)
-        response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'department': self.people[2].department_id})
+        response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'department': self.people[2].phong_ban_id})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['rows'].exists())
         response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026, 'day': '2026-01-05', 'day_state': 'unchecked'})

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from nhan_vien.admin_utils import ReadOnlyAdmin
+from nhan_vien.admin_utils import QuanTriChiDoc
 from .models import PayrollPeriod, Luong, PayrollAuditLog
 
 
@@ -18,10 +18,10 @@ class KyLuongAdmin(admin.ModelAdmin):
 
 
 @admin.register(Luong)
-class LuongAdmin(ReadOnlyAdmin):
+class LuongAdmin(QuanTriChiDoc):
     list_display = ('ma_nhan_vien', 'ten_nhan_vien', 'ky_luong', 'luong_thuc_linh')
 
 
 @admin.register(PayrollAuditLog)
-class NhatKyLuongAdmin(ReadOnlyAdmin):
+class NhatKyLuongAdmin(QuanTriChiDoc):
     list_display = ('period', 'actor', 'created_at', 'action')

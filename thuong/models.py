@@ -45,7 +45,7 @@ def tao_ma_tong_thuong():
 class TongThuong(models.Model):
     """Tổng thưởng theo nhân viên/kỳ, lưu nguồn đã dùng trong phiếu lương."""
     ma_thuong = models.CharField(max_length=25, unique=True, default=tao_ma_tong_thuong, editable=False)
-    nhan_vien = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    nhan_vien = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
     thang = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     nam = models.PositiveSmallIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
     tong_tien = models.DecimalField(max_digits=24, decimal_places=8, default=0)
@@ -70,7 +70,7 @@ class Bonus(models.Model):
         ('approved', 'Đã duyệt'),
         ('rejected', 'Từ chối'),
     ]
-    employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
+    employee = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
     month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
     name = models.CharField('Khoản thưởng', max_length=150)
