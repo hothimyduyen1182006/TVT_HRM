@@ -12,11 +12,13 @@ class NhanVienAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if change and set(form.changed_data) & {'luong_co_ban', 'ma_ho_so', 'ho_va_ten', 'phong_ban'}:
-            from bang_luong.models import PayrollPeriod
+            from bang_luong.models import Luong
             from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            for period in PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk'):
-                attendance = period.attendance_period
-                error = cap_nhat_luong_nhan_vien(request.user, obj.pk, attendance.nam, attendance.thang)
+            months = Luong.objects.filter(trang_thai='pending').values_list(
+                'tong_hop__nam', 'tong_hop__thang',
+            ).distinct()
+            for year, month in months:
+                error = cap_nhat_luong_nhan_vien(request.user, obj.pk, year, month)
                 if error:
                     from django.contrib import messages
                     self.message_user(request, error, level=messages.WARNING)

@@ -26,16 +26,20 @@ def home(request):
     can_manage=co_vai_tro(request.user,NHAN_SU,GIAM_DOC,TRUONG_PHONG)
     name=(employee.ho_va_ten if employee else '') or request.user.get_full_name() or request.user.get_username()
     latest=phieu_luong_ca_nhan(request.user).order_by(
-        '-ky_luong__nam','-ky_luong__thang','-ngay_tinh','-pk').first()
+        '-tong_hop__nam','-tong_hop__thang','-pk').first()
     today=timezone.localdate()
-    period=latest.ky_luong.attendance_period if latest else None
+    from bang_cong.thang_lich import thang_lich
+    period=thang_lich(latest.tong_hop.nam, latest.tong_hop.thang) if latest else None
     payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,
         'year':period.nam if period else today.year})
+    bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
     return render(request,'home.html',{
         'display_name':name,
         'attendance_url':reverse('bang_cong:ca-nhan') if employee else (reverse('bang_cong:danh-sach') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
+        'bonus_url':bonus_url,
+        'bonus_description':'Xem các khoản thưởng của bạn' if employee or not can_manage else 'Xem bảng thưởng theo quyền',
         'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
         'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.dang_hoat_dong) else '',

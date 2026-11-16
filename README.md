@@ -1,17 +1,35 @@
+## Cập nhật Bảng thưởng và Trang chủ
+
+Sau khi lấy code, sao lưu database hiện có rồi chạy trong môi trường Python của dự án:
+
+```powershell
+git pull --ff-only origin main
+python manage.py migrate
+python manage.py check
+python manage.py test thuong --noinput
+python manage.py runserver
+```
+
+Trang chủ có ô “Xem bảng thưởng” nằm giữa bảng công và bảng lương, điều hướng theo quyền.
+App thưởng dùng hai model `Thuong` và `DeXuatThuong`; đề xuất chỉ lưu thưởng khác.
+Duyệt công tự đồng bộ chuyên cần/thâm niên; chuyên cần 200.000đ chỉ khi đủ công, không nghỉ phép
+hoặc vắng mặt. Chỉ tổng thưởng đã duyệt được cộng vào lương. Bảng bị từ chối có thể gửi duyệt lại.
+
+Các migration thưởng 0005–0008 và lương 0017 chuyển liên kết mà giữ mã thưởng cũ;
+hai bảng lưu trữ vẫn giữ để đối chiếu. Migration dừng nếu dữ liệu cũ có trạng thái thưởng
+không đồng nhất hoặc không phù hợp số tiền nguyên VNĐ; cần đối chiếu dữ liệu khi gặp thông báo này.
+Đây là bản cập nhật code và migration; dùng database hiện có của từng máy.
+
 ## Cấu trúc Bảng lương
 
-`bang_luong.models.Luong` lưu trong bảng `Luong`, có mã nghiệp vụ `ma_luong`
-duy nhất và giữ `id` nội bộ để bảo toàn URL, liên kết và lịch sử.
-Mỗi phiếu liên kết một `TongHopCong` và một `thuong.models.TongThuong` của đúng
-nhân viên/kỳ. Tổng thưởng lưu các khoản thưởng nguồn đã dùng; không có thưởng
-thì tổng bằng 0. Không thêm trang giao diện quản lý tổng thưởng riêng.
+`bang_luong.models.Luong` lưu trong bảng `Luong`, dùng `ma_luong` làm khóa chính.
+Mỗi phiếu liên kết một `TongHopCong` và một `thuong.models.Thuong` của đúng
+nhân viên/kỳ. Chỉ thưởng đã duyệt được cộng vào `tong_tien_thuong`.
 
-Các cột thành tiền dùng tên tiếng Việt: `luong_co_ban`, `luong_theo_cong`,
-`luong_tang_ca`, `tong_tien_thuong`, `khau_tru_di_tre`, `khau_tru_bhxh`,
-`khau_tru_bhyt`, `khau_tru_bhtn`, `khau_tru_khac`, `thue_tncn`, `luong_thuc_linh`.
-`phu_cap` giữ phụ cấp hiện có; `tong_bao_hiem` và `tong_khau_tru` giữ tổng đã lưu.
-Độ chính xác tiền hiện tại và khóa JSON lịch sử được giữ để không đổi phiếu cũ.
-Trạng thái lưu `pending/approved/paid`, hiển thị Chờ duyệt/Đã duyệt/Đã chi trả.
+Các cột thành tiền là `luong_co_ban`, `luong_theo_cong`, `luong_tang_ca`,
+`tong_tien_thuong`, `khau_tru_di_tre`, `khau_tru_bhxh`, `thue_tncn`, `luong_thuc_linh`.
+Trạng thái lưu `pending/submitted/approved/paid`, tương ứng chờ HR kiểm tra,
+chờ Giám đốc ký duyệt, đã duyệt và đã chi trả.
 
 Migration `bonuses.0004_tong_thuong` và `payroll.0007_luong_structure` đổi tên,
 chuyển dữ liệu và áp dụng các liên kết bắt buộc, không tính lại tiền lương.
@@ -48,7 +66,7 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 - `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
 - `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
 - `LichSuDieuChinhCong` → `Lich_su_dieu_chinh_cong`: một dòng cho mỗi trường thay đổi, liên kết nhật ký JSON gốc.
-- Không còn model KyCong; PayrollPeriod quản lý tháng dùng chung và lịch sử OT cũ tiếp tục được giữ; lịch ngày dùng hàm trong service, căn cứ cũ được lưu trong `PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên)`. Không thêm quy trình phản hồi hoặc duyệt OT.
+- Tháng công và lương được suy ra từ ngày/tháng/năm trên dữ liệu tổng hợp công; không có model kỳ tháng riêng. Lịch làm việc được tính từ quy tắc lịch trong service. Không thêm quy trình phản hồi hoặc duyệt OT.
 - Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
 - Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
 
@@ -120,7 +138,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
    nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
 5. Lịch năm 2026 được tính từ code: thứ Hai–thứ Sáu, lễ và nghỉ bù. Không tạo lịch hoặc sửa từng ngày trong Admin.
-6. Công chuẩn lấy từ hàm dùng chung; căn cứ lịch cũ và kỳ đã chốt được bảo toàn trong PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên).
+6. Công chuẩn lấy từ hàm lịch dùng chung; tháng được xác định từ ngày công và tổng hợp công.
 
    Với UC-3, sau cấu hình ban đầu, kỳ mới năm 2026 dùng ca cố định và lịch trong code
    có cấu hình hợp lệ. Mở trang chấm công chỉ xem trước; lần check-in thành công đầu tiên mới lưu
@@ -192,7 +210,7 @@ kỳ lương đã duyệt (nếu có), rồi mở công, sửa, duyệt công, t
 Không mở trực tiếp kỳ đã chi trả; cần quy trình điều chỉnh riêng do nhóm xác nhận.
 Thay đổi đầu vào lương làm mất hiệu lực lần tính trước và bắt buộc tính lại trước duyệt.
 Lương đã duyệt/chi trả xuất từ snapshot, không đọc lại lương cơ bản/thưởng hiện tại.
-Lịch sử tính cũ giữ trong PayrollAuditLog; lịch sử sửa công có trước/sau, người và lý do.
+Lịch sử sửa công lưu trạng thái trước/sau, người thực hiện và lý do; dữ liệu duyệt lương nằm trên từng phiếu lương.
 Chưa có lịch sử hợp đồng/ngày nghỉ việc theo hiệu lực: cần nhóm bổ sung nếu tính hồi tố
 cho nhân viên đã ngừng làm hoặc thay lương giữa tháng.
 

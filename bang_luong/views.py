@@ -10,10 +10,11 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from nhan_vien.access import nhan_vien_duoc_hien_thi, co_vai_tro, yeu_cau_vai_tro, NHAN_SU, GIAM_DOC, TRUONG_PHONG
-from .models import Luong, PayrollPeriod
+from .models import Luong
+from bang_cong.thang_lich import thang_lich, thang_tu_ma
 from .forms import BoLocBangLuong, BoLocPhieuLuong
 from .services.tinh_toan import tinh_bang_luong
-from .services.quy_trinh import xu_ly_trang_thai_luong, duyet_phieu_luong, loi_duyet_luong
+from .services.quy_trinh import xu_ly_trang_thai_luong, gui_bang_luong
 from .services.hien_thi import (
     xuat_du_lieu_luong, du_lieu_hien_thi_luong, phieu_luong_du_cong_duyet,
     phieu_luong_trong_pham_vi, phieu_luong_ca_nhan,
@@ -34,17 +35,14 @@ def danh_sach_bang_luong(request):
         return redirect(dich_den + ('?' + tham_so_ky if tham_so_ky else ''))
     bieu_mau = BoLocBangLuong(request.user, request.GET)
     ds_dong = phieu_luong_trong_pham_vi(request.user, bieu_mau)
-    if co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
-        for dong in ds_dong:
-            dong.approval_error = loi_duyet_luong(dong) if dong.trang_thai == 'pending' else ''
     ky_luong = None
     if bieu_mau.is_valid():
-        ky_luong = PayrollPeriod.objects.filter(thang=bieu_mau.cleaned_data['month'],
-                                               nam=bieu_mau.cleaned_data['year']).first()
+        ky_luong = thang_lich(bieu_mau.cleaned_data['year'], bieu_mau.cleaned_data['month'])
     ngu_canh = {'form': bieu_mau, 'rows': ds_dong, 'period': ky_luong,
-                  'has_approved_records': ky_luong.records.filter(trang_thai='approved').exists() if ky_luong else False,
+                  'attendance_approved': ky_luong.trang_thai == 'approved' if ky_luong else False,
                   'month_label': str(bieu_mau['thang'].value()).zfill(2), 'year_label': bieu_mau['nam'].value(),
-                  'can_manage': co_vai_tro(request.user, NHAN_SU, GIAM_DOC), 'director': co_vai_tro(request.user, GIAM_DOC)}
+                  'can_manage': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
+                  'hr': co_vai_tro(request.user, NHAN_SU), 'director': co_vai_tro(request.user, GIAM_DOC)}
     return render(request, 'bang_luong/list.html', ngu_canh)
 
 
@@ -53,8 +51,9 @@ def luong_ca_nhan(request):
     bieu_mau = BoLocPhieuLuong(request.GET)
     dong = None
     if bieu_mau.is_valid():
-        dong = phieu_luong_ca_nhan(request.user).filter(ky_luong__thang=bieu_mau.cleaned_data['month'],
-            ky_luong__nam=bieu_mau.cleaned_data['year']).first()
+        dong = phieu_luong_ca_nhan(request.user).filter(
+            tong_hop__thang=bieu_mau.cleaned_data['month'],
+            tong_hop__nam=bieu_mau.cleaned_data['year']).first()
     ngu_canh = du_lieu_hien_thi_luong(dong) if dong else {}
     ngu_canh.update({'form': bieu_mau, 'row': dong, 'personal': True,
                     'month_label': str(bieu_mau['month'].value()).zfill(2), 'year_label': bieu_mau['year'].value(),
@@ -65,10 +64,10 @@ def luong_ca_nhan(request):
 @login_required
 def chi_tiet_luong(request, pk):
     co_quyen_xem_nhom = co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
-    truy_van = Luong.objects.select_related('ky_luong').filter(
-        nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
+    truy_van = Luong.objects.select_related('tong_hop', 'tong_hop__nhan_vien').filter(
+        tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if co_quyen_xem_nhom else phieu_luong_ca_nhan(request.user)
     dong = get_object_or_404(phieu_luong_du_cong_duyet(truy_van), pk=pk)
-    ky_luong = dong.ky_luong.attendance_period
+    ky_luong = thang_lich(dong.tong_hop.nam, dong.tong_hop.thang)
     bieu_mau = BoLocPhieuLuong({'month': ky_luong.thang, 'year': ky_luong.nam})
     ngu_canh = du_lieu_hien_thi_luong(dong)
     ngu_canh.update({'form': bieu_mau, 'personal': not co_quyen_xem_nhom, 'month_label': f'{ky_luong.thang:02}',
@@ -78,36 +77,27 @@ def chi_tiet_luong(request, pk):
 
 @login_required
 @require_POST
-def duyet_luong_nhan_vien(request, pk):
-    yeu_cau_vai_tro(request.user, GIAM_DOC)
-    dong = get_object_or_404(Luong.objects.select_related('ky_luong'), pk=pk,
-                            nhan_vien__in=nhan_vien_duoc_hien_thi(request.user))
-    try:
-        duyet_phieu_luong(request.user, dong.pk)
-    except ValidationError as loi:
-        messages.error(request, '; '.join(loi.messages))
-    else:
-        messages.success(request, f'Đã duyệt bảng lương của {dong.ten_nhan_vien}.')
-    ky_cong = dong.ky_luong.attendance_period
-    return _ve_danh_sach_luong(ky_cong)
-
-
-@login_required
-@require_POST
 def doi_trang_thai_ky_luong(request, pk):
     yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
-    ky_luong = get_object_or_404(PayrollPeriod.objects.select_related(), pk=pk)
+    ky_luong = thang_tu_ma(pk)
+    action = request.POST.get('action')
     try:
-        action = request.POST.get('action')
         if action == 'calculate':
             tinh_bang_luong(request.user, pk, request.POST.get('reason', ''))
+        elif action == 'submit':
+            gui_bang_luong(request.user, pk)
         else:
             xu_ly_trang_thai_luong(request.user, pk, action, request.POST.get('reason', ''), request.POST.get('evidence', ''))
     except ValidationError as loi:
         messages.error(request, '; '.join(loi.messages))
     else:
-        messages.success(request, 'Đã cập nhật bảng lương.')
-    return _ve_danh_sach_luong(ky_luong.attendance_period)
+        messages.success(request, {
+            'submit': 'Đã gửi toàn bộ bảng lương cho Giám đốc ký duyệt.',
+            'approve': 'Giám đốc đã ký duyệt toàn bộ bảng lương trong kỳ.',
+            'paid': 'Đã xác nhận chi trả bảng lương.',
+            'reopen': 'Đã mở lại kỳ lương để kiểm tra và điều chỉnh.',
+        }.get(action, 'Đã cập nhật bảng lương.'))
+    return _ve_danh_sach_luong(ky_luong)
 
 
 @login_required

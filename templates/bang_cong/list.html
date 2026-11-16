@@ -17,17 +17,37 @@
 </form>
 {% if form.day.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.day.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'bang_cong:danh-sach' %}?month={{ form.thang.value }}&amp;year={{ form.nam.value }}">Bỏ lọc theo ngày</a></div>{% endif %}
 {% if not period and form.is_valid %}<div class="at-notice">Chưa cấu hình kỳ công cho tháng đã chọn. Công chuẩn chỉ hiển thị khi có lịch làm việc.</div>{% endif %}
-<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
+{% if can_bulk_approve and period %}<form id="bulk-approval" method="post" action="{% url 'bang_cong:duyet-hang-loat' period.pk %}">{% csrf_token %}<input type="hidden" name="month" value="{{ form.thang.value }}"><input type="hidden" name="year" value="{{ form.nam.value }}">{% endif %}
+<div class="at-table-wrap"><table class="at-table"><thead><tr>{% if can_bulk_approve %}<th scope="col"><input type="checkbox" id="select-all-employees" aria-label="Chọn tất cả nhân viên chờ duyệt trên trang này" title="Chọn tất cả nhân viên chờ duyệt trên trang này"></th>{% endif %}<th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
 {% for row in page_obj %}<tr>
+ {% if can_bulk_approve %}<td>{% if row.can_approve %}<input class="employee-approval-checkbox" type="checkbox" name="employee_ids" value="{{ row.employee.pk }}" aria-label="Chọn {{ row.employee.ho_va_ten }} để duyệt công">{% else %}<span class="at-muted">—</span>{% endif %}</td>{% endif %}
  <td class="name">{{ row.employee.ho_va_ten }}<span class="code">{{ row.employee.ma_ho_so }}</span></td>
  <td><span class="at-pill department">{{ row.employee.phong_ban.ten_phong_ban }}</span></td>
  <td class="at-muted">{{ row.standard|floatformat:'-4'|default:'—' }}</td>
- <td class="at-strong">{% if row.has_records %}{{ row.paid|floatformat:'-4' }}<br><small class="at-muted">OT: {{ row.ot|floatformat:'-4' }} giờ</small>{% else %}—{% endif %}</td>
+ <td class="at-strong">{% if row.has_records %}{{ row.paid|floatformat:'-4' }}{% else %}—{% endif %}</td>
  <td class="{% if row.late_count %}at-red{% else %}at-muted{% endif %}">{{ row.late_count }} lần{% if row.late_count %} / {{ row.late }}p{% endif %}</td>
  <td><span class="at-pill {{ row.state }}">{{ row.state_label }}</span></td>
  <td><a class="pill-link" href="{% url 'bang_cong:cong-nhan-vien' row.employee.pk %}?month={{ form.thang.value }}&year={{ form.nam.value }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
 </tr>{% empty %}<tr><td colspan="7" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
 </tbody></table></div>
-<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên · Duyệt công tại trang chi tiết của từng nhân viên.</span></div>
+{% if can_bulk_approve and period %}<div class="at-footer"><button class="at-button" type="submit">Duyệt các nhân viên đã chọn</button></div></form>{% else %}<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên · Duyệt công tại trang chi tiết của từng nhân viên.</span></div>{% endif %}
+{% if can_bulk_approve %}<script>
+(() => {
+  const master = document.getElementById('select-all-employees');
+  const checks = Array.from(document.querySelectorAll('.employee-approval-checkbox'));
+  if (!master || !checks.length) return;
+  const syncMaster = () => {
+    const selected = checks.filter(check => check.checked).length;
+    master.checked = selected === checks.length;
+    master.indeterminate = selected > 0 && selected < checks.length;
+  };
+  master.addEventListener('change', () => {
+    checks.forEach(check => { check.checked = master.checked; });
+    master.indeterminate = false;
+  });
+  checks.forEach(check => check.addEventListener('change', syncMaster));
+  syncMaster();
+})();
+</script>{% endif %}
 {% include 'bang_cong/pagination.html' %}
 {% endblock %}

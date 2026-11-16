@@ -138,6 +138,12 @@
     color:var(--at-navy);
     font-weight:700
 }
+.at-table a.at-edit-day{
+    display:block;
+    width:fit-content;
+    margin:3px auto 0;
+    font-size:12px
+}
 .at-table a.pill-link{
     display:inline-flex;
     gap:22px;
@@ -336,12 +342,7 @@
 .at-stat strong{
     font-size:16px
 }
-.attendance-module .at-stat-filter,.at-stats .at-stat-filter{color:inherit;text-decoration:none;cursor:pointer;transition:background .15s,box-shadow .15s}
-.at-stats .at-stat-filter:hover{box-shadow:inset 0 0 0 2px #ce9920}
-.at-stats .at-stat:hover,.at-stats .at-stat.is-selected{background:#f4f7fc}
-.at-stats .at-stat-filter.is-selected{box-shadow:inset 0 -3px 0 #ce9920}
 .at-stats .at-main-stat{color:white}
-.at-stats .at-stat-filter:focus-visible{outline:3px solid #ce9920;outline-offset:-3px}
 .at-subheading{
     display:flex;
     justify-content:space-between;
@@ -640,31 +641,6 @@
 
 
 
-.attendance-shell .at-day-detail{background:#fff;border:1px solid #e3eaf0;border-radius:18px;box-shadow:0 8px 28px rgba(18,50,74,.05);overflow:hidden}
-.attendance-shell .at-day-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:28px 30px;border-bottom:1px solid #e8eef3;background:linear-gradient(110deg,#f5f9fc,#fff)}
-.attendance-shell .at-day-eyebrow{font-size:11px;font-weight:700;letter-spacing:1.5px;color:#708598;margin:0 0 10px}
-.attendance-shell .at-day-heading h1{font-size:25px;line-height:1.4;font-weight:700;color:#12324a;margin:0;overflow-wrap:anywhere}
-.attendance-shell .at-day-date{color:#708598;font-size:14px;margin:8px 0 0}
-.attendance-shell .at-day-status{display:inline-flex;flex-shrink:0;border:1px solid #cee0ed;background:#edf5fb;color:#235875;border-radius:30px;padding:7px 14px;font-size:13px;font-weight:600}
-.attendance-shell .at-day-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0;padding:26px 30px}
-.attendance-shell .at-day-grid>div{padding:17px 20px;background:#f7f9fc;border:1px solid #edf1f5;border-radius:12px;min-width:0}
-.attendance-shell .at-day-grid dt{font-size:13px;font-weight:500;color:#718193;margin:0 0 8px}
-.attendance-shell .at-day-grid dd{font-size:18px;font-weight:600;color:#18394f;margin:0;overflow-wrap:anywhere}
-.attendance-shell .at-day-grid dd span{color:#a3b1be;font-weight:400;margin:0 6px}
-.attendance-shell .at-day-grid .at-day-wide{grid-column:1/-1}
-.attendance-shell .at-day-grid .at-day-wide dd{font-size:15px;font-weight:400;line-height:1.7}
-.attendance-shell .at-day-note{white-space:pre-wrap}
-.attendance-shell .at-day-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid #e8eef3;padding:20px 30px}
-.attendance-shell .at-day-footer p{margin:0;color:#718193;font-size:13px;overflow-wrap:anywhere}
-.attendance-shell .at-day-footer strong{color:#344f63;font-weight:600}
-.attendance-shell .at-day-footer p span{display:block;margin-top:5px}
-.attendance-shell .at-day-action{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
-.attendance-shell .at-day-action small{color:#8593a1;font-size:11px}
-.attendance-shell .at-day-ot{padding:22px 30px;border-top:1px solid #e8eef3}
-.attendance-shell .at-day-ot h2{font-size:18px;font-weight:700;color:#12324a;margin:0 0 12px}
-.attendance-shell .at-day-ot p{font-size:14px;line-height:1.7;margin:8px 0;overflow-wrap:anywhere}
-.attendance-shell .at-day-ot .at-filter{padding:0;margin:18px 0 10px;border:0;box-shadow:none;background:transparent}
-@media(max-width:700px){.attendance-shell .at-day-heading{padding:20px;flex-wrap:wrap}.attendance-shell .at-day-heading h1{font-size:21px}.attendance-shell .at-day-grid{grid-template-columns:1fr;padding:20px;gap:12px}.attendance-shell .at-day-footer{padding:20px;align-items:flex-start;flex-direction:column}}
 .attendance-shell .at-approve-inline { margin: 0; }
 .attendance-shell .at-person-actions button:disabled { opacity: .7; cursor: default; }
 .attendance-shell .at-approval-footer{display:flex;justify-content:center;align-items:center;width:100%;padding:24px 0 12px;clear:both}.attendance-shell .at-approval-footer form{margin:0;flex:0 0 auto}.attendance-shell .at-approval-footer .at-button{min-width:200px}

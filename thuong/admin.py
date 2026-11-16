@@ -1,17 +1,8 @@
 from django.contrib import admin
+from .models import DeXuatThuong, Thuong
 
-from .models import Bonus
 
-
-@admin.register(Bonus)
-class BonusAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'name', 'month', 'year', 'amount', 'status')
-    list_filter = ('status', 'year', 'month')
-    readonly_fields = (
-        'employee', 'month', 'year', 'name', 'bonus_type', 'reason', 'proposed_by',
-        'proposed_at', 'amount', 'status', 'rejection_reason', 'approved_by', 'approved_at',
-    )
-
+class ChiDocAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
@@ -20,3 +11,14 @@ class BonusAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Thuong)
+class ThuongAdmin(ChiDocAdmin):
+    list_display = ('ma_thuong', 'nguoi_dung', 'thang', 'nam', 'tong_thuong', 'trang_thai')
+    list_filter = ('trang_thai', 'nam', 'thang')
+
+
+@admin.register(DeXuatThuong)
+class DeXuatThuongAdmin(ChiDocAdmin):
+    list_display = ('ten', 'bang_thuong', 'so_tien', 'nguoi_de_xuat', 'thoi_gian_de_xuat')

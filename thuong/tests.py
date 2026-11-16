@@ -3,162 +3,262 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.admin.models import LogEntry
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.test import Client, TestCase
 from django.urls import reverse
-from django.utils import timezone
 
-from bang_cong.models import KyCong, ChamCong, LichLamViec
+from bang_cong.models import ChamCong
+from bang_cong.services.quy_trinh import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
+from bang_cong.services.tinh_toan import lich_thang
+from bang_luong.models import Luong
+from bang_cong.thang_lich import thang_lich
+from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.models import PhongBan, NhanVien
-from .models import Bonus
+from nghi_phep.models import LeaveDay
+from .models import DeXuatThuong, Thuong
+from .views import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
 
 
-class AutomaticBonusPostTests(TestCase):
+class BonusWorkflowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        department = PhongBan.objects.create(ma_phong_ban='BA', ten_phong_ban='Phòng A')
-        other_department = PhongBan.objects.create(ma_phong_ban='BB', ten_phong_ban='Phòng B')
-        cls.people = {}
-        for name, room, role in [
-            ('employee', department, 'Nhân viên'),
-            ('manager', department, 'Trưởng phòng'),
-            ('outsider', other_department, 'Nhân viên'),
-        ]:
-            user = get_user_model().objects.create_user(name)
-            user.groups.add(Group.objects.get_or_create(name=role)[0])
-            cls.people[name] = NhanVien.objects.create(nguoi_dung=user, ma_ho_so=name,
-                ho_va_ten=name, phong_ban=room, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000)
-        department.truong_phong = cls.people['manager']
-        department.save(update_fields=['truong_phong'])
         cls.hr = get_user_model().objects.create_user('hr')
-        cls.hr.groups.add(Group.objects.get_or_create(name='Nhân sự')[0])
         cls.director = get_user_model().objects.create_user('director')
-        cls.director.groups.add(Group.objects.get_or_create(name='Giám đốc')[0])
-        KyCong.objects.create(thang=1, nam=2026, gio_bat_dau=time(8),
-            bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17),
-            gio_chuan=8, trang_thai='approved',
-            ds_nhan_vien=[employee.pk for employee in cls.people.values()])
-        LichLamViec.objects.create(ngay=date(2026, 1, 5), loai_ngay='work', cong_chuan=1)
-        for employee in cls.people.values():
-            ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
-                trang_thai='present', gio_vao=time(8), gio_ra=time(17),
-                so_gio_lam=8, cong_thuc_te=1, tong_cong=1)
+        for user, role in [(cls.hr, NHAN_SU), (cls.director, GIAM_DOC)]:
+            user.groups.add(Group.objects.get_or_create(name=role)[0])
+        phong = PhongBan.objects.create(ma_phong_ban='A', ten_phong_ban='Phòng A')
+        cls.people = []
+        for i in range(2):
+            user = get_user_model().objects.create_user(f'employee{i}')
+            cls.people.append(NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'NV{i}', ho_va_ten=f'Nhân viên {i}',
+                phong_ban=phong, ngay_vao_lam=date(2020,1,1), luong_co_ban=10000000,
+                thiet_lap_luong={'verified':True, 'insurance_base':'0', 'insurance_rates':{},
+                    'insurance_basis':'Căn cứ kiểm thử', 'tax_method':'resident_2026', 'tax_basis':'Căn cứ kiểm thử'}))
+        cls.period = thang_lich(2026,10)
+        for lich in lich_thang(2026,10,cls.period).values():
+            if lich.loai_ngay == 'work':
+                for employee in cls.people:
+                    ChamCong.objects.create(nhan_vien=employee, ngay=lich.ngay, trang_thai='present',
+                        gio_vao=time(8),gio_ra=time(17),so_gio_lam=8)
 
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True)
         self.list_url = reverse('thuong:list')
-        self.calculate_url = reverse('thuong:calculate')
-        self.data = {'month': 1, 'year': 2026, 'employee': self.people['employee'].pk}
+        self.decision_url = reverse('thuong:decision', args=[2026,10])
+        self.submit_url = reverse('thuong:submit', args=[2026,10])
 
-    def post(self, data=None):
+    def post(self, user, url, data):
+        self.client.force_login(user)
         self.client.get(reverse('login'))
-        return self.client.post(self.calculate_url, self.data if data is None else data,
-                                HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value)
+        return self.client.post(url,data,HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value)
 
-    def bonus(self, bonus_type, status, amount=123):
-        return Bonus.objects.create(employee=self.people['employee'], month=1, year=2026,
-            bonus_type=bonus_type, name='Khoản thưởng đã lưu', amount=amount, reason='Căn cứ đã lưu',
-            proposed_by=self.hr, proposed_at=timezone.now(), status=status,
-            approved_by=self.director if status == 'approved' else None,
-            approved_at=timezone.now() if status == 'approved' else None)
+    def approve_attendance(self, index=0):
+        duyet_cong_nhan_vien(self.hr,self.people[index],self.period.pk)
+        return Thuong.objects.get(nguoi_dung=self.people[index].nguoi_dung,thang=10,nam=2026)
 
-    def test_get_list_only_hr_references_sources(self):
-        for user in [self.people['employee'].nguoi_dung, self.people['manager'].nguoi_dung, self.director]:
-            with self.subTest(user=user.username):
-                self.client.force_login(user)
-                response = self.client.get(self.list_url, {'month': 1, 'year': 2026})
-                self.assertEqual(response.status_code, 200)
-                self.assertFalse(Bonus.objects.exists())
+    def proposal(self, bang, amount=750000):
+        de_xuat = DeXuatThuong(bang_thuong=bang,ten='Thưởng dự án',so_tien=amount,
+                                    ly_do='Hoàn thành dự án',nguoi_de_xuat=self.hr)
+        luu_de_xuat(de_xuat)
+        return de_xuat
 
-    def test_get_calculate_is_rejected_without_writing(self):
+    def test_attendance_approval_creates_summary_without_automatic_proposals(self):
+        bang=self.approve_attendance()
+        self.assertEqual(bang.thuong_chuyen_can,200000)
+        self.assertEqual(bang.thuong_tham_nien,3000000)
+        self.assertEqual(bang.tong_thuong,3200000)
+        self.assertTrue(bang.ly_do_chuyen_can)
+        self.assertTrue(bang.ly_do_tham_nien)
+        self.assertEqual(bang.trang_thai,'draft')
+        self.assertFalse(DeXuatThuong.objects.exists())
+        phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
+        self.assertEqual(phieu.tong_tien_thuong,0)
+
+    def test_whole_period_approval_updates_all_employees(self):
+        xu_ly_trang_thai_ky_cong(self.director,self.period.pk,'approve','Đã đối chiếu công')
+        self.assertEqual(Thuong.objects.filter(thuong_chuyen_can=200000).count(),2)
+        self.assertFalse(DeXuatThuong.objects.exists())
+
+    def test_unapproved_or_incomplete_attendance_cannot_be_submitted(self):
+        bang=dong_bo_thuong_tu_dong(self.people[0],10,2026)
+        self.assertIsNone(bang.ly_do_chuyen_can)
+        with self.assertRaises(ValidationError):
+            gui_duyet_bang(bang)
+        self.assertEqual(Thuong.objects.get(pk=bang.pk).trang_thai,'draft')
+
+    def test_absence_or_leave_removes_attendance_bonus(self):
+        for index,state in enumerate(['absent','leave']):
+            if state == 'leave':
+                LeaveDay.objects.create(employee=self.people[index], date=date(2026,10,5),
+                    units=1, paid=True, reason='Nghỉ phép đã duyệt', approved=True)
+            ChamCong.objects.filter(nhan_vien=self.people[index],ngay=date(2026,10,5)).update(
+                trang_thai=state,gio_vao=None,gio_ra=None)
+            bang=self.approve_attendance(index)
+            self.assertEqual(bang.thuong_chuyen_can,0)
+            self.assertTrue(bang.ly_do_chuyen_can)
+
+    def test_proposal_create_edit_delete_recomputes_total(self):
+        bang=self.approve_attendance()
+        proposal=self.proposal(bang)
+        bang.refresh_from_db()
+        self.assertEqual(bang.thuong_khac,750000)
+        self.assertEqual(bang.tong_thuong,3950000)
+        proposal.so_tien=500000
+        luu_de_xuat(proposal)
+        bang.refresh_from_db()
+        self.assertEqual(bang.thuong_khac,500000)
+        xoa_de_xuat(proposal)
+        bang.refresh_from_db()
+        self.assertEqual(bang.thuong_khac,0)
+        self.assertEqual(bang.tong_thuong,3200000)
+
+    def test_partial_workday_does_not_receive_attendance_bonus(self):
+        ChamCong.objects.filter(nhan_vien=self.people[0],ngay=date(2026,10,5)).update(gio_ra=time(12))
+        bang=self.approve_attendance()
+        self.assertEqual(bang.thuong_chuyen_can,0)
+        self.assertIn('chưa đủ ngày công',bang.ly_do_chuyen_can)
+
+    def test_rejected_automatic_only_board_can_be_resubmitted(self):
+        bang=self.approve_attendance()
+        self.post(self.hr,self.submit_url,{'nhan_vien_ids':[self.people[0].pk]})
+        self.post(self.director,self.decision_url,{'action':'reject',
+            'nhan_vien_ids':[self.people[0].pk],'ly_do':'Kiểm tra lại công'})
         self.client.force_login(self.hr)
-        self.assertEqual(self.client.get(self.calculate_url, self.data).status_code, 405)
-        self.assertFalse(Bonus.objects.exists())
+        response=self.client.get(self.list_url,{'thang':10,'nam':2026})
+        self.assertContains(response,'id="bm-submit-form"')
+        self.assertEqual(self.post(self.hr,self.submit_url,{'nhan_vien_ids':[self.people[0].pk]}).status_code,302)
+        bang.refresh_from_db()
+        self.assertEqual(bang.trang_thai,'pending')
+        self.assertIsNone(bang.nguoi_duyet)
+        self.assertIsNone(bang.ngay_duyet)
+        self.assertFalse(bang.ly_do_tu_choi)
+        self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),3)
+        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,0)
 
-    def test_hr_list_syncs_sources_without_button_and_is_idempotent(self):
+    def test_approval_ignores_drafts_and_does_not_approve_twice(self):
+        bang=self.approve_attendance()
+        self.approve_attendance(1)
+        gui_duyet_bang(bang)
+        data={'action':'approve','nhan_vien_ids':[p.pk for p in self.people]}
+        self.post(self.director,self.decision_url,data)
+        self.post(self.director,self.decision_url,data)
+        bang.refresh_from_db()
+        self.assertEqual(bang.trang_thai,'approved')
+        self.assertEqual(Thuong.objects.get(nguoi_dung=self.people[1].nguoi_dung).trang_thai,'draft')
+        self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),1)
+        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,3200000)
+
+    def test_submission_and_selected_approval_flow_updates_payroll_once(self):
+        bang=self.approve_attendance()
+        other=self.approve_attendance(1)
+        self.proposal(bang)
+        self.assertEqual(self.post(self.hr,self.submit_url,{'nhan_vien_ids':[p.pk for p in self.people]}).status_code,302)
+        self.assertFalse(Luong.objects.exclude(tong_tien_thuong=0).exists())
+        response=self.post(self.director,self.decision_url,{'action':'approve','nhan_vien_ids':[self.people[0].pk]})
+        self.assertEqual(response.status_code,302)
+        bang.refresh_from_db(); other.refresh_from_db()
+        self.assertEqual(bang.trang_thai,'approved')
+        self.assertEqual(other.trang_thai,'pending')
+        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[1]).tong_tien_thuong,0)
+        self.assertEqual(bang.nguoi_duyet,self.director)
+        phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
+        self.assertEqual(phieu.tong_tien_thuong,3950000)
+        self.assertEqual(phieu.tong_thuong_id,bang.pk)
+        cap_nhat_luong_nhan_vien(self.hr,self.people[0].pk,2026,10)
+        phieu.refresh_from_db()
+        self.assertEqual(phieu.tong_tien_thuong,3950000)
+        self.assertEqual(Luong.objects.filter(tong_hop__nhan_vien=self.people[0]).count(),1)
+        self.assertTrue(LogEntry.objects.filter(user=self.director,object_id=bang.pk).exists())
+
+    def test_rejection_requires_reason_and_rejects_only_one_employee(self):
+        for i in range(2):
+            bang=self.approve_attendance(i); gui_duyet_bang(bang)
+        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[p.pk for p in self.people],'ly_do':'Kiểm tra lại'})
+        self.assertEqual(Thuong.objects.filter(trang_thai='pending').count(),2)
+        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[self.people[0].pk]})
+        self.assertEqual(Thuong.objects.filter(trang_thai='pending').count(),2)
+        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[self.people[0].pk],'ly_do':'Đối chiếu dự án'})
+        bang=Thuong.objects.get(nguoi_dung=self.people[0].nguoi_dung)
+        self.assertEqual(bang.trang_thai,'rejected')
+        self.assertEqual(bang.ly_do_tu_choi,'Đối chiếu dự án')
+        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,0)
+        response=self.client.get(reverse('thuong:detail',args=[self.people[0].pk,2026,10]))
+        self.assertContains(response,'Đối chiếu dự án')
+
+    def test_pending_and_approved_proposals_cannot_be_changed(self):
+        bang=self.approve_attendance()
+        proposal=self.proposal(bang)
+        bang.refresh_from_db(); gui_duyet_bang(bang)
+        for state in ['pending','approved']:
+            if state=='approved':
+                duyet_bang(bang,self.director)
+            proposal.so_tien=900000
+            with self.assertRaises(ValidationError): luu_de_xuat(proposal)
+            with self.assertRaises(ValidationError): xoa_de_xuat(proposal)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.so_tien,750000)
+
+    def test_list_personal_detail_proposal_and_export_render(self):
+        bang=self.approve_attendance(); proposal=self.proposal(bang)
         self.client.force_login(self.hr)
-        response = self.client.get(self.list_url, self.data)
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Tính thưởng chuyên cần &amp; thâm niên')
-        rows = Bonus.objects.filter(employee=self.people['employee'])
-        self.assertEqual(dict(rows.values_list('bonus_type', 'amount')),
-                         {'attendance': Decimal(500000), 'seniority': Decimal(3000000)})
-        before = list(rows.order_by('pk').values())
-        self.client.get(self.list_url, self.data)
-        self.assertEqual(list(rows.order_by('pk').values()), before)
+        response=self.client.get(self.list_url,{'thang':10,'nam':2026})
+        ma_hien_thi = f'MT_202610_{bang.nguoi_dung_id}'
+        self.assertContains(response,ma_hien_thi)
+        self.assertNotContains(response,bang.ma_thuong)
+        self.assertTrue(Thuong.objects.filter(pk=bang.pk).exists())
+        for url in [reverse('thuong:propose'),reverse('thuong:proposal-edit',args=[proposal.pk]),
+                    reverse('thuong:detail',args=[self.people[0].pk,2026,10]), reverse('home')]:
+            self.assertEqual(self.client.get(url).status_code,200,url)
+        self.client.force_login(self.people[0].nguoi_dung)
+        response=self.client.get(reverse('thuong:personal'),{'thang':10,'nam':2026})
+        self.assertContains(response,ma_hien_thi)
+        bang.refresh_from_db(); gui_duyet_bang(bang); duyet_bang(bang,self.director)
+        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026})
+        self.assertEqual(response.status_code,200)
+        self.assertIn('Thưởng dự án',response.content.decode('utf-8-sig'))
 
-    def test_source_changes_refresh_drafts_but_preserve_locked_rows(self):
-        self.client.force_login(self.hr)
-        self.client.get(self.list_url, self.data)
-        seniority = Bonus.objects.get(employee=self.people['employee'], bonus_type='seniority')
-        Bonus.objects.filter(pk=seniority.pk).update(status='approved')
-        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(so_phut_tre=10)
-        self.client.get(self.list_url, self.data)
-        self.assertEqual(Bonus.objects.get(employee=self.people['employee'],
-                                         bonus_type='attendance').amount, 0)
-        seniority.refresh_from_db()
-        self.assertEqual(seniority.status, 'approved')
-        self.assertEqual(seniority.amount, Decimal(3000000))
+    def test_roles_scope_and_csrf_are_enforced(self):
+        bang=self.approve_attendance(); gui_duyet_bang(bang)
+        self.assertEqual(self.post(self.people[0].nguoi_dung,self.decision_url,
+            {'action':'approve','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
+        self.client.force_login(self.director)
+        self.assertEqual(self.client.post(self.decision_url,{'action':'approve','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
+        self.client.force_login(self.people[1].nguoi_dung)
+        self.assertEqual(self.client.get(reverse('thuong:detail',args=[self.people[0].pk,2026,10])).status_code,403)
 
-    def test_incomplete_attendance_waits_until_sources_are_complete(self):
-        self.client.force_login(self.hr)
-        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(trang_thai='incomplete')
-        self.client.get(self.list_url, self.data)
-        self.assertFalse(Bonus.objects.filter(employee=self.people['employee'],
-                                             bonus_type='attendance').exists())
-        ChamCong.objects.filter(nhan_vien=self.people['employee']).update(trang_thai='present')
-        self.client.get(self.list_url, self.data)
-        self.assertTrue(Bonus.objects.filter(employee=self.people['employee'],
-                                            bonus_type='attendance', amount=500000).exists())
-
-    def test_post_requires_csrf(self):
-        self.client.force_login(self.hr)
-        self.assertEqual(self.client.post(self.calculate_url, self.data).status_code, 403)
-        self.assertFalse(Bonus.objects.exists())
-
-    def test_employee_manager_and_director_cannot_calculate_as_hr(self):
-        for user in [self.people['employee'].nguoi_dung, self.people['manager'].nguoi_dung, self.director]:
+    def test_home_bonus_shortcut_follows_role_and_keeps_position(self):
+        for user, target in [(self.hr,'thuong:list'), (self.director,'thuong:list'),
+                             (self.people[0].nguoi_dung,'thuong:personal')]:
             self.client.force_login(user)
-            self.assertEqual(self.post().status_code, 403)
-            self.assertFalse(Bonus.objects.exists())
+            response=self.client.get(reverse('home'))
+            self.assertEqual(response.context['bonus_url'],reverse(target))
+            html=response.content.decode()
+            self.assertLess(html.index('Xem bảng công'),html.index('Xem bảng thưởng'))
+            self.assertLess(html.index('Xem bảng thưởng'),html.index('Xem bảng lương'))
 
-    def test_hr_post_uses_existing_calculations_and_selected_employee(self):
+    def test_bonus_to_payroll_submission_approval_and_payment(self):
+        from bang_luong.services.quy_trinh import gui_bang_luong, xu_ly_trang_thai_luong
+        for i in range(2):
+            self.approve_attendance(i)
+        selected={'nhan_vien_ids':[p.pk for p in self.people]}
+        self.post(self.hr,self.submit_url,selected)
+        self.post(self.director,self.decision_url,{**selected,'action':'approve'})
+        self.assertEqual(Luong.objects.filter(tong_tien_thuong=3200000).count(),2)
+        gui_bang_luong(self.hr,self.period.pk)
+        xu_ly_trang_thai_luong(self.director,self.period.pk,'approve','Đã kiểm tra')
+        xu_ly_trang_thai_luong(self.director,self.period.pk,'paid','Đã chuyển khoản','Biên lai thử nghiệm')
+        self.assertEqual(Luong.objects.filter(trang_thai='paid').count(),2)
         self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
-        rows = Bonus.objects.filter(employee=self.people['employee'])
-        self.assertEqual(dict(rows.values_list('bonus_type', 'amount')),
-                         {'attendance': Decimal(500000), 'seniority': Decimal(3000000)})
-        self.assertEqual(set(rows.values_list('status', flat=True)), {'draft'})
-        self.assertFalse(Bonus.objects.exclude(employee=self.people['employee']).exists())
-        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
-        self.assertEqual(rows.count(), 2)
+        self.assertEqual(self.client.get(reverse('bang_luong:list'),{'month':10,'year':2026}).status_code,200)
+        self.client.force_login(self.people[0].nguoi_dung)
+        phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
+        self.assertEqual(self.client.get(reverse('bang_luong:detail',args=[phieu.pk])).status_code,200)
+        self.assertEqual(self.client.get(reverse('home')).status_code,200)
 
-    def test_post_updates_editable_automatic_rows_only(self):
-        attendance = self.bonus('attendance', 'draft')
-        seniority = self.bonus('seniority', 'rejected')
-        other = self.bonus('other', 'draft', amount=999)
-        before_other = Bonus.objects.filter(pk=other.pk).values().get()
-        self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
-        attendance.refresh_from_db()
-        seniority.refresh_from_db()
-        self.assertEqual(attendance.amount, Decimal(500000))
-        self.assertEqual(seniority.amount, Decimal(3000000))
-        self.assertEqual(seniority.status, 'draft')
-        self.assertEqual(Bonus.objects.filter(pk=other.pk).values().get(), before_other)
-        self.assertEqual(Bonus.objects.count(), 3)
-
-    def test_post_does_not_modify_pending_or_approved_automatic_rows(self):
-        self.bonus('attendance', 'pending')
-        self.bonus('seniority', 'approved')
-        before = list(Bonus.objects.order_by('pk').values())
-        self.client.force_login(self.hr)
-        self.assertRedirects(self.post(), self.list_url, fetch_redirect_response=False)
-        self.assertEqual(list(Bonus.objects.order_by('pk').values()), before)
-
-    def test_invalid_or_missing_period_and_forged_employee_do_not_write(self):
-        self.client.force_login(self.hr)
-        for data in [{}, {'month': 13, 'year': 2026},
-                     {'month': 1, 'year': 2026, 'employee': 999999}]:
-            with self.subTest(data=data):
-                self.assertRedirects(self.post(data), self.list_url, fetch_redirect_response=False)
-                self.assertFalse(Bonus.objects.exists())
+    def test_database_rejects_inconsistent_total(self):
+        bang=self.approve_attendance()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Thuong.objects.filter(pk=bang.pk).update(tong_thuong=1)

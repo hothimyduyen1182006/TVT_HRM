@@ -1,5 +1,4 @@
 from django import forms
-from .models import PayrollPeriod
 from nhan_vien.filters import BoLocKy
 from django.utils import timezone
 
@@ -8,7 +7,8 @@ class BoLocBangLuong(BoLocKy):
     q = forms.CharField(label='Từ khóa (Họ tên / ID)', required=False, max_length=150,
         widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ tên hoặc ID...'}))
     status = forms.ChoiceField(label='Trạng thái', required=False,
-        choices=[('', 'Tất cả'), *PayrollPeriod._meta.get_field('status').choices])
+        choices=[('', 'Tất cả'), ('pending', 'Chờ HR kiểm tra'), ('submitted', 'Chờ Giám đốc ký duyệt'),
+                 ('approved', 'Đã duyệt'), ('paid', 'Đã chi trả')])
 
     def __init__(self, user, data=None):
         super().__init__(user, data)

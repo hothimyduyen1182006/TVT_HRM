@@ -6,10 +6,11 @@ from decimal import Decimal
 from urllib.parse import urlencode
 
 from django.db.models import Count, Exists, F, OuterRef, Q, Sum
+from django.utils import timezone
 
-from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocCongNgay, BoLocLichSuCong
+from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocLichSuCong
 from bang_cong.models import ChamCong, ChotBangCong, LichSuDieuChinhCong
-from bang_luong.models import PayrollPeriod
+from bang_cong.thang_lich import thang_lich
 from nhan_vien.models import NhanVien
 
 from .tinh_toan import tinh_tang_ca_tu_dong, lich_thang, nap_cong_ngay
@@ -20,11 +21,6 @@ NHAN_TONG_HOP = {
     'empty': 'Chưa có dữ liệu', 'approved': 'Đã duyệt',
     'pending': 'Chờ duyệt', 'incomplete': 'Cần kiểm tra',
 }
-TRUONG_LOC_CONG = {
-    'paid': 'tong_cong', 'actual': 'cong_thuc_te', 'paid_leave': 'cong_nghi_co_luong',
-}
-
-
 def _lay_lich_thang(nam, thang):
     return lich_thang(nam, thang)
 
@@ -33,11 +29,7 @@ def _lay_cong_thang(nam, thang, **pham_vi):
     return ChamCong.objects.filter(ngay__year=nam, ngay__month=thang, **pham_vi).select_related('nhan_vien')
 
 
-def du_lieu_tang_ca(ban_ghi):
-    return {'automatic_ot': tinh_tang_ca_tu_dong(ban_ghi)}
-
-
-def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, lich_thang=None, tang_ca=None):
+def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, lich_thang=None):
     if ds_ban_ghi is None:
         ds_ban_ghi = _lay_cong_thang(nam, thang, nhan_vien_id__in=ds_nhan_vien.values('pk'))
     nhom_cong = ds_ban_ghi.values('nhan_vien_id').annotate(
@@ -51,19 +43,15 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
         lich_thang = _lay_lich_thang(nam, thang)
     if ky_cong:
         nap_cong_ngay(ds_ban_ghi, ky_cong, lich_thang)
-    tong_ot_theo_nhan_vien = {}
     for ban_ghi in ds_ban_ghi:
         du_lieu = cong_theo_nhan_vien[ban_ghi.nhan_vien_id]
         for khoa, gia_tri in [('actual', ban_ghi.cong_thuc_te), ('leave', ban_ghi.cong_nghi_co_luong), ('paid', ban_ghi.tong_cong)]:
             du_lieu[khoa] = du_lieu.get(khoa, KHONG) + gia_tri
-        phan_tu = (tang_ca[ban_ghi.pk] if tang_ca is not None else
-                tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay)))
-        tong_ot_theo_nhan_vien[ban_ghi.nhan_vien_id] = tong_ot_theo_nhan_vien.get(ban_ghi.nhan_vien_id, KHONG) + phan_tu['hours']
     cong_chuan = sum((lich.cong_chuan for lich in lich_thang.values()), KHONG) if lich_thang else None
     ket_qua = []
     ds_ma_da_duyet = set()
     if ky_cong:
-        ds_ma_da_duyet = set(ChotBangCong.objects.filter(tong_hop__ky_cong=ky_cong)
+        ds_ma_da_duyet = set(ChotBangCong.objects.filter(tong_hop__nam=nam, tong_hop__thang=thang)
             .values_list('tong_hop__nhan_vien_id', flat=True))
     ky_da_duyet = ky_cong and ky_cong.trang_thai == 'approved'
     for nhan_vien in ds_nhan_vien:
@@ -76,7 +64,7 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
         ket_qua.append({'employee': nhan_vien, 'standard': cong_chuan, 'paid': du_lieu.get('paid', KHONG),
             'actual': du_lieu.get('actual', KHONG), 'leave': du_lieu.get('leave', KHONG),
             'hours': du_lieu.get('hours', KHONG), 'late': du_lieu.get('late', 0), 'late_count': du_lieu.get('late_count', 0),
-            'absent': du_lieu.get('absent', 0), 'ot': tong_ot_theo_nhan_vien.get(nhan_vien.pk,KHONG), 'state': trang_thai,
+            'absent': du_lieu.get('absent', 0), 'state': trang_thai,
             'state_label': NHAN_TONG_HOP[trang_thai], 'has_records': bool(du_lieu)})
     return ket_qua
 
@@ -88,10 +76,14 @@ def danh_sach_cong_ngay(nhan_vien, nam, thang, *, ds_ban_ghi=None, lich_thang=No
     if lich_thang is None:
         lich_thang = _lay_lich_thang(nam, thang)
     if tang_ca is None:
-        ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
+        ky_cong = ky_cong or thang_lich(nam, thang)
         tang_ca = {dong.pk: tinh_tang_ca_tu_dong(dong, ky_cong, lich_thang.get(dong.ngay)) for dong in ds_ban_ghi.values()}
     ket_qua = []
-    for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
+    ngay_cuoi = calendar.monthrange(nam, thang)[1]
+    hom_nay = timezone.localdate()
+    if (nam, thang) == (hom_nay.year, hom_nay.month):
+        ngay_cuoi = min(ngay_cuoi, hom_nay.day)
+    for so_ngay in range(ngay_cuoi, 0, -1):
         gia_tri = date(nam, thang, so_ngay)
         if gia_tri < nhan_vien.ngay_vao_lam:
             continue
@@ -135,57 +127,39 @@ def danh_sach_dieu_chinh(ds_dieu_chinh, truong=''):
 
 
 def du_lieu_cong_thang(request, nhan_vien):
-    """Tổng hợp ngày công và bộ lọc cho một nhân viên, không thay đổi dữ liệu."""
-    bieu_mau = BoLocCongNgay(request.user, request.GET)
+    """Tổng hợp toàn bộ ngày công của tháng được chọn từ bảng tổng hợp."""
+    hom_nay = timezone.localdate()
+    try:
+        thang = int(request.GET.get('month', hom_nay.month))
+        nam = int(request.GET.get('year', hom_nay.year))
+    except (TypeError, ValueError):
+        thang, nam = hom_nay.month, hom_nay.year
+    if not 1 <= thang <= 12 or not 2000 <= nam <= 2100:
+        thang, nam = hom_nay.month, hom_nay.year
     ds_dong, tong_hop, ky_cong, tien_do, trung_binh = [], None, None, 0, '—'
-    tham_so_thang = ''
-    hop_le = bieu_mau.is_valid()
-    if hop_le:
-        du_lieu = bieu_mau.cleaned_data
-        tham_so_thang = urlencode({'month': du_lieu['month'], 'year': du_lieu['year']})
-        ky_cong = PayrollPeriod.objects.filter(nam=du_lieu['year'], thang=du_lieu['month']).first()
-        # Cùng một lần tải nguồn và tính OT cho tổng hợp lẫn bảng chi tiết.
-        ds_ban_ghi = _lay_cong_thang(du_lieu['year'], du_lieu['month'], nhan_vien=nhan_vien)
-        lich_thang = _lay_lich_thang(du_lieu['year'], du_lieu['month'])
-        tang_ca = {ban_ghi.pk: tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay))
-                    for ban_ghi in ds_ban_ghi}
-        tong_hop = tong_hop_cong_thang(
-            NhanVien.objects.filter(pk=nhan_vien.pk), du_lieu['year'], du_lieu['month'], ky_cong,
-            ds_ban_ghi=ds_ban_ghi, lich_thang=lich_thang, tang_ca=tang_ca,
-        )[0]
-        ds_dong = danh_sach_cong_ngay(
-            nhan_vien, du_lieu['year'], du_lieu['month'], ds_ban_ghi=ds_ban_ghi,
-            lich_thang=lich_thang, ky_cong=ky_cong, tang_ca=tang_ca,
-        )
-        so_ngay_co_gio_vao = sum(1 for dong in ds_dong if dong['record'] and dong['record'].gio_vao)
-        if so_ngay_co_gio_vao:
-            so_phut = int(tong_hop['hours'] * 60 / so_ngay_co_gio_vao)
-            trung_binh = f'{so_phut // 60}:{so_phut % 60:02}'
-        if tong_hop['standard']:
-            tien_do = max(0, min(100, int(tong_hop['paid'] / tong_hop['standard'] * 100)))
-        if du_lieu['start'] or du_lieu['end']:
-            ds_dong = [
-                dong for dong in ds_dong
-                if (not du_lieu['start'] or dong['date'] >= du_lieu['start'])
-                and (not du_lieu['end'] or dong['date'] <= du_lieu['end'])
-            ]
-        if du_lieu['state']:
-            trang_thai = du_lieu['state']
-            truong_cong = TRUONG_LOC_CONG.get(trang_thai)
-            if truong_cong:
-                ds_dong = [dong for dong in ds_dong if dong['record'] and getattr(dong['record'], truong_cong) > 0]
-            elif trang_thai == 'ot':
-                ds_dong = [dong for dong in ds_dong if dong['ot'] > 0]
-            else:
-                ds_dong = [dong for dong in ds_dong if dong['state'] == trang_thai]
-    tham_so_thong_ke = request.GET.copy()
-    tham_so_thong_ke.pop('page', None)
-    tham_so_thong_ke.pop('state', None)
-    if hop_le:
-        tham_so_thong_ke['month'] = bieu_mau.cleaned_data['month']
-        tham_so_thong_ke['year'] = bieu_mau.cleaned_data['year']
-    return {'form': bieu_mau, 'rows': ds_dong, 'summary': tong_hop, 'period': ky_cong, 'progress': tien_do,
-            'average': trung_binh, 'month_query': tham_so_thang, 'stat_query': tham_so_thong_ke.urlencode()}
+    tham_so_thang = urlencode({'month': thang, 'year': nam})
+    ky_cong = thang_lich(nam, thang)
+    ds_ban_ghi = _lay_cong_thang(nam, thang, nhan_vien=nhan_vien)
+    lich_thang = _lay_lich_thang(nam, thang)
+    tang_ca = {ban_ghi.pk: tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_thang.get(ban_ghi.ngay))
+                for ban_ghi in ds_ban_ghi}
+    tong_hop = tong_hop_cong_thang(
+        NhanVien.objects.filter(pk=nhan_vien.pk), nam, thang, ky_cong,
+        ds_ban_ghi=ds_ban_ghi, lich_thang=lich_thang,
+    )[0]
+    ds_dong = danh_sach_cong_ngay(
+        nhan_vien, nam, thang, ds_ban_ghi=ds_ban_ghi,
+        lich_thang=lich_thang, ky_cong=ky_cong, tang_ca=tang_ca,
+    )
+    so_ngay_co_gio_vao = sum(1 for dong in ds_dong if dong['record'] and dong['record'].gio_vao)
+    if so_ngay_co_gio_vao:
+        so_phut = int(tong_hop['hours'] * 60 / so_ngay_co_gio_vao)
+        trung_binh = f'{so_phut // 60}:{so_phut % 60:02}'
+    if tong_hop['standard']:
+        tien_do = max(0, min(100, int(tong_hop['paid'] / tong_hop['standard'] * 100)))
+    return {'month': thang, 'year': nam, 'rows': ds_dong, 'summary': tong_hop,
+            'period': ky_cong, 'progress': tien_do, 'average': trung_binh,
+            'month_query': tham_so_thang}
 
 
 def du_lieu_lich_su_cong(request, nhan_vien):
