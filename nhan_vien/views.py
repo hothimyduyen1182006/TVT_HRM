@@ -197,7 +197,7 @@ def sua_nhan_vien(request, ma_nhan_vien):
             periods = PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk')
             for period in periods:
                 attendance = period.attendance_period
-                error = cap_nhat_luong_nhan_vien(request.user, employee.pk, attendance.nam, attendance.thang)
+                error = cap_nhat_luong_nhan_vien(request.user, nhan_vien.pk, attendance.nam, attendance.thang)
                 if error:
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')

@@ -300,9 +300,15 @@ def luu_thiet_lap_luong(actor, employee, settings):
     from django.utils import timezone
     employee=NhanVien.objects.select_for_update().get(pk=employee.pk)
     from nhan_vien.forms import BieuMauThietLapLuong
-    payload={f'salary-{khoa}':gia_tri for khoa,gia_tri in settings.items()}
-    for khoa in ['bhxh','bhyt','bhtn']:
-        payload[f'salary-{khoa}']=Decimal(str(settings.get('insurance_rates',{}).get(khoa.upper(),0)))*100
+    # Dữ liệu lưu dùng khóa nội bộ tiếng Anh; form nhận tên trường tiếng Việt.
+    payload = {
+        f'salary-{ten_truong}': settings[khoa]
+        for ten_truong, khoa in BieuMauThietLapLuong.KHOA_CAU_HINH.items()
+        if khoa in settings
+    }
+    for ten_truong, ma_bao_hiem in BieuMauThietLapLuong.KHOA_TY_LE.items():
+        payload[f'salary-{ten_truong}'] = Decimal(str(
+            settings.get('insurance_rates', {}).get(ma_bao_hiem, 0))) * 100
     bieu_mau=BieuMauThietLapLuong(employee,data=payload)
     if not bieu_mau.is_valid():
         raise ValidationError(bieu_mau.errors.as_text())
@@ -313,7 +319,7 @@ def luu_thiet_lap_luong(actor, employee, settings):
     if comparable==settings:
         return employee
     employee.thiet_lap_luong={**settings,'_updated_by':actor.pk,'_updated_at':timezone.now().isoformat()}
-    employee.save(update_fields=['payroll_settings'])
+    employee.save(update_fields=['thiet_lap_luong'])
     period=PayrollPeriod.objects.filter(records__nhan_vien=employee).order_by('-nam','-thang').first()
     if period:
         PayrollAuditLog.objects.create(period=period,actor=actor,action='employee_settings',
