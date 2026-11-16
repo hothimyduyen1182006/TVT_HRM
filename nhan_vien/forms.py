@@ -48,7 +48,10 @@ class BieuMauThietLapLuong(forms.Form):
     can_cu_luong_gio_tang_ca = forms.CharField(label='Căn cứ lương giờ OT', required=False, widget=forms.Textarea(attrs={'rows': 2}))
     da_kiem_tra = forms.BooleanField(label='Đã kiểm tra căn cứ tính lương', required=False)
 
+    so_nguoi_phu_thuoc = forms.IntegerField(label='Số người phụ thuộc', min_value=0, initial=0, required=False)
+
     KHOA_CAU_HINH = {
+        'so_nguoi_phu_thuoc': 'tax_dependents',
         'ma_so_bhxh': 'insurance_number',
         'ma_so_thue': 'tax_code',
         'ten_ngan_hang': 'bank_name',
@@ -94,7 +97,7 @@ class BieuMauThietLapLuong(forms.Form):
             ma_bao_hiem: format((du_lieu.pop(ten_truong) / 100).normalize(), 'f')
             for ten_truong, ma_bao_hiem in self.KHOA_TY_LE.items()
         }
-        du_lieu['tax_dependents'] = 0
+        du_lieu['tax_dependents'] = du_lieu['tax_dependents'] or 0
         return chuan_hoa_du_lieu(du_lieu)
 
 

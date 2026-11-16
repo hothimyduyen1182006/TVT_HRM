@@ -8,5 +8,4 @@
       <div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{% if salary_readonly %}<input id="{{ field.id_for_label }}" type="text" value="{% if field.name == 'luong_dong_bao_hiem' or field.name == 'phu_cap_an_trua' %}{{ field.value|money }}{% else %}{{ field.value|default_if_none:'' }}{% endif %}" placeholder="Chưa cập nhật" readonly aria-readonly="true" disabled>{% else %}{{ field }}{{ field.errors }}{% endif %}</div>
     {% endif %}
   {% endfor %}
-  <div class="form-field"><label for="salary-dependents">Số người phụ thuộc</label><input id="salary-dependents" type="text" value="0" readonly{% if salary_readonly %} disabled{% endif %}></div>
 </div>
