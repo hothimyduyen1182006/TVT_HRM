@@ -5,601 +5,524 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib import messages
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from bang_cong.models import ChamCong
+from bang_cong.services.tinh_toan import ket_qua_cong_ngay, lich_thang
 from bang_cong.thang_lich import thang_lich
-from bang_cong.services.tinh_toan import lich_thang
+from nghi_phep.models import LeaveDay
 from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, nhan_vien_duoc_hien_thi
 from nhan_vien.models import NhanVien
-from nghi_phep.models import LeaveDay
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
-from .models import Bonus, approved_bonus_records, complete_bonus_records, displayed_bonus_records
+from .models import DeXuatThuong, Thuong
+from django.db import connection
+from django.utils.dateparse import parse_datetime
 
 
-def access_denied(request):
+def tinh_thuong_tham_nien(nhan_vien, thang, nam):
+    ngay_ket_thuc_ky = date(nam, thang, calendar.monthrange(nam, thang)[1])
+    so_nam_da_lam = ngay_ket_thuc_ky.year - nhan_vien.ngay_vao_lam.year
+    chua_den_ngay_ky_niem = (ngay_ket_thuc_ky.month, ngay_ket_thuc_ky.day) < (
+        nhan_vien.ngay_vao_lam.month, nhan_vien.ngay_vao_lam.day
+    )
+    so_nam_tham_nien = max(0, so_nam_da_lam - chua_den_ngay_ky_niem)
+
+    if so_nam_tham_nien < 1:
+        muc_thuong = Decimal(0)
+    elif so_nam_tham_nien < 3:
+        muc_thuong = Decimal(150000)
+    elif so_nam_tham_nien < 5:
+        muc_thuong = Decimal(200000)
+    else:
+        muc_thuong = Decimal(500000)
+
+    so_tien = so_nam_tham_nien * muc_thuong
+    ly_do = f'{so_nam_tham_nien} năm thâm niên; mức thưởng tháng áp dụng {muc_thuong:,.0f} VNĐ.'
+    return 'seniority', 'Thưởng thâm niên', so_tien, ly_do
+
+
+def tinh_thuong_chuyen_can(nhan_vien, thang, nam):
+    ngay_bat_dau = date(nam, thang, 1)
+    ngay_ket_thuc = date(nam, thang, calendar.monthrange(nam, thang)[1])
+    ky_cong = thang_lich(nam, thang)
+    if not ky_cong:
+        raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
+
+    cong_da_duyet = (
+        ky_cong.trang_thai == 'approved' and nhan_vien.pk in ky_cong.ds_nhan_vien
+    ) or ky_cong.employee_approvals.filter(tong_hop__nhan_vien_id=nhan_vien.pk).exists()
+    if not cong_da_duyet:
+        raise ValidationError(f'Bảng công của {nhan_vien} chưa được duyệt.')
+
+    ngay_lam_viec = [
+        lich for lich in lich_thang(nam, thang, ky_cong).values()
+        if max(ngay_bat_dau, nhan_vien.ngay_vao_lam) <= lich.ngay <= ngay_ket_thuc
+        and lich.loai_ngay == 'work' and lich.cong_chuan > 0
+    ]
+    if not ngay_lam_viec:
+        raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
+
+    records = {
+        ban_ghi.ngay: ban_ghi
+        for ban_ghi in ChamCong.objects.filter(
+            nhan_vien=nhan_vien, ngay__range=(ngay_bat_dau, ngay_ket_thuc)
+        )
+    }
+    ngay_nghi_phep = set(LeaveDay.objects.filter(
+        employee=nhan_vien, date__range=(ngay_bat_dau, ngay_ket_thuc), approved=True
+    ).values_list('date', flat=True))
+    if any(ngay.ngay not in records and ngay.ngay not in ngay_nghi_phep for ngay in ngay_lam_viec):
+        raise ValidationError(f'Thiếu dữ liệu chấm công của {nhan_vien}.')
+
+    ban_ghi_ngay = [records[ngay.ngay] for ngay in ngay_lam_viec if ngay.ngay in records]
+    co_ngay_nghi = any(
+        lich.ngay in ngay_nghi_phep
+        or (lich.ngay in records and records[lich.ngay].trang_thai in {'absent', 'leave'})
+        for lich in ngay_lam_viec
+    )
+    if co_ngay_nghi:
+        so_tien_thuong = Decimal(0)
+        ly_do_thuong = 'Không đạt thưởng chuyên cần do có ngày nghỉ phép hoặc nghỉ không phép.'
+    elif any(ban_ghi.trang_thai == 'incomplete' for ban_ghi in ban_ghi_ngay):
+        raise ValidationError(f'Dữ liệu chấm công của {nhan_vien} chưa đầy đủ.')
+    elif any(ket_qua_cong_ngay(records[lich.ngay], ky_cong, lich, False)['actual'] < lich.cong_chuan
+             for lich in ngay_lam_viec):
+        so_tien_thuong = Decimal(0)
+        ly_do_thuong = 'Không đạt thưởng chuyên cần do chưa đủ ngày công quy định.'
+    else:
+        so_tien_thuong = Decimal(200000)
+        ly_do_thuong = 'Đủ ngày công quy định, không có ngày vắng mặt.'
+    return 'attendance', 'Thưởng chuyên cần', so_tien_thuong, ly_do_thuong
+
+
+def tinh_thuong_tu_dong(nhan_vien, thang, nam):
+    cac_khoan = [tinh_thuong_tham_nien(nhan_vien, thang, nam)]
+    try:
+        cac_khoan.append(tinh_thuong_chuyen_can(nhan_vien, thang, nam))
+    except ValidationError as exc:
+        return cac_khoan, exc
+    return cac_khoan, None
+
+
+@transaction.atomic
+def dong_bo_thuong_tu_dong(nhan_vien, thang, nam):
+    NhanVien.objects.select_for_update().get(pk=nhan_vien.pk)
+    bang, _ = Thuong.objects.select_for_update().get_or_create(nguoi_dung=nhan_vien.nguoi_dung, thang=thang, nam=nam)
+    if bang.trang_thai in ['pending', 'approved']:
+        return bang
+    cac_khoan, loi = tinh_thuong_tu_dong(nhan_vien, thang, nam)
+    gia_tri = {'seniority': ('thuong_tham_nien', 'ly_do_tham_nien'),
+               'attendance': ('thuong_chuyen_can', 'ly_do_chuyen_can')}
+    thay_doi = False
+    for loai, _, tien, ly_do in cac_khoan:
+        cot_tien, cot_ly_do = gia_tri[loai]
+        if getattr(bang, cot_tien) != tien or getattr(bang, cot_ly_do) != ly_do:
+            setattr(bang, cot_tien, tien)
+            setattr(bang, cot_ly_do, ly_do)
+            thay_doi = True
+    if loi and bang.ly_do_chuyen_can is not None:
+        bang.thuong_chuyen_can, bang.ly_do_chuyen_can = Decimal(0), None
+        thay_doi = True
+    if thay_doi:
+        luu_bang_thuong(bang)
+    return bang
+
+
+def luu_bang_thuong(bang):
+    bang.tong_thuong = bang.thuong_chuyen_can + bang.thuong_tham_nien + bang.thuong_khac
+    bang.full_clean()
+    bang.save()
+
+
+def gui_duyet_bang(bang):
+    if bang.trang_thai not in ['draft', 'rejected'] or not bang.ly_do_chuyen_can or not bang.ly_do_tham_nien:
+        raise ValidationError('Chỉ gửi bảng thưởng Bản nháp hoặc Từ chối đã đủ căn cứ chuyên cần và thâm niên.')
+    bang.trang_thai = 'pending'
+    bang.nguoi_duyet = bang.ngay_duyet = None
+    bang.ly_do_tu_choi = ''
+    luu_bang_thuong(bang)
+
+
+def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
+    if bang.trang_thai != 'pending':
+        raise ValidationError('Chỉ xử lý bảng thưởng đang Chờ duyệt.')
+    bang.trang_thai = 'rejected' if tu_choi else 'approved'
+    bang.nguoi_duyet, bang.ngay_duyet = nguoi_dung, timezone.now()
+    bang.ly_do_tu_choi = ly_do.strip() if tu_choi else ''
+    luu_bang_thuong(bang)
+
+
+def cap_nhat_thuong_khac(bang):
+    bang.thuong_khac = bang.de_xuat.aggregate(tong=Sum('so_tien'))['tong'] or Decimal(0)
+    bang.trang_thai, bang.ly_do_tu_choi = 'draft', ''
+    bang.nguoi_duyet = bang.ngay_duyet = None
+    luu_bang_thuong(bang)
+
+
+@transaction.atomic
+def luu_de_xuat(de_xuat):
+    bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
+    if bang.trang_thai not in ['draft', 'rejected']:
+        raise ValidationError('Chỉ sửa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
+    de_xuat.full_clean()
+    de_xuat.save()
+    cap_nhat_thuong_khac(bang)
+
+
+@transaction.atomic
+def xoa_de_xuat(de_xuat):
+    bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
+    if bang.trang_thai not in ['draft', 'rejected']:
+        raise ValidationError('Chỉ xóa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
+    de_xuat.delete()
+    cap_nhat_thuong_khac(bang)
+
+
+def nguon_thuong_truoc_chuyen_doi(bang):
+    """Chỉ đọc dữ liệu lưu trữ để giữ nguyên mã nguồn của phiếu lương cũ."""
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT id, loai_thuong, ten, so_tien, thoi_gian_de_xuat '
+                       'FROM Khoan_thuong_luu_tru WHERE nhan_vien_id=%s AND nam=%s AND thang=%s',
+                       [bang.nguoi_dung.employee.pk, bang.nam, bang.thang])
+        return [{'id': ma, 'ma_moi': ('D' + str(ma).zfill(24) if loai == 'other' else f'{bang.pk}:{loai}'),
+                 'name': ten, 'amount': format(Decimal(str(tien)), '.2f'),
+                 'ngay': parse_datetime(ngay) if isinstance(ngay, str) else ngay}
+                for ma, loai, ten, tien, ngay in cursor.fetchall()]
+
+
+def gan_ma_hien_thi(cac_bang):
+    """Giữ mã MT cũ trên giao diện, không đổi khóa liên kết với lương."""
+    for bang in cac_bang:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id FROM Khoan_thuong_luu_tru "
+                "WHERE nhan_vien_id=%s AND nam=%s AND thang=%s "
+                "ORDER BY CASE loai_thuong WHEN 'seniority' THEN 0 "
+                "WHEN 'attendance' THEN 1 ELSE 2 END, ten, id LIMIT 1",
+                [bang.nguoi_dung.employee.pk, bang.nam, bang.thang])
+            cu = cursor.fetchone()
+        bang.ma_hien_thi = (f'MT_{cu[0]:03d}' if cu else
+                            f'MT_{bang.nam}{bang.thang:02d}_{bang.nguoi_dung_id}')
+    return cac_bang
+
+
+def cac_khoan_hien_thi(bang):
+    ket_qua = []
+    nguon_cu = nguon_thuong_truoc_chuyen_doi(bang)
+    for loai, ten, tien, ly_do in [
+        ('seniority', 'Thưởng thâm niên', bang.thuong_tham_nien, bang.ly_do_tham_nien),
+        ('attendance', 'Thưởng chuyên cần', bang.thuong_chuyen_can, bang.ly_do_chuyen_can),
+    ]:
+        if ly_do is not None:
+            ma = f'{bang.pk}:{loai}'
+            ngay = next((r['ngay'] for r in nguon_cu if r['ma_moi'] == ma), None)
+            ket_qua.append({'id': ma, 'ten': ten, 'nhan_de_loai': ten, 'so_tien': tien,
+                           'ly_do': ly_do, 'tu_dong': True, 'thoi_gian_de_xuat': ngay})
+    for de_xuat in bang.de_xuat.order_by('ten', 'pk'):
+        ket_qua.append({'id': de_xuat.pk, 'ten': de_xuat.ten, 'nhan_de_loai': de_xuat.ten,
+                       'so_tien': de_xuat.so_tien, 'ly_do': de_xuat.ly_do, 'tu_dong': False,
+                       'thoi_gian_de_xuat': de_xuat.thoi_gian_de_xuat})
+    return ket_qua
+
+
+def cac_khoan_thuong_tinh_luong(nhan_vien_id, nam, thang):
+    bang = Thuong.objects.select_related('nguoi_dung__employee').filter(
+        nguoi_dung__employee__pk=nhan_vien_id, nam=nam, thang=thang).first()
+    if not bang or bang.trang_thai != 'approved':
+        return []
+    bang.full_clean()
+    cu = nguon_thuong_truoc_chuyen_doi(bang)
+    ket_qua = []
+    for khoan in cac_khoan_hien_thi(bang):
+        nguon = [r for r in cu if r['ma_moi'] == khoan['id']]
+        if nguon and sum((Decimal(r['amount']) for r in nguon), Decimal(0)) == khoan['so_tien']:
+            ket_qua.extend({'id': r['id'], 'name': r['name'], 'amount': r['amount']} for r in nguon)
+        else:
+            ket_qua.append({'id': nguon[0]['id'] if len(nguon) == 1 else khoan['id'],
+                           'name': khoan['ten'], 'amount': format(khoan['so_tien'], '.2f')})
+    return ket_qua
+
+
+def trang_tu_choi_truy_cap(request):
     return render(request, 'thuong/access_denied.html', status=403)
 
 
-def bonus_rows(user, form):
-    if not form.is_valid():
-        return Bonus.objects.none()
-    data = form.cleaned_data
-    rows = displayed_bonus_records(
-        Bonus.objects.select_related(
-            'employee__phong_ban', 'proposed_by', 'approved_by'
-        ).filter(employee__in=form.nhan_vien_trong_pham_vi(user))
-    )
-    if data.get('month'):
-        rows = rows.filter(month=data['month'])
-    if data.get('year'):
-        rows = rows.filter(year=data['year'])
-    if co_vai_tro(user, GIAM_DOC):
-        rows = rows.exclude(status='draft')
-    if data.get('q'):
-        rows = rows.filter(
-            Q(employee__ho_va_ten__icontains=data['q'])
-            | Q(employee__ma_ho_so__icontains=data['q'])
-        )
-    return rows.order_by('employee__ma_ho_so', 'bonus_type', 'name')
+def bang_thuong_trong_pham_vi(nguoi_dung):
+    return Thuong.objects.select_related('nguoi_dung__employee__phong_ban', 'nguoi_duyet').filter(
+        nguoi_dung__employee__in=nhan_vien_duoc_hien_thi(nguoi_dung))
 
 
-def grouped_bonuses(rows):
-    groups = {}
-    order = {'seniority': 0, 'attendance': 1, 'other': 2}
-
-    for bonus in rows:
-        key = (bonus.employee_id, bonus.year, bonus.month)
-        if key not in groups:
-            groups[key] = {
-                'employee': bonus.employee,
-                'year': bonus.year,
-                'month': bonus.month,
-                'attendance': Decimal(0),
-                'seniority': Decimal(0),
-                'other': Decimal(0),
-                'records': [],
-                'statuses': set(),
-                'approved_at': bonus.approved_at,
-                'rejection_reason': bonus.rejection_reason,
-            }
-        group = groups[key]
-        group['records'].append(bonus)
-        group['statuses'].add(bonus.status)
-        group['approved_at'] = max(
-            filter(None, [group['approved_at'], bonus.approved_at]), default=None
-        )
-        group['rejection_reason'] = group['rejection_reason'] or bonus.rejection_reason
-        group[bonus.bonus_type] += bonus.amount
-    results = []
-    for (employee_id, year, month), group in groups.items():
-        group['records'].sort(key=lambda item: (order.get(item.bonus_type, 9), item.name))
-        statuses = group['statuses']
-        if 'pending' in statuses:
-            group['status'] = 'pending'
-        elif 'draft' in statuses:
-            group['status'] = 'draft'
-        elif 'rejected' in statuses:
-            group['status'] = 'rejected'
-        else:
-            group['status'] = 'approved'
-        group['total'] = group['attendance'] + group['seniority'] + group['other']
-        group['employee_id'] = employee_id
-        results.append(group)
-    return sorted(results, key=lambda row: (row['employee'].ma_ho_so, -row['year'], -row['month']))
+def loc_bang_thuong(cac_bang, du_lieu):
+    for cot in ['thang', 'nam', 'trang_thai']:
+        if du_lieu.get(cot):
+            cac_bang = cac_bang.filter(**{cot: du_lieu[cot]})
+    if du_lieu.get('nhan_vien'):
+        cac_bang = cac_bang.filter(nguoi_dung__employee=du_lieu['nhan_vien'])
+    if du_lieu.get('phong_ban'):
+        cac_bang = cac_bang.filter(nguoi_dung__employee__phong_ban=du_lieu['phong_ban'])
+    if du_lieu.get('tu_khoa'):
+        cac_bang = cac_bang.filter(Q(nguoi_dung__employee__ho_va_ten__icontains=du_lieu['tu_khoa'])
+                                  | Q(nguoi_dung__employee__ma_ho_so__icontains=du_lieu['tu_khoa']))
+    return cac_bang
 
 
 @login_required
-def bonus_list(request):
+def danh_sach_thuong(request):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
-        return personal_list(request)
-    form = BonusFilter(request.user, request.GET, default_current_period=True)
-    if not form.is_valid() and {'employee', 'department'} & set(form.errors):
-        return access_denied(request)
-    if form.is_valid() and co_vai_tro(request.user, NHAN_SU):
-        period = form.cleaned_data
-        if period.get('month') and period.get('year'):
-            for employee in form.nhan_vien_trong_pham_vi(request.user):
-                sync_automatic_bonuses(employee, period['month'], period['year'])
-    source_rows = bonus_rows(request.user, form)
-    rows = grouped_bonuses(source_rows)
-    if form.is_valid() and form.cleaned_data.get('status'):
-        rows = [row for row in rows if row['status'] == form.cleaned_data['status']]
-    total_amount = sum((row['total'] for row in rows), Decimal(0))
-    period = form.cleaned_data if form.is_valid() else {}
-    period_rows = complete_bonus_records(Bonus.objects.filter(
-        employee__in=nhan_vien_duoc_hien_thi(request.user),
-        month=period.get('month'), year=period.get('year'),
-    )) if period.get('month') and period.get('year') else Bonus.objects.none()
-    page_query = request.GET.copy()
-    page_query.pop('page', None)
-    page_obj = Paginator(rows, 5).get_page(request.GET.get('page'))
+        return danh_sach_thuong_ca_nhan(request)
+    du_lieu = request.GET.copy()
+    if co_vai_tro(request.user, GIAM_DOC) and 'trang_thai' not in du_lieu:
+        du_lieu['trang_thai'] = 'pending'
+    form = BonusFilter(request.user, du_lieu, default_current_period=True)
+    if not form.is_valid() and {'nhan_vien', 'phong_ban'} & set(form.errors):
+        return trang_tu_choi_truy_cap(request)
+    ky = form.cleaned_data if form.is_valid() else {}
+    if ky.get('thang') and ky.get('nam') and co_vai_tro(request.user, NHAN_SU):
+        for nhan_vien in form.pham_vi_nhan_vien(request.user):
+            dong_bo_thuong_tu_dong(nhan_vien, ky['thang'], ky['nam'])
+    cac_bang = loc_bang_thuong(bang_thuong_trong_pham_vi(request.user), ky) if form.is_valid() else Thuong.objects.none()
+    if co_vai_tro(request.user, GIAM_DOC):
+        cac_bang = cac_bang.exclude(trang_thai='draft')
+    tong = cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or Decimal(0)
+    trang = Paginator(cac_bang, 5).get_page(request.GET.get('page'))
+    tham_so = request.GET.copy()
+    tham_so.pop('page', None)
+    co_ky = bool(ky.get('thang') and ky.get('nam'))
     return render(request, 'thuong/list_redesign.html', {
-        'form': form,
-        'page_obj': page_obj,
-        'rows': page_obj.object_list,
-        'page_query': page_query.urlencode(),
-        'total_amount': total_amount,
-        'can_propose': co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG),
-        'can_submit': co_vai_tro(request.user, NHAN_SU),
-        'can_send_period': co_vai_tro(request.user, NHAN_SU) and period_rows.filter(status='draft').exists(),
-        'can_decide_period': co_vai_tro(request.user, GIAM_DOC) and bool(
-            period.get('month') and period.get('year')
-        ),
-        'selected_month': period.get('month'),
-        'selected_year': period.get('year'),
+        'form': form, 'rows': gan_ma_hien_thi(trang.object_list), 'page_obj': trang, 'page_query': tham_so.urlencode(),
+        'tong_tien': tong, 'can_propose': co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG),
+        'can_send_period': co_ky and co_vai_tro(request.user, NHAN_SU) and not co_vai_tro(request.user, GIAM_DOC)
+                           and bang_thuong_trong_pham_vi(request.user).filter(thang=ky['thang'], nam=ky['nam'], trang_thai__in=['draft', 'rejected']).exists(),
+        'can_decide_period': co_ky and co_vai_tro(request.user, GIAM_DOC),
+        'selected_thang': ky.get('thang'), 'selected_nam': ky.get('nam'),
         'can_export': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
     })
 
 
 @login_required
-def personal_list(request):
-    employee = NhanVien.objects.filter(nguoi_dung=request.user).first()
-    if employee is None and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
-        return access_denied(request)
-
+def danh_sach_thuong_ca_nhan(request):
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user).first()
+    if nhan_vien is None and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
+        return trang_tu_choi_truy_cap(request)
     form = PersonalBonusFilter(request.GET)
-    rows = displayed_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
-        employee__nguoi_dung=request.user)).order_by('-year', '-month', 'name')
-    month = year = status = None
-    if form.is_valid():
-        month = form.cleaned_data.get('month')
-        year = form.cleaned_data.get('year')
-        status = form.cleaned_data.get('status')
-        if month:
-            rows = rows.filter(month=month)
-        if year:
-            rows = rows.filter(year=year)
-        if status:
-            rows = rows.filter(status=status)
-    all_rows = displayed_bonus_records(Bonus.objects.filter(employee__nguoi_dung=request.user))
-    approved_rows = all_rows.filter(status='approved')
-    year_rows = approved_rows
-    if year:
-        year_rows = year_rows.filter(year=year)
-
-    total_received = year_rows.aggregate(total=Sum('amount'))['total'] or Decimal(0)
-    highest_month = year_rows.values('year', 'month').annotate(
-        total=Sum('amount')
-    ).order_by('-total', '-year', '-month').first()
-    highest_month_total = highest_month['total'] if highest_month else Decimal(0)
-
-    if month:
-        latest_candidates = year_rows.filter(month=month)
-        latest_year = year or latest_candidates.order_by('-year').values_list('year', flat=True).first()
-        latest_period = latest_candidates.filter(year=latest_year).values('year', 'month').annotate(
-            total=Sum('amount')
-        ).order_by('year', 'month').first() if latest_year else None
-    else:
-        latest_period = year_rows.values('year', 'month').annotate(
-            total=Sum('amount')
-        ).order_by('-year', '-month').first()
-        latest_year = latest_period['year'] if latest_period else None
-
-    latest_month = latest_period['month'] if latest_period else month
-    latest_month_total = latest_period['total'] if latest_period else Decimal(0)
-    latest_month_year = latest_period['year'] if latest_period else (latest_year or year)
-    received_label = f'Tổng đã nhận (Năm {year})' if year else 'Tổng đã nhận (Tất cả năm)'
-    grouped = grouped_bonuses(rows)
-    total_amount = sum((row['total'] for row in grouped), Decimal(0))
-    personal_url = reverse('thuong:personal')
-    highest_month_url = (
-        f"{personal_url}?month={highest_month['month']}&year={highest_month['year']}&status=approved"
-        if highest_month else personal_url
-    )
-    latest_month_url = (
-        f'{personal_url}?month={latest_month}&year={latest_month_year}&status=approved'
-        if latest_month and latest_month_year else personal_url
-    )
-    return render(request, 'thuong/personal.html', {'form': form, 'rows': grouped,
-        'total_amount': total_amount,
-        'total_received': total_received,
-        'received_label': received_label,
-        'received_filter_url': f'{personal_url}?month=&year={year or ""}&status=approved',
-        'highest_month_total': highest_month_total,
-        'highest_month_url': highest_month_url,
-        'latest_month_total': latest_month_total,
-        'latest_month_url': latest_month_url,
-        'employee': employee,
-        'personal': True})
-
-
-def calculate_seniority(employee, month, year):
-    period_end = date(year, month, calendar.monthrange(year, month)[1])
-    completed_years = period_end.year - employee.ngay_vao_lam.year
-    anniversary_not_reached = (period_end.month, period_end.day) < (
-        employee.ngay_vao_lam.month, employee.ngay_vao_lam.day
-    )
-    years = max(0, completed_years - anniversary_not_reached)
-
-    if years < 1:
-        rate = Decimal(0)
-    elif years < 3:
-        rate = Decimal(150000)
-    elif years < 5:
-        rate = Decimal(200000)
-    else:
-        rate = Decimal(500000)
-
-    amount = years * rate
-    reason = f'{years} năm thâm niên; mức thưởng tháng áp dụng {rate:,.0f} VNĐ.'
-    return "seniority", "Thưởng thâm niên", amount, reason
-
-
-def calculate_attendance(employee, month, year):
-    start, end = date(year, month, 1), date(year, month, calendar.monthrange(year, month)[1])
-    period = thang_lich(year, month)
-    workdays = [lich for lich in lich_thang(year, month, period).values()
-                if max(start, employee.ngay_vao_lam) <= lich.ngay <= end
-                and lich.loai_ngay == 'work' and lich.cong_chuan > 0]
-    if not workdays:
-        raise ValidationError('Thiếu dữ liệu chấm công hoặc lịch làm việc của kỳ thưởng.')
-    records = {
-        record.ngay: record
-        for record in ChamCong.objects.filter(nhan_vien=employee, ngay__range=(start, end))
-    }
-    leave_dates = set(LeaveDay.objects.filter(
-        employee=employee, date__range=(start, end), approved=True
-    ).values_list('date', flat=True))
-    if any(day.ngay not in records and day.ngay not in leave_dates for day in workdays):
-        raise ValidationError(f'Thiếu dữ liệu chấm công của {employee}.')
-    day_records = [records[d.ngay] for d in workdays if d.ngay in records]
-    if any(record.trang_thai == 'absent' or
-           (record.trang_thai == 'leave' and record.ngay not in leave_dates)
-           for record in day_records):
-        attendance_amount, attendance_reason = Decimal(0), 'Có ngày nghỉ không phép trong kỳ.'
-    elif any(record.trang_thai == 'incomplete' for record in day_records):
-        raise ValidationError(f'Dữ liệu chấm công của {employee} chưa đầy đủ.')
-    elif any(record.so_phut_tre for record in day_records) or any(
-            record.gio_ra and record.gio_ra < period.gio_ket_thuc and record.ngay not in leave_dates
-            for record in day_records):
-        attendance_amount, attendance_reason = Decimal(0), 'Không đạt điều kiện chuyên cần do đi muộn hoặc về sớm vượt ngưỡng.'
-    elif leave_dates.intersection(day.ngay for day in workdays):
-        attendance_amount, attendance_reason = Decimal(200000), 'Có nghỉ phép hợp lệ trong kỳ.'
-    else:
-        attendance_amount, attendance_reason = Decimal(500000), 'Đủ ngày công quy định trong tháng.'
-    return "attendance", "Thưởng chuyên cần", attendance_amount, attendance_reason
-
-
-def calculate_automatic(employee, month, year):
-    results = [calculate_seniority(employee, month, year)]
-    try:
-        results.append(calculate_attendance(employee, month, year))
-    except ValidationError as exc:
-        return results, exc
-    return results, None
-
-
-@transaction.atomic
-def sync_automatic_bonuses(employee, month, year):
-    """Refresh editable source-derived bonuses without changing approval decisions."""
-    NhanVien.objects.select_for_update().get(pk=employee.pk)
-    automatic, attendance_error = calculate_automatic(employee, month, year)
-    for bonus_type, name, amount, reason in automatic:
-        rows = Bonus.objects.filter(
-            employee=employee, month=month, year=year, bonus_type=bonus_type)
-        if rows.filter(status__in=['pending', 'approved']).exists():
-            continue
-        bonus = rows.first()
-        if bonus is None:
-            Bonus.objects.create(
-                employee=employee, month=month, year=year, bonus_type=bonus_type,
-                name=name, amount=amount, reason=reason,
-                proposed_at=timezone.now(), status='draft')
-        elif bonus.amount != amount or bonus.reason != reason or bonus.name != name:
-            rows.filter(pk=bonus.pk).update(name=name, amount=amount, reason=reason)
-    if attendance_error:
-        # An old draft must not remain eligible after its source becomes incomplete.
-        Bonus.objects.filter(
-            employee=employee, month=month, year=year, bonus_type='attendance',
-            status__in=['draft', 'rejected']).delete()
-
-
-@login_required
-def detail(request, employee_id, year, month):
-    if (NhanVien.objects.filter(pk=employee_id).exists()
-            and not nhan_vien_duoc_hien_thi(request.user).filter(pk=employee_id).exists()):
-        return access_denied(request)
-    employee = get_object_or_404(nhan_vien_duoc_hien_thi(request.user), pk=employee_id)
-    rows = displayed_bonus_records(Bonus.objects.select_related(
-        'employee__phong_ban', 'proposed_by', 'approved_by').filter(
-            employee=employee, year=year, month=month))
-    is_own_profile = employee.nguoi_dung_id == request.user.id
-    if not is_own_profile and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
-        rows = rows.filter(status='approved')
-    elif not is_own_profile and co_vai_tro(request.user, GIAM_DOC) and not co_vai_tro(request.user, NHAN_SU):
-        rows = rows.exclude(status='draft')
-    grouped = grouped_bonuses(rows)
-    if not grouped:
-        raise Http404
-    group = grouped[0]
-    needs_auto_reason = any(
-        item.bonus_type in {'attendance', 'seniority'} and not item.reason
-        for item in group['records']
-    )
-    automatic, attendance_error = (calculate_automatic(employee, month, year)
-                                   if needs_auto_reason else ([], None))
-    automatic_reasons = {bonus_type: reason for bonus_type, _name, _amount, reason in automatic}
-    if attendance_error and 'attendance' not in automatic_reasons:
-        automatic_reasons['attendance'] = '; '.join(attendance_error.messages)
-    display_records = [{
-        'id': item.pk,
-        'type_label': (item.name if item.bonus_type == 'other' else item.get_bonus_type_display()),
-        'name': item.name, 'bonus_type': item.bonus_type,
-        'amount': item.amount,
-        'reason': item.reason or automatic_reasons.get(item.bonus_type, ''),
-        'proposed_at': item.proposed_at,
-    } for item in group['records']]
-    order = {'seniority': 0, 'attendance': 1, 'other': 2}
-    can_manage_drafts = co_vai_tro(request.user, NHAN_SU) and group['status'] in {'draft', 'rejected'}
-    for item in display_records:
-        item['can_edit'] = can_manage_drafts and item['bonus_type'] == 'other'
-        item['can_delete'] = can_manage_drafts and item['bonus_type'] == 'other'
-        item['automatic'] = item['bonus_type'] in {'attendance', 'seniority'}
-    group['records'] = sorted(display_records, key=lambda item: order.get(item['bonus_type'], 9))
-    return render(request, 'thuong/detail.html', {'row': group})
-
-
-@login_required
-def propose(request):
-    if not co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG):
-        return access_denied(request)
-    form = BonusProposalForm(request.user, request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        data = form.cleaned_data
-        try:
-            with transaction.atomic():
-                locked_rows = complete_bonus_records(Bonus.objects.filter(
-                    employee=data['employee'], month=data['month'], year=data['year'],
-                    bonus_type='other', name=data['name'], status__in=['pending', 'approved']))
-                if locked_rows.exists():
-                    raise ValidationError('Khoản thưởng cùng tên trong kỳ này đang chờ duyệt hoặc đã được duyệt.')
-                previous = Bonus.objects.filter(employee=data['employee'], month=data['month'], year=data['year'],
-                    bonus_type='other', name=data['name'], status__in=['draft', 'rejected']).first()
-                values = {'reason': data['reason'], 'amount': data['amount'], 'proposed_by': request.user,
-                          'proposed_at': timezone.now(), 'status': 'draft', 'rejection_reason': '',
-                          'approved_by': None, 'approved_at': None}
-                if previous:
-                    Bonus.objects.filter(pk=previous.pk).update(**values)
-                else:
-                    Bonus.objects.create(employee=data['employee'], month=data['month'], year=data['year'],
-                        bonus_type='other', name=data['name'], **values)
-        except ValidationError as exc:
-            form.add_error(None, '; '.join(exc.messages))
-        else:
-            if co_vai_tro(request.user, NHAN_SU):
-                messages.success(
-                    request,
-                    'Đã thêm khoản thưởng vào Bảng thưởng tổng ở trạng thái Bản nháp. '
-                    'Bạn có thể rà soát và gửi Giám đốc duyệt.',
-                )
-                return redirect(
-                    f"{reverse('thuong:list')}?month={data['month']}&year={data['year']}"
-                )
-            messages.success(
-                request,
-                'Đề xuất đã được thêm vào Bản nháp và gửi Quản lý nhân sự rà soát.',
-            )
-            return redirect('thuong:detail', data['employee'].pk, data['year'], data['month'])
-    history = complete_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
-        employee__in=nhan_vien_duoc_hien_thi(request.user), proposed_by=request.user,
-        bonus_type='other')).order_by('-proposed_at', '-pk')
-    return render(request, 'thuong/propose.html', {'form': form, 'history': history})
-
-
-@login_required
-def edit_rejected_proposal(request, bonus_id):
-    if not co_vai_tro(request.user, NHAN_SU):
-        return access_denied(request)
-
-    editable_rows = complete_bonus_records(Bonus.objects.filter(
-        pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-        employee__in=nhan_vien_duoc_hien_thi(request.user)))
-    bonus = get_object_or_404(editable_rows)
-    initial = {
-        'month': bonus.month,
-        'year': bonus.year,
-        'employee': bonus.employee_id,
-        'name': bonus.name,
-        'reason': bonus.reason,
-        'amount': bonus.amount,
-    }
-    form = BonusProposalForm(request.user, request.POST or None, initial=initial)
-    for field_name in ('month', 'year', 'employee'):
-        form.fields[field_name].disabled = True
-
-    if request.method == 'POST' and form.is_valid():
-        data = form.cleaned_data
-        try:
-            with transaction.atomic():
-                bonus = get_object_or_404(complete_bonus_records(Bonus.objects.select_for_update().filter(
-                    pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-                    employee__in=nhan_vien_duoc_hien_thi(request.user))))
-                bonus.name = data['name']
-                bonus.reason = data['reason']
-                bonus.amount = data['amount']
-                bonus.proposed_by = request.user
-                bonus.proposed_at = timezone.now()
-                bonus.status = 'draft'
-                bonus.rejection_reason = ''
-                bonus.approved_by = None
-                bonus.approved_at = None
-                bonus.save(update_fields=[
-                    'name', 'reason', 'amount', 'proposed_by', 'proposed_at', 'status',
-                    'rejection_reason', 'approved_by', 'approved_at',
-                ])
-        except ValidationError as exc:
-            form.add_error(None, '; '.join(exc.messages))
-        else:
-            messages.success(request, 'Đã cập nhật khoản thưởng khác trong bản nháp.')
-            return redirect('thuong:detail', bonus.employee_id, bonus.year, bonus.month)
-
-    history = complete_bonus_records(Bonus.objects.select_related('employee__phong_ban').filter(
-        employee__in=nhan_vien_duoc_hien_thi(request.user), proposed_by=request.user,
-        bonus_type='other')).order_by('-proposed_at', '-pk')
-    return render(request, 'thuong/propose.html', {
-        'form': form, 'history': history, 'editing_rejected': True,
+    tat_ca = Thuong.objects.select_related('nguoi_dung__employee__phong_ban').filter(nguoi_dung=request.user)
+    ky = form.cleaned_data if form.is_valid() else {}
+    cac_bang = loc_bang_thuong(tat_ca, ky).order_by('-nam', '-thang')
+    da_duyet = tat_ca.filter(trang_thai='approved')
+    if ky.get('nam'):
+        da_duyet = da_duyet.filter(nam=ky['nam'])
+    cao_nhat = da_duyet.order_by('-tong_thuong', '-nam', '-thang').first()
+    gan_nhat = da_duyet.filter(thang=ky['thang']) if ky.get('thang') else da_duyet
+    gan_nhat = gan_nhat.order_by('-nam', '-thang').first()
+    url = reverse('thuong:personal')
+    def duong_dan(bang):
+        return f'{url}?thang={bang.thang}&nam={bang.nam}&trang_thai=approved' if bang else url
+    nam = ky.get('nam')
+    return render(request, 'thuong/personal.html', {
+        'form': form, 'rows': gan_ma_hien_thi(cac_bang), 'nhan_vien': nhan_vien,
+        'tong_tien': cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
+        'tong_da_nhan': da_duyet.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
+        'nhan_de_tong_da_nhan': f'Tổng đã nhận (Năm {nam})' if nam else 'Tổng đã nhận (Tất cả năm)',
+        'url_loc_da_nhan': f'{url}?thang=&nam={nam or ""}&trang_thai=approved',
+        'tong_thang_cao_nhat': cao_nhat.tong_thuong if cao_nhat else 0, 'url_thang_cao_nhat': duong_dan(cao_nhat),
+        'tong_thang_moi_nhat': gan_nhat.tong_thuong if gan_nhat else 0, 'url_ky_moi_nhat': duong_dan(gan_nhat),
     })
 
 
 @login_required
-@require_POST
-def delete_proposal(request, bonus_id):
+def chi_tiet_thuong(request, nhan_vien_id, nam, thang):
+    if NhanVien.objects.filter(pk=nhan_vien_id).exists() and not nhan_vien_duoc_hien_thi(request.user).filter(pk=nhan_vien_id).exists():
+        return trang_tu_choi_truy_cap(request)
+    bang = get_object_or_404(bang_thuong_trong_pham_vi(request.user), nguoi_dung__employee__pk=nhan_vien_id, nam=nam, thang=thang)
+    if bang.nguoi_dung.employee.nguoi_dung_id != request.user.pk and co_vai_tro(request.user, GIAM_DOC) and not co_vai_tro(request.user, NHAN_SU) and bang.trang_thai == 'draft':
+        return trang_tu_choi_truy_cap(request)
+    cac_khoan = cac_khoan_hien_thi(bang)
+    for khoan in cac_khoan:
+        khoan['co_the_sua'] = khoan['co_the_xoa'] = (
+            not khoan['tu_dong'] and co_vai_tro(request.user, NHAN_SU) and bang.trang_thai in ['draft', 'rejected'])
+    return render(request, 'thuong/detail.html', {'row': bang, 'cac_khoan': cac_khoan})
+
+
+def lich_su_de_xuat(nguoi_dung):
+    return DeXuatThuong.objects.select_related('bang_thuong__nguoi_dung__employee__phong_ban').filter(
+        bang_thuong__nguoi_dung__employee__in=nhan_vien_duoc_hien_thi(nguoi_dung), nguoi_de_xuat=nguoi_dung
+    ).order_by('-thoi_gian_de_xuat', '-pk')
+
+
+@login_required
+def de_xuat_thuong_khac(request):
+    if not co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG):
+        return trang_tu_choi_truy_cap(request)
+    form = BonusProposalForm(request.user, request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        du_lieu = form.cleaned_data
+        try:
+            with transaction.atomic():
+                bang, _ = Thuong.objects.get_or_create(nguoi_dung=du_lieu['nhan_vien'].nguoi_dung, thang=du_lieu['thang'], nam=du_lieu['nam'])
+                de_xuat = bang.de_xuat.filter(ten=du_lieu['ten']).first() or DeXuatThuong(bang_thuong=bang)
+                for cot in ['ten', 'so_tien', 'ly_do']:
+                    setattr(de_xuat, cot, du_lieu[cot])
+                de_xuat.nguoi_de_xuat = request.user
+                de_xuat.thoi_gian_de_xuat = timezone.now()
+                luu_de_xuat(de_xuat)
+        except ValidationError as loi:
+            form.add_error(None, loi)
+        else:
+            messages.success(request, 'Đã thêm đề xuất thưởng khác vào Bản nháp.')
+            if co_vai_tro(request.user, NHAN_SU):
+                return redirect(f"{reverse('thuong:list')}?thang={bang.thang}&nam={bang.nam}")
+            return redirect('thuong:detail', bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
+    return render(request, 'thuong/propose.html', {'form': form, 'history': lich_su_de_xuat(request.user)})
+
+
+@login_required
+def sua_de_xuat_thuong(request, bonus_id):
     if not co_vai_tro(request.user, NHAN_SU):
-        return access_denied(request)
-    bonus = get_object_or_404(complete_bonus_records(Bonus.objects.filter(
-        pk=bonus_id, bonus_type='other', status__in=['draft', 'rejected'],
-        employee__in=nhan_vien_duoc_hien_thi(request.user))))
-    employee_id, year, month = bonus.employee_id, bonus.year, bonus.month
-    bonus.delete()
-    messages.success(request, 'Đã xóa khoản thưởng chưa được Giám đốc duyệt.')
-    return redirect('thuong:detail', employee_id, year, month)
+        return trang_tu_choi_truy_cap(request)
+    de_xuat = get_object_or_404(lich_su_de_xuat_trong_pham_vi(request.user), pk=bonus_id)
+    bang = de_xuat.bang_thuong
+    form = BonusProposalForm(request.user, request.POST or None, initial={
+        'thang': bang.thang, 'nam': bang.nam, 'nhan_vien': bang.nguoi_dung.employee.pk,
+        'ten': de_xuat.ten, 'so_tien': de_xuat.so_tien, 'ly_do': de_xuat.ly_do})
+    for cot in ['thang', 'nam', 'nhan_vien']:
+        form.fields[cot].disabled = True
+    if request.method == 'POST' and form.is_valid():
+        try:
+            for cot in ['ten', 'so_tien', 'ly_do']:
+                setattr(de_xuat, cot, form.cleaned_data[cot])
+            de_xuat.nguoi_de_xuat, de_xuat.thoi_gian_de_xuat = request.user, timezone.now()
+            luu_de_xuat(de_xuat)
+        except ValidationError as loi:
+            form.add_error(None, loi)
+        else:
+            messages.success(request, 'Đã cập nhật khoản thưởng khác trong bản nháp.')
+            return redirect('thuong:detail', bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
+    return render(request, 'thuong/propose.html', {'form': form, 'history': lich_su_de_xuat(request.user), 'editing_rejected': True})
+
+
+def lich_su_de_xuat_trong_pham_vi(nguoi_dung):
+    return DeXuatThuong.objects.select_related('bang_thuong').filter(
+        bang_thuong__nguoi_dung__employee__in=nhan_vien_duoc_hien_thi(nguoi_dung),
+        bang_thuong__trang_thai__in=['draft', 'rejected'])
 
 
 @login_required
 @require_POST
-def calculate_period(request):
+def xoa_de_xuat_thuong(request, bonus_id):
     if not co_vai_tro(request.user, NHAN_SU):
-        return access_denied(request)
-    form = BonusFilter(request.user, request.POST)
-    if not form.is_valid():
-        messages.error(request, 'Vui lòng chọn kỳ thưởng hợp lệ trước khi tính tự động.')
-        return redirect('thuong:list')
-    data = form.cleaned_data
-    if not data.get('month') or not data.get('year'):
-        messages.error(request, 'Vui lòng chọn tháng và năm trước khi tính thưởng tự động.')
-        return redirect('thuong:list')
-    employees = form.nhan_vien_trong_pham_vi(request.user)
-    if data.get('q'):
-        employees = employees.filter(Q(ho_va_ten__icontains=data['q']) | Q(ma_ho_so__icontains=data['q']))
-    created, seniority_calculated, attendance_calculated, locked, errors = 0, 0, 0, 0, []
-    for employee in employees:
-        locked_types = set(Bonus.objects.filter(
-            employee=employee, month=data['month'], year=data['year'],
-            bonus_type__in=['attendance', 'seniority'], status__in=['pending', 'approved'],
-        ).values_list('bonus_type', flat=True))
-        if locked_types == {'attendance', 'seniority'}:
-            locked += 1
-            continue
-        automatic, attendance_error = calculate_automatic(employee, data['month'], data['year'])
-        saved_types = set()
-        with transaction.atomic():
-            for bonus_type, name, amount, reason in automatic:
-                if bonus_type in locked_types:
-                    continue
-                Bonus.objects.update_or_create(employee=employee, month=data['month'], year=data['year'],
-                    bonus_type=bonus_type, defaults={'name': name, 'amount': amount, 'reason': reason,
-                    'proposed_by': request.user, 'proposed_at': timezone.now(), 'status': 'draft',
-                    'rejection_reason': ''})
-                saved_types.add(bonus_type)
-        if saved_types:
-            created += 1
-        if 'seniority' in saved_types:
-            seniority_calculated += 1
-        if 'attendance' in saved_types:
-            attendance_calculated += 1
-        if attendance_error and 'attendance' not in locked_types:
-            errors.append(f'{employee.ma_ho_so}: {"; ".join(attendance_error.messages)}')
-    if seniority_calculated or attendance_calculated:
-        messages.success(
-            request,
-            f'Đã lưu Bản nháp: thâm niên {seniority_calculated} NV; '
-            f'chuyên cần {attendance_calculated} NV đủ dữ liệu.',
-        )
-    if locked:
-        messages.info(request, f'Bỏ qua {locked} nhân viên đã có thưởng chờ duyệt hoặc đã duyệt.')
-    if errors:
-        messages.warning(
-            request,
-            f'Chuyên cần chưa tính được cho {len(errors)} NV: thiếu dữ liệu chấm công/lịch làm việc.',
-        )
-    if not created and not locked and not errors:
-        messages.info(request, 'Không có nhân viên trong phạm vi lọc để tính thưởng.')
-    return redirect('thuong:list')
-
-
-@login_required
-@require_POST
-def submit_period(request, year, month):
-    if not co_vai_tro(request.user, NHAN_SU):
-        return access_denied(request)
-    employees = nhan_vien_duoc_hien_thi(request.user)
-    count = complete_bonus_records(Bonus.objects.filter(
-        employee__in=employees, year=year, month=month, status='draft')).update(status='pending')
-    if not count:
-        messages.error(request, 'Không có khoản thưởng bản nháp trong kỳ này để gửi duyệt.')
+        return trang_tu_choi_truy_cap(request)
+    de_xuat = get_object_or_404(lich_su_de_xuat_trong_pham_vi(request.user), pk=bonus_id)
+    bang = de_xuat.bang_thuong
+    try:
+        xoa_de_xuat(de_xuat)
+    except ValidationError as loi:
+        messages.error(request, '; '.join(loi.messages))
     else:
-        messages.success(request, f'Đã gửi {count} khoản thưởng tháng {month}/{year} cho Giám đốc duyệt.')
-    return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
+        messages.success(request, 'Đã xóa khoản thưởng chưa được Giám đốc duyệt.')
+    return redirect('thuong:detail', bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
+
+
+def ghi_lich_su(nguoi_dung, bang, noi_dung):
+    LogEntry.objects.log_action(user_id=nguoi_dung.pk, content_type_id=ContentType.objects.get_for_model(Thuong).pk,
+        object_id=str(bang.pk), object_repr=str(bang), action_flag=CHANGE, change_message=noi_dung)
 
 
 @login_required
 @require_POST
-def decision_period(request, year, month):
+def gui_duyet_thuong(request, nam, thang):
+    if not co_vai_tro(request.user, NHAN_SU):
+        return trang_tu_choi_truy_cap(request)
+    return xu_ly_bang_da_chon(request, nam, thang, gui_duyet=True)
+
+
+@login_required
+@require_POST
+def xu_ly_duyet_thuong(request, nam, thang):
     if not co_vai_tro(request.user, GIAM_DOC):
-        return access_denied(request)
-    rows = complete_bonus_records(Bonus.objects.filter(
-        employee__in=nhan_vien_duoc_hien_thi(request.user), year=year, month=month, status='pending'))
-    if not rows.exists():
-        messages.error(request, 'Không có bảng thưởng nào đang chờ duyệt trong kỳ này.')
-        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
-    action = request.POST.get('action')
-    if action not in ['approve', 'reject']:
-        raise ValidationError('Lựa chọn duyệt không hợp lệ.')
-    reason = request.POST.get('reason', '').strip()
-    if action == 'reject' and not reason:
-        messages.error(request, 'Vui lòng nhập lý do từ chối.')
-        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
-    if action == 'reject':
-        rows.update(status='draft', rejection_reason=reason, approved_by=None, approved_at=None)
-        messages.success(request, 'Đã trả bảng thưởng về Bản nháp để QLNS chỉnh sửa khoản thưởng khác.')
-        return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
+        return trang_tu_choi_truy_cap(request)
+    return xu_ly_bang_da_chon(request, nam, thang)
 
-    employee_ids = list(rows.values_list('employee_id', flat=True).distinct())
-    rows.update(status='approved', approved_by=request.user, approved_at=timezone.now(), rejection_reason='')
-    from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-    payroll_errors = [cap_nhat_luong_nhan_vien(request.user, employee_id, year, month)
-                      for employee_id in employee_ids]
-    payroll_errors = [error for error in payroll_errors if error]
-    if payroll_errors:
-        messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + ' | '.join(payroll_errors[:5]))
-    messages.success(request, f'Đã duyệt bảng thưởng tháng {month}/{year} và cập nhật bảng lương.')
-    return redirect(f"{reverse('thuong:list')}?month={month}&year={year}")
+
+def xu_ly_bang_da_chon(request, nam, thang, gui_duyet=False):
+    url = f"{reverse('thuong:list')}?thang={thang}&nam={nam}"
+    thao_tac = 'submit' if gui_duyet else request.POST.get('action')
+    if thao_tac not in ['submit', 'approve', 'reject']:
+        messages.error(request, 'Lựa chọn duyệt không hợp lệ.')
+        return redirect(url)
+    ds = request.POST.getlist('nhan_vien_id') or request.POST.getlist('nhan_vien_ids')
+    ds = list(dict.fromkeys(ds))
+    ly_do = request.POST.get('ly_do', '').strip()
+    if not ds:
+        messages.error(request, 'Vui lòng chọn ít nhất một nhân viên.')
+        return redirect(url)
+    if thao_tac == 'reject' and len(ds) != 1:
+        messages.error(request, 'Bạn chỉ có thể từ chối từng người. Vui lòng chọn một nhân viên và thực hiện từ chối riêng.')
+        return redirect(url)
+    try:
+        ds = [int(ma) for ma in ds]
+        with transaction.atomic():
+            cac_bang = list(bang_thuong_trong_pham_vi(request.user).select_for_update().filter(
+                nguoi_dung__employee__pk__in=ds, nam=nam, thang=thang,
+                trang_thai__in=['draft', 'rejected'] if gui_duyet else ['pending']))
+            if not cac_bang:
+                raise ValidationError('Không có bảng thưởng hợp lệ trong số nhân viên đã chọn.')
+            for bang in cac_bang:
+                if gui_duyet:
+                    gui_duyet_bang(bang)
+                else:
+                    duyet_bang(bang, request.user, tu_choi=thao_tac == 'reject', ly_do=ly_do)
+                ghi_lich_su(request.user, bang, 'Gửi duyệt thưởng.' if gui_duyet else
+                            (f'Từ chối thưởng. Lý do: {ly_do}' if thao_tac == 'reject' else 'Duyệt thưởng.'))
+    except (ValueError, TypeError):
+        messages.error(request, 'Danh sách nhân viên không hợp lệ.')
+        return redirect(url)
+    except ValidationError as loi:
+        messages.error(request, '; '.join(loi.messages))
+        return redirect(url)
+    if thao_tac == 'approve':
+        from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+        loi_luong = [cap_nhat_luong_nhan_vien(request.user, bang.nguoi_dung.employee.pk, nam, thang) for bang in cac_bang]
+        loi_luong = [loi for loi in loi_luong if loi]
+        if loi_luong:
+            messages.warning(request, 'Chưa đủ điều kiện cập nhật lương: ' + ' | '.join(loi_luong[:5]))
+    messages.success(request, {'submit': 'Gửi duyệt bảng thưởng thành công.',
+        'approve': 'Duyệt bảng thưởng thành công.', 'reject': 'Đã từ chối khoản thưởng và lưu lý do.'}[thao_tac])
+    return redirect(url)
 
 
 @login_required
 @require_POST
-def export(request):
+def xuat_bang_thuong(request):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
-        return access_denied(request)
+        return trang_tu_choi_truy_cap(request)
     form = BonusFilter(request.user, request.POST)
-    if not form.is_valid():
-        messages.error(request, 'Bộ lọc không hợp lệ.')
+    if not form.is_valid() or not form.cleaned_data.get('thang') or not form.cleaned_data.get('nam'):
+        messages.error(request, 'Vui lòng chọn tháng, năm và bộ lọc hợp lệ trước khi xuất bảng thưởng.')
         return redirect('thuong:list')
-    if not form.cleaned_data.get('month') or not form.cleaned_data.get('year'):
-        messages.error(request, 'Vui lòng chọn tháng và năm trước khi xuất bảng thưởng.')
-        return redirect('thuong:list')
-    form.cleaned_data['status'] = ''
-    rows = approved_bonus_records(bonus_rows(request.user, form))
-    if not rows.exists():
+    du_lieu = {**form.cleaned_data, 'trang_thai': 'approved'}
+    cac_bang = loc_bang_thuong(bang_thuong_trong_pham_vi(request.user), du_lieu)
+    if not cac_bang.exists():
         messages.error(request, 'Chưa có dữ liệu thưởng đã duyệt để xuất.')
         return redirect('thuong:list')
     output = io.StringIO(newline='')
     writer = csv.writer(output)
     writer.writerow(['Mã nhân viên', 'Nhân viên', 'Phòng ban', 'Tháng', 'Năm', 'Loại thưởng', 'Khoản thưởng', 'Lý do', 'Số tiền', 'Trạng thái'])
-    for row in rows:
-        writer.writerow([row.employee.ma_ho_so, row.employee.ho_va_ten, row.employee.phong_ban.ten_phong_ban, row.month, row.year,
-                         row.get_bonus_type_display(), row.name, row.reason, row.amount, row.get_status_display()])
+    for bang in cac_bang:
+        for khoan in cac_khoan_hien_thi(bang):
+            writer.writerow([bang.nguoi_dung.employee.ma_ho_so, bang.nguoi_dung.employee.ho_va_ten, bang.nguoi_dung.employee.phong_ban.ten_phong_ban,
+                bang.thang, bang.nam, khoan['ten'] if khoan['tu_dong'] else 'Thưởng khác',
+                khoan['ten'], khoan['ly_do'], khoan['so_tien'], bang.get_trang_thai_display()])
     response = HttpResponse('\ufeff' + output.getvalue(), content_type='text/csv; charset=utf-8')
-    data = form.cleaned_data
-    response['Content-Disposition'] = f'attachment; filename="bonuses-{data["month"]}-{data["year"]}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="bonuses-{du_lieu["thang"]}-{du_lieu["nam"]}.csv"'
     return response

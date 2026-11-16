@@ -25,6 +25,15 @@
   .bp-status.draft{background:#edf1f6;color:#596a7c}.bp-status.rejected{background:#fae7e8;color:#b43b48}
   .bp-no-data{display:inline-block;width:.7rem;height:1px;border-radius:1px;background:#aeb8c4;vertical-align:middle}
   .bp-empty{text-align:center;padding:3rem!important;color:#718198}
+  .bp-empty-slip{min-height:535px;display:grid;place-items:center;padding:50px 20px;background:#e0eafa}
+  .bp-empty-content{text-align:center}
+  .bp-empty-content .pr-document{width:170px;height:130px;margin-bottom:27px}
+  .bp-empty-content .pr-document-box{fill:#142f55}
+  .bp-empty-content .pr-document-paper,.bp-empty-content .pr-document-top{fill:#e0ebf8}
+  .bp-empty-content h2{margin:0 0 22px;color:#163850;font-size:22px;font-weight:750}
+  .bp-empty-content p{margin:0;color:#8d99ab;font-size:16px;line-height:1.35}
+  .bp-empty-info{max-width:570px;margin:32px auto 0;padding:18px 25px;background:#e1ebf8;border-radius:8px;color:#8590a5;font-size:14px}
+  @media(max-width:700px){.bp-empty-slip{min-height:460px;padding:30px 16px}.bp-empty-info{padding:15px}.bp-empty-content h2{font-size:21px}}
   .bp-total{text-align:right;color:#17385e;font-size:14px;font-weight:700;margin-top:1rem}
   .bp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0 0 28px;padding:0 8px;border:1px solid #e0e5ec;border-radius:10px;background:#fff;box-shadow:0 2px 8px #1736540a}
   .bp-summary-card{display:block;min-width:0;padding:9px 12px;border:0;border-radius:0;background:#fff;color:inherit;text-align:left;text-decoration:none;transition:box-shadow .15s}
@@ -42,22 +51,22 @@
 {% endblock %}
 {% block content %}
 <main class="bp-page">
-  <h1 class="h3 bp-title"><span>{% if employee %}THÔNG TIN THƯỞNG CỦA <span class="bp-title-name">{{ employee.ho_va_ten|upper }}</span>{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</span></h1>
+  <h1 class="h3 bp-title"><span>{% if nhan_vien %}THÔNG TIN THƯỞNG CỦA <span class="bp-title-name">{{ nhan_vien.ho_va_ten|upper }}</span>{% else %}THÔNG TIN THƯỞNG CÁ NHÂN{% endif %}</span></h1>
   <form method="get" class="bp-filter">
     {% for field in form %}<div class="bp-field">{{ field.label_tag }}{{ field }}</div>{% endfor %}
     <button class="btn" type="submit">Lọc</button>
     <a class="bp-reset" href="{% url 'thuong:personal' %}">Đặt lại</a>
   </form>
   {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
-  <section class="bp-summary" aria-label="Tổng hợp thưởng cá nhân">
-    <a class="bp-summary-card bp-summary-received {% if form.status.value == 'approved' and not form.month.value %}is-selected{% endif %}" href="{{ received_filter_url }}" title="Xem các khoản đã duyệt trong năm">
-      <div class="bp-summary-label">{{ received_label }}</div><div class="bp-summary-value">{{ total_received|money }} ₫</div>
+  {% if rows %}<section class="bp-summary" aria-label="Tổng hợp thưởng cá nhân">
+    <a class="bp-summary-card bp-summary-received {% if form.trang_thai.value == 'approved' and not form.thang.value %}is-selected{% endif %}" href="{{ url_loc_da_nhan }}" title="Xem các khoản đã duyệt trong năm">
+      <div class="bp-summary-label">{{ nhan_de_tong_da_nhan }}</div><div class="bp-summary-value">{{ tong_da_nhan|money }} ₫</div>
     </a>
-    <a class="bp-summary-card bp-summary-highest" href="{{ highest_month_url }}" title="Xem tháng có tổng thưởng đã duyệt cao nhất">
-      <div class="bp-summary-label">Tháng nhận thưởng cao nhất</div><div class="bp-summary-value">{{ highest_month_total|money }} ₫</div>
+    <a class="bp-summary-card bp-summary-highest" href="{{ url_thang_cao_nhat }}" title="Xem tháng có tổng thưởng đã duyệt cao nhất">
+      <div class="bp-summary-label">Tháng nhận thưởng cao nhất</div><div class="bp-summary-value">{{ tong_thang_cao_nhat|money }} ₫</div>
     </a>
-    <a class="bp-summary-card bp-summary-month" href="{{ latest_month_url }}" title="Xem thưởng đã duyệt trong tháng gần nhất">
-      <div class="bp-summary-label">Thưởng tháng gần nhất</div><div class="bp-summary-value">{{ latest_month_total|money }} ₫</div>
+    <a class="bp-summary-card bp-summary-month" href="{{ url_ky_moi_nhat }}" title="Xem thưởng đã duyệt trong tháng gần nhất">
+      <div class="bp-summary-label">Thưởng tháng gần nhất</div><div class="bp-summary-value">{{ tong_thang_moi_nhat|money }} ₫</div>
     </a>
   </section>
   <h2 class="h5 fw-bold text-uppercase mb-3" style="color:#17385e">Thông tin thưởng cá nhân</h2>
@@ -67,19 +76,20 @@
       <tbody>
         {% for row in rows %}
         <tr>
-          <td>MT_{{ row.records.0.pk|stringformat:'03d' }}</td><td>{{ row.month }}</td><td>{{ row.year }}</td>
-          <td class="bp-money">{% if row.attendance %}{{ row.attendance|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
-          <td class="bp-money">{% if row.seniority %}{{ row.seniority|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
-          <td class="bp-money">{% if row.other %}{{ row.other|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
-          <td class="bp-money">{{ row.total|money }}</td>
-          <td><span class="bp-status {{ row.status }}">{% if row.status == 'approved' %}Đã duyệt{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'draft' %}Bản nháp{% else %}Từ chối{% endif %}</span></td>
-          <td>{% if row.approved_at and row.status != 'pending' and row.status != 'draft' %}{{ row.approved_at|date:'d/m/Y' }}{% else %}<span class="bp-no-data" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td>
-          <td><a class="bp-detail-link" href="{% url 'thuong:detail' row.employee_id row.year row.month %}">Xem chi tiết</a></td>
+          <td>{{ row.ma_hien_thi }}</td><td>{{ row.thang }}</td><td>{{ row.nam }}</td>
+          <td class="bp-money">{% if row.thuong_chuyen_can %}{{ row.thuong_chuyen_can|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
+          <td class="bp-money">{% if row.thuong_tham_nien %}{{ row.thuong_tham_nien|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
+          <td class="bp-money">{% if row.thuong_khac %}{{ row.thuong_khac|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
+          <td class="bp-money">{{ row.tong_thuong|money }}</td>
+          <td><span class="bp-status {{ row.trang_thai }}">{% if row.trang_thai == 'approved' %}Đã duyệt{% elif row.trang_thai == 'pending' %}Chờ duyệt{% elif row.trang_thai == 'draft' %}Bản nháp{% else %}Từ chối{% endif %}</span></td>
+          <td>{% if row.ngay_duyet and row.trang_thai != 'pending' and row.trang_thai != 'draft' %}{{ row.ngay_duyet|date:'d/m/Y' }}{% else %}<span class="bp-no-data" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td>
+          <td><a class="bp-detail-link" href="{% url 'thuong:detail' row.nguoi_dung.employee.pk row.nam row.thang %}">Xem chi tiết</a></td>
         </tr>
         {% empty %}<tr><td colspan="10" class="bp-empty">Không tìm thấy dữ liệu thưởng phù hợp</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  <div class="bp-total">Tổng thưởng đang hiển thị: {{ total_amount|money }} ₫</div>
+  <div class="bp-total">Tổng thưởng đang hiển thị: {{ tong_tien|money }} ₫</div>
+  {% else %}<article class="bp-empty-slip"><div class="bp-empty-content">{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU BẢNG THƯỞNG</h2><p>Chưa có bảng thưởng cho Tháng {{ form.thang.value }}/{{ form.nam.value }}.<br>Vui lòng chọn kỳ thưởng khác hoặc kiểm tra lại sau.</p><div class="bp-empty-info">Bảng thưởng sẽ hiển thị khi kỳ được chọn có dữ liệu thưởng của bạn.</div></div></article>{% endif %}
 </main>
 {% endblock %}

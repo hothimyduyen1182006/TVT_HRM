@@ -79,7 +79,7 @@ def loi_nguon_thue(record):
     da_luu = record.chi_tiet.get('tax_calculation', {})
     if da_luu.get('policy') != POLICY:
         return ''  # Historical/paid amounts remain historical; never infer a new policy for them.
-    from thuong.models import Bonus, payroll_bonus_records
+    from thuong.views import cac_khoan_thuong_tinh_luong
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     from .tinh_toan import chuan_hoa_du_lieu
     from bang_cong.thang_lich import thang_lich
@@ -89,13 +89,13 @@ def loi_nguon_thue(record):
         nhan_vien=nhan_vien_theo_phieu_luong(record)
         inputs=can_cu_luong_nhan_vien(nhan_vien,attendance)
         adjustments=cac_khoan_phu_cap_khau_tru(nhan_vien,attendance)
-        bonuses = payroll_bonus_records(Bonus.objects.filter(employee=record.nhan_vien, year=attendance.nam, month=attendance.thang))
+        bonuses = cac_khoan_thuong_tinh_luong(record.nhan_vien_id, attendance.nam, attendance.thang)
         overtime = tong_hop_tang_ca_tinh_luong(record.nhan_vien, attendance.nam, attendance.thang)
         insurance = sum((inputs.insurance_base * Decimal(str(ty_le)) for ty_le in inputs.insurance_rates.values()), ZERO)
         exact_wage = Decimal(record.chi_tiet['attendance_pay_exact'])
         exact_ot = sum((Decimal(phan_tu['amount']) for phan_tu in record.chi_tiet.get('ot', [])), ZERO)
         chi_tiet = tinh_thue_tncn(inputs, attendance, exact_wage, exact_ot,
-            sum((dong.amount for dong in bonuses), ZERO), insurance, adjustments, overtime)
+            sum((Decimal(dong['amount']) for dong in bonuses), ZERO), insurance, adjustments, overtime)
         if chuan_hoa_du_lieu(chi_tiet) != da_luu or chi_tiet['tax'] != record.thue_tncn:
             return 'Dữ liệu thuế TNCN đã thay đổi. Cần mở lại và tính lại lương trước khi duyệt, xuất hoặc chi trả.'
     except (ValidationError, KeyError, ValueError, TypeError, InvalidOperation):

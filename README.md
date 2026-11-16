@@ -1,17 +1,35 @@
+## Cập nhật Bảng thưởng và Trang chủ
+
+Sau khi lấy code, sao lưu database hiện có rồi chạy trong môi trường Python của dự án:
+
+```powershell
+git pull --ff-only origin main
+python manage.py migrate
+python manage.py check
+python manage.py test thuong --noinput
+python manage.py runserver
+```
+
+Trang chủ có ô “Xem bảng thưởng” nằm giữa bảng công và bảng lương, điều hướng theo quyền.
+App thưởng dùng hai model `Thuong` và `DeXuatThuong`; đề xuất chỉ lưu thưởng khác.
+Duyệt công tự đồng bộ chuyên cần/thâm niên; chuyên cần 200.000đ chỉ khi đủ công, không nghỉ phép
+hoặc vắng mặt. Chỉ tổng thưởng đã duyệt được cộng vào lương. Bảng bị từ chối có thể gửi duyệt lại.
+
+Các migration thưởng 0005–0008 và lương 0017 chuyển liên kết mà giữ mã thưởng cũ;
+hai bảng lưu trữ vẫn giữ để đối chiếu. Migration dừng nếu dữ liệu cũ có trạng thái thưởng
+không đồng nhất hoặc không phù hợp số tiền nguyên VNĐ; cần đối chiếu dữ liệu khi gặp thông báo này.
+Đây là bản cập nhật code và migration; dùng database hiện có của từng máy.
+
 ## Cấu trúc Bảng lương
 
-`bang_luong.models.Luong` lưu trong bảng `Luong`, có mã nghiệp vụ `ma_luong`
-duy nhất và giữ `id` nội bộ để bảo toàn URL, liên kết và lịch sử.
-Mỗi phiếu liên kết một `TongHopCong` và một `thuong.models.TongThuong` của đúng
-nhân viên/kỳ. Tổng thưởng lưu các khoản thưởng nguồn đã dùng; không có thưởng
-thì tổng bằng 0. Không thêm trang giao diện quản lý tổng thưởng riêng.
+`bang_luong.models.Luong` lưu trong bảng `Luong`, dùng `ma_luong` làm khóa chính.
+Mỗi phiếu liên kết một `TongHopCong` và một `thuong.models.Thuong` của đúng
+nhân viên/kỳ. Chỉ thưởng đã duyệt được cộng vào `tong_tien_thuong`.
 
-Các cột thành tiền dùng tên tiếng Việt: `luong_co_ban`, `luong_theo_cong`,
-`luong_tang_ca`, `tong_tien_thuong`, `khau_tru_di_tre`, `khau_tru_bhxh`,
-`khau_tru_bhyt`, `khau_tru_bhtn`, `khau_tru_khac`, `thue_tncn`, `luong_thuc_linh`.
-`phu_cap` giữ phụ cấp hiện có; `tong_bao_hiem` và `tong_khau_tru` giữ tổng đã lưu.
-Độ chính xác tiền hiện tại và khóa JSON lịch sử được giữ để không đổi phiếu cũ.
-Trạng thái lưu `pending/approved/paid`, hiển thị Chờ duyệt/Đã duyệt/Đã chi trả.
+Các cột thành tiền là `luong_co_ban`, `luong_theo_cong`, `luong_tang_ca`,
+`tong_tien_thuong`, `khau_tru_di_tre`, `khau_tru_bhxh`, `thue_tncn`, `luong_thuc_linh`.
+Trạng thái lưu `pending/submitted/approved/paid`, tương ứng chờ HR kiểm tra,
+chờ Giám đốc ký duyệt, đã duyệt và đã chi trả.
 
 Migration `bonuses.0004_tong_thuong` và `payroll.0007_luong_structure` đổi tên,
 chuyển dữ liệu và áp dụng các liên kết bắt buộc, không tính lại tiền lương.

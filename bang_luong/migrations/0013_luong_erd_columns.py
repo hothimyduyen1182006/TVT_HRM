@@ -36,7 +36,9 @@ def transfer_salaries(apps, schema_editor):
     for old in Old.objects.using(alias).select_related('tong_thuong', 'nhan_vien', 'ky_luong').iterator():
         original = {field.attname: getattr(old, field.attname) for field in Old._meta.concrete_fields}
         actor_id = (old.nguoi_duyet_id or old.ky_luong.submitted_by_id
-                    or old.ky_luong.approved_by_id or old.nhan_vien.nguoi_dung_id)
+                    or old.ky_luong.approved_by_id
+                    or getattr(old.nhan_vien, 'nguoi_dung_id', None)
+                    or getattr(old.nhan_vien, 'user_id', None))
         if not actor_id:
             latest = Audit.objects.using(alias).filter(period_id=old.ky_luong_id).order_by('-pk').first()
             actor_id = latest.actor_id if latest else None

@@ -1,28 +1,26 @@
 from django.urls import path
 
 from .views import (
-    bonus_list,
-    calculate_period,
-    delete_proposal,
-    detail,
-    edit_rejected_proposal,
-    export,
-    personal_list,
-    propose,
-    submit_period,
-    decision_period,
+    danh_sach_thuong,
+    xoa_de_xuat_thuong,
+    chi_tiet_thuong,
+    sua_de_xuat_thuong,
+    xuat_bang_thuong,
+    danh_sach_thuong_ca_nhan,
+    de_xuat_thuong_khac,
+    gui_duyet_thuong,
+    xu_ly_duyet_thuong,
 )
 
 app_name = 'thuong'
 urlpatterns = [
-    path('', bonus_list, name='list'),
-    path('my/', personal_list, name='personal'),
-    path('propose/', propose, name='propose'),
-    path('proposal/<int:bonus_id>/edit/', edit_rejected_proposal, name='proposal-edit'),
-    path('proposal/<int:bonus_id>/delete/', delete_proposal, name='proposal-delete'),
-    path('calculate/', calculate_period, name='calculate'),
-    path('detail/<int:employee_id>/<int:year>/<int:month>/', detail, name='detail'),
-    path('<int:year>/<int:month>/submit/', submit_period, name='submit'),
-    path('<int:year>/<int:month>/decision/', decision_period, name='decision'),
-    path('export/', export, name='export'),
+    path('', danh_sach_thuong, name='list'),
+    path('my/', danh_sach_thuong_ca_nhan, name='personal'),
+    path('propose/', de_xuat_thuong_khac, name='propose'),
+    path('proposal/<str:bonus_id>/edit/', sua_de_xuat_thuong, name='proposal-edit'),
+    path('proposal/<str:bonus_id>/delete/', xoa_de_xuat_thuong, name='proposal-delete'),
+    path('detail/<int:nhan_vien_id>/<int:nam>/<int:thang>/', chi_tiet_thuong, name='detail'),
+    path('<int:nam>/<int:thang>/submit/', gui_duyet_thuong, name='submit'),
+    path('<int:nam>/<int:thang>/decision/', xu_ly_duyet_thuong, name='decision'),
+    path('export/', xuat_bang_thuong, name='export'),
 ]

@@ -32,11 +32,14 @@ def home(request):
     period=thang_lich(latest.tong_hop.nam, latest.tong_hop.thang) if latest else None
     payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,
         'year':period.nam if period else today.year})
+    bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
     return render(request,'home.html',{
         'display_name':name,
         'attendance_url':reverse('bang_cong:ca-nhan') if employee else (reverse('bang_cong:danh-sach') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
+        'bonus_url':bonus_url,
+        'bonus_description':'Xem các khoản thưởng của bạn' if employee or not can_manage else 'Xem bảng thưởng theo quyền',
         'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
         'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.dang_hoat_dong) else '',

@@ -29,13 +29,13 @@
   <h1 class="h3 bd-title mt-2">CHI TIẾT THƯỞNG</h1>
 
   <div class="bd-info">
-    <div><span class="bd-label">Nhân viên</span><span>{{ row.employee.ho_va_ten }}</span></div>
-    <div><span class="bd-label">Tháng</span><span>{{ row.month }}</span></div>
-    <div><span class="bd-label">Phòng ban</span><span>{{ row.employee.phong_ban.ten_phong_ban }}</span></div>
-    <div><span class="bd-label">Năm</span><span>{{ row.year }}</span></div>
+    <div><span class="bd-label">Nhân viên</span><span>{{ row.nguoi_dung.employee.ho_va_ten }}</span></div>
+    <div><span class="bd-label">Tháng</span><span>{{ row.thang }}</span></div>
+    <div><span class="bd-label">Phòng ban</span><span>{{ row.nguoi_dung.employee.phong_ban.ten_phong_ban }}</span></div>
+    <div><span class="bd-label">Năm</span><span>{{ row.nam }}</span></div>
     <div>
       <span class="bd-label">Trạng thái</span>
-      <span><span class="bd-status {{ row.status }}">{% if row.status == 'draft' %}Bản nháp{% elif row.status == 'pending' %}Chờ duyệt{% elif row.status == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></span>
+      <span><span class="bd-status {{ row.trang_thai }}">{% if row.trang_thai == 'draft' %}Bản nháp{% elif row.trang_thai == 'pending' %}Chờ duyệt{% elif row.trang_thai == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></span>
     </div>
   </div>
 
@@ -46,20 +46,20 @@
         <tr><th>STT</th><th>Tên thưởng</th><th>Số tiền</th><th>Lý do</th><th>Ngày đề xuất</th><th>Thao tác</th></tr>
       </thead>
       <tbody>
-        {% for item in row.records %}
+        {% for item in cac_khoan %}
         <tr>
           <td>{{ forloop.counter }}</td>
-          <td>{{ item.type_label }}</td>
-          <td class="bd-money">{{ item.amount|money }}</td>
-          <td>{% if item.reason %}{{ item.reason }}{% else %}<span class="text-secondary">Chưa có lý do đề xuất</span>{% endif %}</td>
-          <td class="bd-money">{% if item.proposed_at %}{{ item.proposed_at|date:'d/m/Y' }}{% else %}<span class="text-secondary">Chưa có ngày gửi đề xuất</span>{% endif %}</td>
+          <td>{{ item.nhan_de_loai }}</td>
+          <td class="bd-money">{{ item.so_tien|money }}</td>
+          <td>{% if item.ly_do %}{{ item.ly_do }}{% else %}<span class="text-secondary">Chưa có lý do đề xuất</span>{% endif %}</td>
+          <td class="bd-money">{% if item.thoi_gian_de_xuat %}{{ item.thoi_gian_de_xuat|date:'d/m/Y' }}{% elif item.tu_dong %}<span class="text-secondary">—</span>{% else %}<span class="text-secondary">Chưa có ngày gửi đề xuất</span>{% endif %}</td>
           <td>
             <div class="bd-row-actions">
-              {% if item.automatic %}
+              {% if item.tu_dong %}
                 <span class="text-secondary">🔒 Tự động tính</span>
               {% else %}
-                {% if item.can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'thuong:proposal-edit' item.id %}">Sửa</a>{% endif %}
-                {% if item.can_delete %}
+                {% if item.co_the_sua %}<a class="btn btn-sm btn-outline-primary" href="{% url 'thuong:proposal-edit' item.id %}">Sửa</a>{% endif %}
+                {% if item.co_the_xoa %}
                   <form method="post" action="{% url 'thuong:proposal-delete' item.id %}" onsubmit="return confirm('Xóa khoản thưởng này?')">
                     {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
                   </form>
@@ -71,11 +71,11 @@
         {% empty %}<tr><td colspan="6" class="text-secondary">Không có khoản thưởng trong kỳ.</td></tr>{% endfor %}
       </tbody>
       <tfoot>
-        <tr><td colspan="2" class="text-center">Tổng thưởng</td><td class="bd-money">{{ row.total|money }}</td><td colspan="3"></td></tr>
+        <tr><td colspan="2" class="text-center">Tổng thưởng</td><td class="bd-money">{{ row.tong_thuong|money }}</td><td colspan="3"></td></tr>
       </tfoot>
     </table>
   </div>
 
-  {% if row.rejection_reason %}<div class="alert alert-danger mt-3"><b>Lý do Giám đốc trả về:</b> {{ row.rejection_reason }}</div>{% endif %}
+  {% if row.ly_do_tu_choi %}<div class="alert alert-danger mt-3"><b>Lý do Giám đốc trả về:</b> {{ row.ly_do_tu_choi }}</div>{% endif %}
 </main>
 {% endblock %}

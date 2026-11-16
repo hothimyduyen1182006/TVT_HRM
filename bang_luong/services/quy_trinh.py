@@ -9,18 +9,16 @@ from bang_luong.models import Luong
 from bang_cong.thang_lich import thang_lich, thang_tu_ma
 from .tinh_toan import du_lieu_tinh_luong
 from .thue import loi_nguon_thue
-from thuong.models import Bonus, payroll_bonus_records
+from thuong.views import cac_khoan_thuong_tinh_luong
 
 
 def loi_nguon_thuong(record):
     attendance = thang_lich(record.tong_hop.nam, record.tong_hop.thang)
     try:
-        rows = payroll_bonus_records(Bonus.objects.filter(
-            employee_id=record.tong_hop.nhan_vien_id,
-            year=attendance.nam, month=attendance.thang))
+        rows = cac_khoan_thuong_tinh_luong(record.tong_hop.nhan_vien_id, attendance.nam, attendance.thang)
     except ValidationError as error:
         return '; '.join(error.messages)
-    total = sum((row.amount for row in rows), Decimal(0))
+    total = sum((Decimal(row['amount']) for row in rows), Decimal(0))
     return '' if total == record.tong_tien_thuong else 'Bonuses changed; recalculate payroll before approval or payment.'
 
 
@@ -48,7 +46,9 @@ def loi_duyet_luong(record, period=None, attendance=None):
     fields = ('luong_co_ban', 'luong_theo_cong', 'luong_tang_ca', 'tong_tien_thuong',
               'khau_tru_di_tre', 'khau_tru_bhxh', 'thue_tncn', 'luong_thuc_linh')
     for field in fields:
-        if Decimal(str(getattr(record, field))) != Decimal(str(values[field])):
+        precision = Luong._meta.get_field(field).decimal_places
+        expected = Decimal(str(values[field])).quantize(Decimal(1).scaleb(-precision))
+        if Decimal(str(getattr(record, field))) != expected:
             return 'Payroll sources changed; recalculate before approval.'
     return ''
 

@@ -8,7 +8,8 @@ from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_cong.models import TongHopCong
-from thuong.models import Bonus, TongThuong, payroll_bonus_records
+from thuong.models import Thuong
+from thuong.views import cac_khoan_thuong_tinh_luong
 from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang, nap_cong_ngay
 from nghi_phep.models import LeaveDay
 from bang_luong.models import Luong
@@ -25,10 +26,8 @@ SIMULATED_LATE_HOURLY_RATE = Decimal('100000')
 def luu_phieu_luong(employee, attendance, values):
     """Lưu đúng các cột ERD; kỳ và nhân viên đi theo tổng hợp công."""
     summary = TongHopCong.objects.get(nam=attendance.nam, thang=attendance.thang, nhan_vien=employee)
-    bonus, _ = TongThuong.objects.update_or_create(
-        nhan_vien=employee, nam=attendance.nam, thang=attendance.thang,
-        defaults={'tong_tien': values['tong_tien_thuong'],
-                  'chi_tiet': values.get('chi_tiet', {}).get('bonuses', [])},
+    bonus, _ = Thuong.objects.get_or_create(
+        nguoi_dung=employee.nguoi_dung, nam=attendance.nam, thang=attendance.thang,
     )
     field_names = {field.name for field in Luong._meta.concrete_fields}
     defaults = {name: value for name, value in values.items() if name in field_names}
@@ -45,7 +44,7 @@ def lien_ket_nguon_luong(record):
     """Ghi liên kết nguồn cùng giao dịch lưu phiếu, không dùng trong GET."""
     from uuid import uuid4
     from bang_cong.models import TongHopCong
-    from thuong.models import TongThuong
+    from thuong.models import Thuong
 
     attendance = thang_lich(record.tong_hop.nam, record.tong_hop.thang)
     if not record.ma_luong:
@@ -62,19 +61,11 @@ def lien_ket_nguon_luong(record):
     if (record.tong_hop.nam, record.tong_hop.thang, record.tong_hop.nhan_vien_id) != (
             attendance.nam, attendance.thang, record.nhan_vien_id):
         raise ValidationError('Tổng hợp công phải thuộc đúng nhân viên và kỳ lương.')
-    defaults = {'tong_tien': record.tong_tien_thuong,
-                'chi_tiet': record.chi_tiet.get('bonuses', [])}
-    if record.trang_thai == 'pending':
-        record.tong_thuong, _ = TongThuong.objects.update_or_create(
-            nhan_vien_id=record.nhan_vien_id, nam=attendance.nam, thang=attendance.thang,
-            defaults=defaults,
+    if not record.tong_thuong_id:
+        record.tong_thuong, _ = Thuong.objects.get_or_create(
+            nguoi_dung=record.nhan_vien.nguoi_dung, nam=attendance.nam, thang=attendance.thang,
         )
-    elif not record.tong_thuong_id:
-        record.tong_thuong, _ = TongThuong.objects.get_or_create(
-            nhan_vien_id=record.nhan_vien_id, nam=attendance.nam, thang=attendance.thang,
-            defaults=defaults,
-        )
-    if (record.tong_thuong.nhan_vien_id, record.tong_thuong.nam, record.tong_thuong.thang) != (
+    if (record.tong_thuong.nguoi_dung.employee.pk, record.tong_thuong.nam, record.tong_thuong.thang) != (
             record.nhan_vien_id, attendance.nam, attendance.thang):
         raise ValidationError('Tổng thưởng phải thuộc đúng nhân viên và kỳ lương.')
 
@@ -183,9 +174,8 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
                      for khoa in ['id','date','start','end','hours','multiplier']},
                'amount': str(ot_rate * dong['hours'] * dong['multiplier'])} for dong in overtime]
     ot_pay=sum((Decimal(phan_tu['amount']) for phan_tu in ot_lines),ZERO)
-    bonuses = payroll_bonus_records(Bonus.objects.filter(
-        employee=employee, year=attendance.nam, month=attendance.thang))
-    bonus_lines = [{'id': dong.pk, 'name': dong.name, 'amount': str(dong.amount)} for dong in bonuses]
+    bonuses = cac_khoan_thuong_tinh_luong(employee.pk, attendance.nam, attendance.thang)
+    bonus_lines = bonuses
     thuong = sum((Decimal(line['amount']) for line in bonus_lines), ZERO)
     adjustments = cac_khoan_phu_cap_khau_tru(employee,period)
     allowance = sum((dong.amount for dong in adjustments if dong.kind=='allowance'),ZERO)
@@ -259,7 +249,7 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
         'overtime_policy': 'automatic-checkout-1700-v1',
         'overtime_hourly_rate': inputs.overtime_hourly_rate,
         'overtime_basis':inputs.overtime_basis,
-        'bonuses': list(bonuses.order_by('pk').values('id', 'amount')),
+        'bonuses': [{'id': dong['id'], 'amount': dong['amount']} for dong in sorted(bonuses, key=lambda dong: (isinstance(dong['id'], str), dong['id']))],
         'adjustments': [{khoa:dong[khoa] for khoa in ['id','kind','amount']} for dong in adjustment_rows],
         'insurance_base': inputs.insurance_base,
         'insurance_rates': {khoa: Decimal(str(ty_le)) for khoa, ty_le in inputs.insurance_rates.items()},
@@ -284,7 +274,7 @@ def doi_chieu_chi_tiet_cu(breakdown):
         'hourly_rate': Decimal(str(breakdown['hourly_rate'])),
         'ot': sorted((phan_tu['date'], Decimal(phan_tu['hours']), Decimal(phan_tu['multiplier']), Decimal(phan_tu['amount']))
                      for phan_tu in breakdown.get('ot', [])),
-        'bonuses': sorted((phan_tu['id'], Decimal(phan_tu['amount'])) for phan_tu in breakdown.get('bonuses', [])),
+        'bonuses': sorted(((phan_tu['id'], Decimal(phan_tu['amount'])) for phan_tu in breakdown.get('bonuses', [])), key=lambda dong: str(dong[0])),
         'adjustments': sorted((phan_tu['id'], phan_tu['kind'], Decimal(phan_tu['amount']))
                               for phan_tu in breakdown.get('adjustments', [])),
     }

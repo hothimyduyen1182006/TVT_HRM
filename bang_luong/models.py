@@ -12,7 +12,7 @@ class Luong(models.Model):
         related_name='phieu_luong', db_column='Ma_tong_hop',
     )
     tong_thuong = models.OneToOneField(
-        'bonuses.TongThuong', to_field='ma_thuong', on_delete=models.PROTECT,
+        'bonuses.Thuong', on_delete=models.PROTECT,
         related_name='phieu_luong', db_column='Ma_thuong',
     )
     luong_co_ban = models.DecimalField(max_digits=12, decimal_places=0, db_column='Luong_co_ban')
@@ -115,18 +115,9 @@ class Luong(models.Model):
 
     @property
     def chi_tiet(self):
-        if not self.tong_thuong_id:
-            bonuses = []
-        else:
-            from thuong.models import TongThuong
-            try:
-                bonuses = self.tong_thuong.chi_tiet
-            except TongThuong.DoesNotExist:
-                # Legacy payroll rows may point to a deleted bonus summary.
-                # The ERD has no detail column, so show the saved amount without crashing.
-                bonuses = []
-        if not isinstance(bonuses, list):
-            bonuses = []
+        from thuong.views import cac_khoan_thuong_tinh_luong
+        bonuses = (cac_khoan_thuong_tinh_luong(self.nhan_vien_id, self.tong_hop.nam, self.tong_hop.thang)
+                   if self.tong_thuong_id else [])
         return {
             'bonuses': bonuses,
             'insurance': {'BHXH': str(self.khau_tru_bhxh)},
@@ -138,7 +129,7 @@ class Luong(models.Model):
         if not self.tong_hop_id or not self.tong_thuong_id:
             return
         summary, bonus = self.tong_hop, self.tong_thuong
-        if (summary.nhan_vien_id, summary.nam, summary.thang) != (bonus.nhan_vien_id, bonus.nam, bonus.thang):
+        if (summary.nhan_vien_id, summary.nam, summary.thang) != (bonus.nguoi_dung.employee.pk, bonus.nam, bonus.thang):
             raise ValidationError('Công và thưởng phải thuộc cùng nhân viên và tháng/năm.')
 
     def save(self, *args, **kwargs):
