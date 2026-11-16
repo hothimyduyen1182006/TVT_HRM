@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'bang_cong/css/bang_cong.css' %}?v=20261116-app-structure">{% endblock %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='attendance' %}{% endblock %}
+{% block title %}{% if clock_page %}{% if trang_thai_trang == 'dang_trong_ca' %}Check-out{% else %}Check-in{% endif %} · TVT{% else %}Chấm công {{ employee.ho_va_ten }} · TVT{% endif %}{% endblock %}
+{% block content %}<div class="attendance-shell">
+{% if clock_page %}
+<section class="tvt-checkin-page">
+  {% if not nhan_vien %}
+    <div class="tvt-attendance-card tvt-empty-state"><div class="tvt-card-mark">TVT</div><h2>Chưa liên kết hồ sơ nhân viên</h2><p>Vui lòng liên hệ bộ phận nhân sự để liên kết tài khoản với hồ sơ TVT.</p></div>
+  {% else %}
+    <div class="tvt-checkin-layout">
+      <section class="tvt-checkin-main">
+        <div class="tvt-card-mark">TVT <span>WOOD &amp; INTERIOR</span></div>
+        {% if thao_tac_thanh_cong == 'in' %}
+          <div class="tvt-action-notice" role="status">
+            Đã check-in thành công lúc {{ ban_ghi_hom_nay.gio_vao|time:'H:i:s' }}!
+          </div>
+        {% elif thao_tac_thanh_cong == 'out' %}
+          <div class="tvt-action-notice" role="status">
+            Đã check-out thành công lúc {{ ban_ghi_hom_nay.gio_ra|time:'H:i:s' }}!
+          </div>
+        {% endif %}
+        {% if trang_thai_trang == 'da_hoan_tat' %}
+          <h1 class="tvt-main-title">CHECK-OUT THÀNH CÔNG</h1>
+          <p class="tvt-greeting">Cảm ơn {{ nhan_vien.ho_va_ten }} đã làm việc hết mình hôm nay! </p>
+          <p class="tvt-encouragement">Hẹn gặp lại bạn vào ngày mai.</p>
+          <div class="tvt-day-date">{{ hom_nay|date:'d/m/Y' }}</div>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          <div class="tvt-status-strip tvt-status-complete"><span></span>Đã hoàn thành ca làm việc</div>
+          <button class="tvt-punch-button tvt-complete-button" type="button" disabled>Đã Check-out</button>
+        {% elif trang_thai_trang == 'dang_trong_ca' %}
+          <h1 class="tvt-main-title">KẾT THÚC NGÀY LÀM VIỆC</h1>
+          <p class="tvt-greeting">Cảm ơn {{ nhan_vien.ho_va_ten }} đã làm việc hết mình hôm nay!</p>
+          <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          {% if co_the_ket_thuc_ca %}<form method="post" action="{% url 'bang_cong:cham-cong' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
+          <div class="tvt-shift-caption">Ca làm việc: {% if ky_cong %}{{ ky_cong.gio_bat_dau|time:'H:i' }} – {{ ky_cong.gio_ket_thuc|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+        {% else %}
+          <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
+          <p class="tvt-greeting">Chào {{ nhan_vien.ho_va_ten }} 👋</p>
+          <p class="tvt-encouragement">Chúc bạn một ngày làm việc hiệu quả! Hãy Check-in để bắt đầu nhé!</p>
+          <div class="tvt-day-date">{{ hom_nay|date:'d/m/Y' }}</div>
+          <div class="tvt-clock" data-clock>--:--:--</div>
+          {% if co_the_vao_ca %}<form method="post" action="{% url 'bang_cong:cham-cong' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
+          <div class="tvt-shift-caption">Ca làm việc: {% if ky_cong %}{{ ky_cong.gio_bat_dau|time:'H:i' }} – {{ ky_cong.gio_ket_thuc|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+        {% endif %}
+        {% if loi_lich %}<div class="tvt-period-note">{{ loi_lich }}</div>{% elif da_khoa and trang_thai_trang != 'da_hoan_tat' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
+      </section>
+    </div>
+  {% endif %}
+  <div class="tvt-checkin-footnote"><span>THỜI GIAN HỆ THỐNG</span><span>ASIA/HO_CHI_MINH · TVT HRM</span></div>
+</section>
+<script src="{% static 'bang_cong/js/bang_cong.js' %}?v=20261116-app-structure" defer></script>
+{% else %}
+
+{% if personal %}
+ <div class="at-self-heading"><h1>BẢNG CHẤM CÔNG CỦA <em>{{ employee.ho_va_ten|upper }}</em></h1>
+ <div class="at-mini-stats"><div><strong>{{ summary.paid|floatformat:'-4'|default:'0' }} / {{ summary.standard|floatformat:'-4'|default:'—' }} ngày</strong><small>Tổng công tháng</small></div><div><strong>{{ average }} / ngày</strong><small>Giờ làm trung bình</small></div><div><strong>{{ summary.late_count|default:'0' }} lần</strong><small>Số lần đi trễ</small></div></div></div>
+{% else %}
+ <div class="at-breadcrumb"><a href="{% url 'bang_cong:danh-sach' %}?{{ month_query }}">‹ Bảng công tổng hợp</a> / Chi tiết chấm công</div>
+ <div class="at-person"><div class="at-avatar">{{ initials }}</div><div><h1>{{ employee.ho_va_ten }}</h1><div class="at-person-meta"><span class="at-pill department">{{ employee.phong_ban.ten_phong_ban }}</span><span class="at-muted">{{ employee.ma_ho_so }} · Tháng {{ month }}/{{ year }}</span>{% if summary %}<span class="at-pill {{ summary.state }}">{{ summary.state_label }}</span>{% endif %}</div></div>
+ </div>
+{% endif %}
+{% if not personal %}<div class="at-stats"><div class="at-main-stat"><h2>T&#7893;ng s&#7889; c&#244;ng &#273;&#432;&#7907;c t&#237;nh l&#432;&#417;ng</h2><div><strong>{{ summary.paid|floatformat:'-4'|default:'0' }}</strong> <span class="caption">/ {{ summary.standard|floatformat:'-4'|default:'—' }} c&#244;ng chu&#7849;n</span></div><div><div class="at-track"><span style="width:{{ progress }}%"></span></div><div class="caption">Th&#7921;c t&#7871; {{ summary.actual|floatformat:'-4'|default:'0' }} + ngh&#7881; c&#243; l&#432;&#417;ng {{ summary.leave|floatformat:'-4'|default:'0' }} c&#244;ng</div></div></div>
+<div class="at-stat-grid"><div class="at-stat"><h3>S&#7889; ng&#224;y l&#224;m th&#7921;c t&#7871;</h3><strong>{{ summary.actual|floatformat:'-4'|default:'0' }}</strong> <span class="at-muted">c&#244;ng</span></div><div class="at-stat"><h3>Ngh&#7881; h&#432;&#7903;ng l&#432;&#417;ng</h3><strong>{{ summary.leave|floatformat:'-4'|default:'0' }}</strong> <span class="at-muted">c&#244;ng</span></div><div class="at-stat"><h3>Ng&#224;y ngh&#7881; kh&#244;ng ph&#233;p</h3><strong class="at-red">{{ summary.absent|default:'0' }}</strong> <span class="at-muted">ng&#224;y</span></div><div class="at-stat"><h3>T&#7893;ng s&#7889; l&#7847;n &#273;i tr&#7877;</h3><strong class="at-red">{{ summary.late_count|default:'0' }}</strong> <span class="at-muted">l&#7847;n</span></div><div class="at-stat"><h3>T&#7893;ng s&#7889; ph&#250;t &#273;i tr&#7877;</h3><strong class="at-red">{{ summary.late|default:'0' }}</strong> <span class="at-muted">ph&#250;t</span></div></div></div>{% endif %}
+{% if not period %}<div class="at-notice">Chưa có kỳ công cho tháng này. Các ngày thiếu dữ liệu không được tự tính là nghỉ không phép.</div>{% endif %}
+<div class="at-subheading"><h2>{% if not personal %}Chi tiết chấm công theo ngày{% else %}Tháng {{ month }}/{{ year }}{% endif %}</h2>
+</div>
+<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Ngày làm</th><th>Vào ca</th><th>Hết ca</th><th>Tình trạng</th>{% if not personal %}<th>Đi trễ (phút)</th>{% endif %}<th>Giờ làm</th><th>Tăng ca (giờ)</th>{% if not personal %}<th>Công</th>{% endif %}</tr></thead><tbody>
+{% for item in page_obj %}<tr><td class="at-strong">{{ item.date|date:'d/m/Y' }} {{ item.weekday }}</td><td>{{ item.record.gio_vao|time:'H:i'|default:'—' }}</td><td>{{ item.record.gio_ra|time:'H:i'|default:'—' }}</td><td><span class="at-pill {{ item.state }}">{{ item.label }}</span></td>
+{% if not personal %}<td class="{% if item.record.so_phut_tre %}at-red{% else %}at-muted{% endif %}">{{ item.record.so_phut_tre|default:'—' }}</td>{% endif %}<td>{% if item.record %}{{ item.record.so_gio_lam|floatformat:2 }}{% if item.ot_error %}<br><small class="at-red">{{ item.ot_error }}</small>{% endif %}{% for warning in item.ot_warnings %}<br><small class="at-red">{{ warning }}</small>{% endfor %}{% else %}—{% endif %}</td>
+<td{% if item.ot > 0 %} class="at-strong" style="color:var(--at-gold)"{% endif %}>{{ item.ot|floatformat:'2u' }}</td>
+{% if not personal %}<td class="at-strong">{% if item.record %}{{ item.record.tong_cong|floatformat:'-4' }}{% else %}—{% endif %}</td>{% endif %}</tr>
+{% empty %}<tr><td colspan="{% if personal %}6{% else %}8{% endif %}" class="at-empty">Tháng này chưa có dữ liệu chấm công.</td></tr>{% endfor %}</tbody></table></div>
+{% if page_obj.has_other_pages %}<nav class="at-pagination" aria-label="Phân trang">
+{% if page_obj.has_previous %}<a href="?{{ page_query }}&page=1" aria-label="Trang đầu">«</a><a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
+{% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{{ page_query }}&page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}
+{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}" aria-label="Trang sau">›</a><a href="?{{ page_query }}&page={{ page_obj.paginator.num_pages }}" aria-label="Trang cuối">»</a>{% endif %}</nav>{% endif %}
+
+{% endif %}
+</div>{% endblock %}

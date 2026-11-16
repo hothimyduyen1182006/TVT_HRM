@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'bang_cong/css/bang_cong.css' %}?v=20261116-app-structure">{% endblock %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='attendance' %}{% endblock %}
+{% block title %}Bảng công tổng hợp · TVT{% endblock %}
+{% block content %}<div class="attendance-shell">
+
+<h1 class="at-title"><span>BẢNG CÔNG TỔNG HỢP</span></h1>
+<form class="at-filter" method="get">
+ <div class="at-field keyword">{{ form.q.label_tag }}{{ form.q }}</div>
+ <div class="at-field">{{ form.phong_ban.label_tag }}{{ form.phong_ban }}</div>
+ <div class="at-field">{{ form.review.label_tag }}{{ form.review }}</div>
+ <div class="at-field">{{ form.thang.label_tag }}{{ form.thang }}</div>
+ <div class="at-field">{{ form.nam.label_tag }}{{ form.nam }}</div>
+ {% if form.day.value %}<div class="at-field">{{ form.day.label_tag }}{{ form.day }}</div><div class="at-field">{{ form.day_state.label_tag }}{{ form.day_state }}</div>{% endif %}
+ <button class="at-button" type="submit">Lọc</button>
+ {% if form.nhan_vien.value %}<input type="hidden" name="employee" value="{{ form.nhan_vien.value }}">{% endif %}
+ {% if form.errors %}<div class="at-errors w-100">{{ form.errors }}</div>{% endif %}
+</form>
+{% if form.day.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.day.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'bang_cong:danh-sach' %}?month={{ form.thang.value }}&amp;year={{ form.nam.value }}">Bỏ lọc theo ngày</a></div>{% endif %}
+{% if not period and form.is_valid %}<div class="at-notice">Chưa cấu hình kỳ công cho tháng đã chọn. Công chuẩn chỉ hiển thị khi có lịch làm việc.</div>{% endif %}
+<div class="at-table-wrap"><table class="at-table"><thead><tr><th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
+{% for row in page_obj %}<tr>
+ <td class="name">{{ row.employee.ho_va_ten }}<span class="code">{{ row.employee.ma_ho_so }}</span></td>
+ <td><span class="at-pill department">{{ row.employee.phong_ban.ten_phong_ban }}</span></td>
+ <td class="at-muted">{{ row.standard|floatformat:'-4'|default:'—' }}</td>
+ <td class="at-strong">{% if row.has_records %}{{ row.paid|floatformat:'-4' }}{% else %}—{% endif %}</td>
+ <td class="{% if row.late_count %}at-red{% else %}at-muted{% endif %}">{{ row.late_count }} lần{% if row.late_count %} / {{ row.late }}p{% endif %}</td>
+ <td><span class="at-pill {{ row.state }}">{{ row.state_label }}</span></td>
+ <td><a class="pill-link" href="{% url 'bang_cong:cong-nhan-vien' row.employee.pk %}?month={{ form.thang.value }}&year={{ form.nam.value }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
+</tr>{% empty %}<tr><td colspan="7" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
+</tbody></table></div>
+{% if can_chot and period %}<div class="at-footer"><form method="post" action="{% url 'bang_cong:chot-thang' period.pk %}">{% csrf_token %}<button class="at-button" type="submit">Chốt toàn bộ bảng công tháng</button></form></div>{% else %}<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên</span></div>{% endif %}
+{% if page_obj.has_other_pages %}<nav class="at-pagination" aria-label="Phân trang">
+{% if page_obj.has_previous %}<a href="?{{ page_query }}&page=1" aria-label="Trang đầu">«</a><a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
+{% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{{ page_query }}&page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}
+{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}" aria-label="Trang sau">›</a><a href="?{{ page_query }}&page={{ page_obj.paginator.num_pages }}" aria-label="Trang cuối">»</a>{% endif %}</nav>{% endif %}
+</div>{% endblock %}
