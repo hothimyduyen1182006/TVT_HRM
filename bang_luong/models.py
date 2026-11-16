@@ -115,7 +115,7 @@ class Luong(models.Model):
 
     @property
     def chi_tiet(self):
-        from thuong.views import cac_khoan_thuong_tinh_luong
+        from thuong.services.tinh_toan import cac_khoan_thuong_tinh_luong
         bonuses = (cac_khoan_thuong_tinh_luong(self.nhan_vien_id, self.tong_hop.nam, self.tong_hop.thang)
                    if self.tong_thuong_id else [])
         return {

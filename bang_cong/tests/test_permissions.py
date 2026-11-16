@@ -28,7 +28,7 @@ class BulkApprovalTests(TestCase):
         self.url = f'/bang_cong/duyet-hang-loat/{self.period.pk}/'
         self.client.force_login(self.hr)
 
-    @patch('bang_cong.views.duyet_cong_nhan_vien')
+    @patch('bang_cong.views.nhan_su.duyet_cong_nhan_vien')
     def test_selected_employees_are_deduplicated_and_filters_preserved(self, approve):
         approve.return_value = SimpleNamespace(payroll_error='')
         ids = [employee.pk for employee in self.employees]
@@ -40,7 +40,7 @@ class BulkApprovalTests(TestCase):
         self.assertIn('review=pending', response.url)
         self.assertIn('page=2', response.url)
 
-    @patch('bang_cong.views.duyet_cong_nhan_vien')
+    @patch('bang_cong.views.nhan_su.duyet_cong_nhan_vien')
     def test_one_failure_does_not_stop_other_employees(self, approve):
         approve.side_effect = [ValidationError('Missing attendance'), SimpleNamespace(payroll_error='Salary error')]
         response = self.client.post(self.url, {'employee_ids': [e.pk for e in self.employees]}, follow=True)
@@ -49,7 +49,7 @@ class BulkApprovalTests(TestCase):
         self.assertContains(response, 'Salary error')
         self.assertContains(response, 'BULK1')
 
-    @patch('bang_cong.views.duyet_cong_nhan_vien')
+    @patch('bang_cong.views.nhan_su.duyet_cong_nhan_vien')
     def test_invalid_empty_and_locked_selections_do_not_call_service(self, approve):
         for ids in ([], ['bad'], [999999], [self.employees[0].pk, 999999]):
             self.assertEqual(self.client.post(self.url, {'employee_ids': ids}).status_code, 302)
@@ -58,7 +58,7 @@ class BulkApprovalTests(TestCase):
         self.client.post(self.url, {'employee_ids': [self.employees[0].pk]})
         approve.assert_not_called()
 
-    @patch('bang_cong.views.duyet_cong_nhan_vien')
+    @patch('bang_cong.views.nhan_su.duyet_cong_nhan_vien')
     def test_authorization_post_only_and_csrf(self, approve):
         self.assertEqual(self.client.get(self.url).status_code, 405)
         for user in (self.manager, self.employees[0].user):
@@ -74,7 +74,7 @@ class BulkApprovalTests(TestCase):
         approve.assert_called_once()
 
     def test_bulk_controls_visibility_and_eligible_rows(self):
-        from .models import ChamCong
+        from ..models import ChamCong
         ChamCong.objects.create(nhan_vien=self.employees[0], ngay=date(2026, 11, 10), trang_thai='incomplete')
         url = '/bang_cong/?month=11&year=2026'
         response = self.client.get(url)
@@ -89,8 +89,8 @@ class BulkApprovalTests(TestCase):
 
     @patch('bang_luong.services.tinh_toan.cap_nhat_luong_nhan_vien', return_value='')
     def test_real_approval_keeps_success_and_closes_period_after_last_employee(self, salary):
-        from .models import ChamCong, ChotBangCong
-        from .services.tinh_toan import lich_thang
+        from ..models import ChamCong, ChotBangCong
+        from ..services.cham_cong_service import lich_thang
         days = [day.ngay for day in lich_thang(2026, 11, self.period).values() if day.loai_ngay == 'work']
         self.assertTrue(days)
         def fill(employee):

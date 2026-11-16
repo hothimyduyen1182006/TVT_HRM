@@ -1,1 +1,1 @@
-"""Các hàm nghiệp vụ tính công, chấm công, lịch làm việc, tổng hợp và duyệt công."""
+"""Các nghiệp vụ chấm công, tính công, tổng hợp và chốt công."""

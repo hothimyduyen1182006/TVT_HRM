@@ -23,4 +23,5 @@ urlpatterns = [
     path('<int:nam>/<int:thang>/submit/', gui_duyet_thuong, name='submit'),
     path('<int:nam>/<int:thang>/decision/', xu_ly_duyet_thuong, name='decision'),
     path('export/', xuat_bang_thuong, name='export'),
+    path('export/<str:fmt>/', xuat_bang_thuong, name='export'),
 ]

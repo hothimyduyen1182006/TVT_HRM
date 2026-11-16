@@ -77,7 +77,7 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
     if thao_tac == 'approve':
         if ky_cong.trang_thai != 'pending':
             raise ValidationError('Kỳ công phải đang chờ duyệt.')
-        from .cham_cong import kiem_tra_lich_lam_viec
+        from .cham_cong_service import kiem_tra_lich_lam_viec
         lich_da_kiem_tra = kiem_tra_lich_lam_viec(ky_cong)
         ds_ban_ghi = ChamCong.objects.filter(ngay__year=ky_cong.nam, ngay__month=ky_cong.thang)
         ds_nhan_vien = NhanVien.objects.filter(dang_hoat_dong=True, ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong))
@@ -96,7 +96,7 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
         raise ValidationError('Thao tác không hợp lệ.')
     cap_nhat_tong_hop_ca_ky(ky_cong)
     if thao_tac == 'approve':
-        from thuong.views import dong_bo_thuong_tu_dong
+        from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
         from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
         for ma_nhan_vien in ky_cong.ds_nhan_vien:
             dong_bo_thuong_tu_dong(NhanVien.objects.get(pk=ma_nhan_vien), ky_cong.thang, ky_cong.nam)
@@ -109,7 +109,7 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     ky_cong = thang_tu_ma(ma_ky_cong)
     if ky_cong_da_khoa(ky_cong, nhan_vien.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
-    from .cham_cong import kiem_tra_lich_lam_viec
+    from .cham_cong_service import kiem_tra_lich_lam_viec
     lich_da_kiem_tra = kiem_tra_lich_lam_viec(ky_cong)
     ds_ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay__year=ky_cong.nam, ngay__month=ky_cong.thang)
     ngay_bat_buoc = {lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
@@ -128,27 +128,15 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
             tong_hop=cap_nhat_tong_hop(nhan_vien, ky_cong), nguoi_duyet=nguoi_thuc_hien)
     cap_nhat_tong_hop(nhan_vien, ky_cong)
     from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-    from thuong.views import dong_bo_thuong_tu_dong
+    from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
     dong_bo_thuong_tu_dong(nhan_vien, ky_cong.thang, ky_cong.nam)
     ban_chot.payroll_error = cap_nhat_luong_nhan_vien(nguoi_thuc_hien, nhan_vien.pk, ky_cong.nam, ky_cong.thang)
     return ban_chot
 
 
 def du_lieu_tong_hop(nhan_vien, ky_cong):
-    """Chuyển kết quả tổng hợp tháng thành các trường của bảng Tổng hợp công."""
-    from .hien_thi import tong_hop_cong_thang
-
-    dong = tong_hop_cong_thang(NhanVien.objects.filter(pk=nhan_vien.pk), ky_cong.nam, ky_cong.thang, ky_cong)[0]
-    return {
-        'thang': ky_cong.thang, 'nam': ky_cong.nam,
-        'cong_chuan': dong['standard'] or 0, 'cong_thuc_te': dong['actual'],
-        'cong_nghi_co_luong': dong['leave'], 'so_ngay_khong_phep': dong['absent'],
-        'tong_cong': dong['paid'],
-        'tong_gio_tang_ca': dong['overtime'],
-        'so_lan_tre': dong['late_count'],
-        'so_phut_tre': dong['late'], 'trang_thai': dong['state'],
-    }
-
+    from .tong_hop_service import du_lieu_tong_hop as tong_hop
+    return tong_hop(nhan_vien, ky_cong)
 
 def tong_hop_dung_tinh_luong(nhan_vien, ky_cong):
     """Đọc bản tổng hợp còn khớp nguồn; dữ liệu cũ chưa đồng bộ chỉ tính trong bộ nhớ."""

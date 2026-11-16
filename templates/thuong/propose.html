@@ -9,7 +9,6 @@
 .history-card{background:#fff;border:1px solid #e2eaf2;border-radius:14px;box-shadow:0 6px 20px #17365408;overflow:hidden}
 .proposal-top{display:flex;justify-content:center;padding:0;background:transparent;color:#173654;text-align:center}
 .proposal-top h1{margin:0 0 16px!important;color:#173654;font-size:20px;font-weight:750;text-transform:uppercase}
-.proposal-top p,.proposal-eyebrow,.proposal-mark{display:none}
 .proposal-body{padding:16px 20px;border:1px solid #9db0c4;border-radius:11px;background:#f2f6fa}
 .proposal-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
 .proposal-field{min-width:0;margin:0}
@@ -33,7 +32,6 @@
 .history-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1.75rem 0 .75rem;color:#17385e}
 .history-heading h2{margin:0;font-size:22px;font-weight:750;line-height:1.3;color:#17385e}
 .history-count{padding:.28rem .6rem;border-radius:999px;background:#eaf2fb;color:#536b85;font-size:.78rem;font-weight:700}
-.history-card{border-radius:14px;box-shadow:0 6px 20px #17365408}
 .history-card table{margin:0}
 .history-card.table-responsive{overflow-x:visible}
 .history-card table{width:100%;min-width:0;table-layout:fixed}
@@ -65,11 +63,8 @@
   <section class="proposal-card mt-2">
     <header class="proposal-top">
       <div>
-        <div class="proposal-eyebrow">ĐỀ XUẤT THƯỞNG</div>
         <h1 class="h3 fw-bold mt-2 mb-2">{% if editing_rejected %}S&#7917;a kho&#7843;n th&#432;&#7903;ng kh&#225;c{% else %}&#272;&#7873; xu&#7845;t th&#432;&#7903;ng kh&#225;c{% endif %}</h1>
-        <p>Ghi nhận khoản thưởng phát sinh và căn cứ đề xuất.</p>
       </div>
-      <div class="proposal-mark" aria-hidden="true">+</div>
     </header>
     <div class="proposal-body">
       <form method="post">

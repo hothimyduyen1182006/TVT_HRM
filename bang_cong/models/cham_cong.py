@@ -2,7 +2,6 @@
 # Tính số thập phân chính xác và làm tròn kết quả công.
 from decimal import Decimal
 
-from django.conf import settings  # Lấy model tài khoản qua AUTH_USER_MODEL.
 from django.core.exceptions import ValidationError  # Báo dữ liệu không hợp lệ.
 from django.db import models  # Các kiểu trường, quan hệ và ràng buộc database.
 
@@ -99,7 +98,7 @@ class ChamCong(models.Model):
 
     def _cong_ngay(self):
         # Import tại đây để tránh vòng lặp import giữa model và service.
-        from .services.tinh_toan import ket_qua_cong_ngay
+        from bang_cong.services.cham_cong_service import ket_qua_cong_ngay
 
         # Chỉ tính khi đối tượng chưa có kết quả; dùng lại trong cùng đối tượng.
         if '_ket_qua_cong' not in self.__dict__:
@@ -117,83 +116,3 @@ class ChamCong(models.Model):
         """Tên tương thích cho giao diện/lịch sử; dùng cùng giờ OT đã lưu."""
         # Chỉ đọc giờ tăng ca đã lưu, không tính lại tăng ca ở đây.
         return Decimal(self.so_gio_tang_ca).quantize(Decimal('0.0001'))
-
-
-class TongHopCong(models.Model):
-    """Tổng hợp một nhân viên/tháng, làm căn cứ tính lương qua services."""
-    # Khóa chính tự tăng của bản tổng hợp tháng.
-    id = models.BigAutoField(primary_key=True, db_column='Ma_tong_hop')
-
-    # Tháng/năm lấy trực tiếp từ dữ liệu tổng hợp và lịch chấm công.
-    # Nhân viên được tổng hợp; nhân viên.attendance_summaries.all() lấy lịch sử tổng hợp.
-    nhan_vien = models.ForeignKey(
-        'employees.NhanVien', on_delete=models.CASCADE,
-        related_name='attendance_summaries',
-        db_column='Ma_nhan_vien',
-    )
-    # Tháng/năm của kết quả tổng hợp, phải khớp kỳ liên kết.
-    thang = models.PositiveSmallIntegerField(db_column='Thang')
-    nam = models.PositiveSmallIntegerField(db_column='Nam')
-    # Tổng công chuẩn của lịch tháng, dùng làm căn cứ tính lương theo công.
-    cong_chuan = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_cong_chuan')
-    # Tổng công thực tế làm được, có thể gồm công lẻ.
-    cong_thuc_te = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_ngay_lam')
-    # Tổng công nghỉ hưởng lương được ghi nhận.
-    cong_nghi_co_luong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_ngay_nghi_co_luong')
-    # Số ngày được ghi nhận nghỉ không phép.
-    so_ngay_khong_phep = models.PositiveIntegerField(default=0, db_column='So_ngay_nghi_khong_phep')
-    # Tổng công hưởng lương của nhân viên trong tháng.
-    tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='Tong_cong')
-    # Tổng số giờ tăng ca trong tháng.
-    tong_gio_tang_ca = models.DecimalField(
-        'Tổng giờ tăng ca', max_digits=14, decimal_places=4, default=0,
-        db_column='Tong_gio_tang_ca',
-    )
-    # Số lần đi trễ và tổng số phút đi trễ của tháng.
-    so_lan_tre = models.PositiveIntegerField(default=0, db_column='So_lan_di_tre')
-    so_phut_tre = models.PositiveIntegerField(default=0, db_column='Tong_phut_di_tre')
-    # Trạng thái tổng hợp, mặc định chờ duyệt; không phải trạng thái công ngày.
-    trang_thai = models.CharField(
-        max_length=12, default='pending',
-        choices=[
-            ('pending', 'Chờ duyệt'),
-            ('approved', 'Đã duyệt'),
-            ('empty', 'Chưa có dữ liệu'),
-        ],
-        db_column='Trang_thai',
-    )
-    class Meta:
-        # Tên bảng tổng hợp trong database.
-        db_table = 'Tong_hop_cong'
-        constraints = [
-            # Không tạo hai tổng hợp của cùng nhân viên trong cùng tháng/năm.
-            models.UniqueConstraint(
-                fields=['nhan_vien', 'nam', 'thang'],
-                name='unique_employee_month_summary',
-            ),
-        ]
-
-
-class ChotBangCong(models.Model):
-    """Một bản chốt cho mỗi nhân viên/tháng, liên kết đúng bản tổng hợp."""
-    # Khóa chính tự tăng của bản chốt.
-    id = models.BigAutoField(primary_key=True, db_column='Ma_chot')
-    # Một tổng hợp có tối đa một bản chốt; tổng_hợp.approval đọc bản chốt.
-    tong_hop = models.OneToOneField(
-        'TongHopCong', on_delete=models.PROTECT,
-        related_name='approval', verbose_name='Bản tổng hợp công',
-        db_column='Ma_tong_hop',
-    )
-    # Tài khoản thực hiện duyệt; cho phép trống để hỗ trợ dữ liệu lịch sử.
-    nguoi_duyet = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
-        db_column='Ma_nguoi_chot',
-    )
-    # Tự ghi thời điểm tạo lần đầu; không tự cập nhật ở những lần sửa sau.
-    ngay_duyet = models.DateTimeField(auto_now_add=True, db_column='Ngay_chot')
-
-    class Meta:
-        # Tên bảng chốt công trong database.
-        db_table = 'Chot_bang_cong'
-
-

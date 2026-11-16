@@ -79,7 +79,7 @@ def loi_nguon_thue(record):
     da_luu = record.chi_tiet.get('tax_calculation', {})
     if da_luu.get('policy') != POLICY:
         return ''  # Historical/paid amounts remain historical; never infer a new policy for them.
-    from thuong.views import cac_khoan_thuong_tinh_luong
+    from thuong.services.tinh_toan import cac_khoan_thuong_tinh_luong
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     from .tinh_toan import chuan_hoa_du_lieu
     from bang_cong.thang_lich import thang_lich

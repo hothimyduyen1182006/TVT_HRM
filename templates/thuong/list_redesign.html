@@ -2,7 +2,7 @@
 {% block title %}Quản lý thưởng · TVT{% endblock %}
 {% block record_scope %}{% include 'includes/record_scope.html' with module='bonuses' %}{% endblock %}
 {% block extra_head %}<style>
-.bm-page{max-width:1320px;margin:1.6rem auto 3rem;padding:0 1rem}.bm-title{text-align:center;color:#17385e;font-weight:800;margin:0 0 1.1rem}.bm-filter{max-width:1100px;margin:0 auto 1rem;padding:.8rem 1.25rem;background:#fff;border:1px solid #e1e7ee;border-radius:6px;display:flex;align-items:end;gap:.65rem;flex-wrap:wrap}.bm-field{display:flex;flex-direction:column;gap:.2rem;min-width:120px;flex:1}.bm-field label{font-size:.74rem;font-weight:700;color:#334963}.bm-field input,.bm-field select{height:36px;min-width:0;padding:.35rem .55rem;background:#f5f6f8;border:1px solid #e0e5ec;border-radius:4px;font-size:.82rem}.bm-field-search{flex:1.6}.bm-actions{display:flex;gap:.7rem;align-items:center;margin:0 0 .8rem 1rem}.bm-actions form{margin:0}.bm-actions .btn{font-size:.8rem;font-weight:700}.bm-create{background:#17385e;color:#fff}.bm-create:hover{background:#102c4b;color:#fff}.bm-table-wrap{background:#fff;overflow:visible}.bm-table{width:100%;min-width:0;table-layout:fixed;margin:0;font-size:.78rem;white-space:normal}.bm-table thead th{padding:.55rem .4rem;background:#17385e;color:#fff;text-align:center;vertical-align:middle;border-bottom:2px solid #e5ad38}.bm-table td{text-align:center;vertical-align:middle;padding:.48rem .4rem}.bm-table tbody tr:nth-child(even){background:#f4f6f9}.bm-code{font-weight:700;color:#293d58}.bm-employee{font-weight:700;color:#263b56}.bm-dept{display:inline-block;padding:.25rem .5rem;border-radius:3px;background:#f6ead1;color:#b85a0a;font-weight:700;white-space:normal;max-width:145px}.bm-money{font-variant-numeric:tabular-nums;color:#718198}.bm-total{font-weight:800;color:#dc514d}.bm-status{display:inline-block;padding:.38rem .7rem;border-radius:2px;font-weight:700}.bm-status.approved{background:#dff2e7;color:#258051}.bm-status.pending{background:#fff0d5;color:#ad690b}.bm-status.rejected{background:#fce5e7;color:#bd3545}.bm-status.draft{background:#e8eef7;color:#526d90}.bm-link{display:inline-block;padding:.23rem .8rem;border:1px solid #17385e;border-radius:99px;color:#17385e;background:#fff;text-decoration:none;font-size:.72rem}.bm-link:hover{background:#17385e;color:#fff}.bm-empty{text-align:center!important;padding:2.5rem!important;color:#718198}.bm-pagination{display:flex;justify-content:center;gap:.42rem;margin:1.25rem auto}.bm-pagination a,.bm-pagination span{display:grid;place-items:center;min-width:36px;height:36px;padding:0 .5rem;border:1px solid #e5e9ef;border-radius:5px;background:#fff;color:#172c47;text-decoration:none;font-weight:700}.bm-pagination .current{background:#17385e;color:#fff;border-color:#17385e}.bm-table .bm-empty-cell{padding:0!important;background:#e0eafa!important;border:0}.bm-empty-state{min-height:400px;display:grid;place-items:center;padding:50px 20px;background:#e0eafa;text-align:center}.bm-empty-state .pr-document{width:170px;height:130px;margin-bottom:27px}.bm-empty-state .pr-document-box{fill:#142f55}.bm-empty-state .pr-document-paper,.bm-empty-state .pr-document-top{fill:#e0ebf8}.bm-empty-state h2{margin:0 0 22px;color:#163850;font-size:22px;font-weight:750}.bm-empty-state p{margin:0;color:#8d99ab;font-size:16px;line-height:1.35}.bm-empty-info{max-width:570px;margin:32px auto 0;padding:18px 25px;background:#e1ebf8;border-radius:8px;color:#8590a5;font-size:14px}.bm-select-all{margin:0;white-space:normal}.bm-select-all input,.bm-select-row{width:18px;height:18px;accent-color:#17385e;vertical-align:middle}.bm-row-actions,.bm-bulk-actions{display:flex;justify-content:center;align-items:center;gap:.35rem;flex-wrap:wrap}.bm-bulk-actions{justify-content:flex-end;margin:.8rem 0}.bm-decision{border:0;border-radius:4px;padding:.35rem .65rem;color:#fff;font-size:.72rem;font-weight:700}.bm-approve{background:#218838}.bm-approve:hover{background:#176b2b;color:#fff}.bm-reject{background:#dc3545}.bm-reject:hover{background:#b42332;color:#fff}.bm-total-line{text-align:right;color:#718198;font-size:.82rem}.bm-total-line strong{margin-left:.4rem;color:#dc514d;font-size:1rem}
+.bm-page{max-width:1320px;margin:1.6rem auto 3rem;padding:0 1rem}.bm-title{text-align:center;color:#17385e;font-weight:800;margin:0 0 1.1rem}.bm-filter{max-width:1100px;margin:0 auto 1rem;padding:.8rem 1.25rem;background:#fff;border:1px solid #e1e7ee;border-radius:6px;display:flex;align-items:end;gap:.65rem;flex-wrap:wrap}.bm-field{display:flex;flex-direction:column;gap:.2rem;min-width:120px;flex:1}.bm-field label{font-size:.74rem;font-weight:700;color:#334963}.bm-field input,.bm-field select{height:36px;min-width:0;padding:.35rem .55rem;background:#f5f6f8;border:1px solid #e0e5ec;border-radius:4px;font-size:.82rem}.bm-field-search{flex:1.6}.bm-actions{display:flex;gap:.7rem;align-items:center;margin:0 0 .8rem 1rem}.bm-actions form{margin:0}.bm-actions .btn{font-size:.8rem;font-weight:700}.bm-create{background:#17385e;color:#fff}.bm-create:hover{background:#102c4b;color:#fff}.bm-table-wrap{background:#fff;max-width:100%;overflow-x:auto}.bm-table{width:100%;min-width:0;table-layout:auto;margin:0;font-size:.78rem;white-space:normal}.bm-table thead th{padding:.55rem .4rem;background:#17385e;color:#fff;text-align:center;vertical-align:middle;border-bottom:2px solid #e5ad38}.bm-table td{text-align:center;vertical-align:middle;padding:.48rem .4rem}.bm-table tbody tr:nth-child(even){background:#f4f6f9}.bm-code{font-weight:700;color:#293d58}.bm-employee{font-weight:700;color:#263b56}.bm-dept{display:inline-block;padding:.25rem .5rem;border-radius:3px;background:#f6ead1;color:#b85a0a;font-weight:700;white-space:normal;max-width:145px}.bm-money{font-variant-numeric:tabular-nums;color:#718198}.bm-total{font-weight:800;color:#dc514d}.bm-status{display:inline-block;padding:.38rem .7rem;border-radius:2px;font-weight:700}.bm-status.approved{background:#dff2e7;color:#258051}.bm-status.pending{background:#fff0d5;color:#ad690b}.bm-status.rejected{background:#fce5e7;color:#bd3545}.bm-status.draft{background:#e8eef7;color:#526d90}.bm-link{display:inline-block;padding:.23rem .8rem;border:1px solid #17385e;border-radius:99px;color:#17385e;background:#fff;text-decoration:none;font-size:.72rem}.bm-link:hover{background:#17385e;color:#fff}.bm-empty{text-align:center!important;padding:2.5rem!important;color:#718198}.bm-pagination{display:flex;justify-content:center;gap:.42rem;margin:1.25rem auto}.bm-pagination a,.bm-pagination span{display:grid;place-items:center;min-width:36px;height:36px;padding:0 .5rem;border:1px solid #e5e9ef;border-radius:5px;background:#fff;color:#172c47;text-decoration:none;font-weight:700}.bm-pagination .current{background:#17385e;color:#fff;border-color:#17385e}.bm-table .bm-empty-cell{padding:0!important;background:#e0eafa!important;border:0}.bm-empty-state{min-height:400px;display:grid;place-items:center;padding:50px 20px;background:#e0eafa;text-align:center}.bm-empty-state .pr-document{width:170px;height:130px;margin-bottom:27px}.bm-empty-state .pr-document-box{fill:#142f55}.bm-empty-state .pr-document-paper,.bm-empty-state .pr-document-top{fill:#e0ebf8}.bm-empty-state h2{margin:0 0 22px;color:#163850;font-size:22px;font-weight:750}.bm-empty-state p{margin:0;color:#8d99ab;font-size:16px;line-height:1.35}.bm-empty-info{max-width:570px;margin:32px auto 0;padding:18px 25px;background:#e1ebf8;border-radius:8px;color:#8590a5;font-size:14px}.bm-row-actions,.bm-bulk-actions{display:flex;justify-content:center;align-items:center;gap:.35rem;flex-wrap:wrap}.bm-bulk-actions{justify-content:flex-end;margin:.8rem 0}.bm-decision{border:0;border-radius:4px;padding:.35rem .65rem;color:#fff;font-size:.72rem;font-weight:700}.bm-approve{background:#218838}.bm-approve:hover{background:#176b2b;color:#fff}.bm-reject{background:#dc3545}.bm-reject:hover{background:#b42332;color:#fff}.bm-total-line{text-align:right;color:#718198;font-size:.82rem}.bm-total-line strong{margin-left:.4rem;color:#dc514d;font-size:1rem}
 .bm-actions{flex-wrap:wrap}
 .bm-footer-actions{display:flex;justify-content:flex-end;margin-top:14px}
 .bm-footer-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:.5rem 1rem;border:1px solid #17385e;border-radius:8px;background:#17385e;color:#fff;font-size:14px;font-weight:700;text-decoration:none}
@@ -10,6 +10,7 @@
 .bm-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:.5rem 1rem;border:1px solid #17385e;border-radius:8px;background:#17385e;color:#fff;font-size:.8rem;font-weight:700;line-height:1.25;text-decoration:none;box-shadow:0 3px 8px #17385e18;transition:background .16s,border-color .16s,transform .16s,box-shadow .16s}
 .bm-actions .btn:hover{background:#102c4b;border-color:#102c4b;color:#fff;box-shadow:0 5px 12px #17385e26;transform:translateY(-1px)}
 .bm-actions .btn:focus-visible{outline:3px solid #e5ad3880;outline-offset:2px}
+.bm-table .bm-check-column{width:36px;padding-left:4px;padding-right:4px}
 .bm-no-date{display:inline-block;width:.7rem;height:1px;background:#aeb8c4;vertical-align:middle;border-radius:1px}
 .bm-pagination{display:flex;width:max-content;max-width:100%;justify-content:center;gap:.35rem;margin:1rem auto;padding:.25rem;background:transparent;border:0}
 .bm-pagination a,.bm-pagination span{display:grid;place-items:center;min-width:34px;height:34px;padding:0 .45rem;border:1px solid #dce3eb;border-radius:6px;background:#fff;color:#17385e;text-decoration:none;font-size:.84rem;font-weight:700;transition:background .15s,border-color .15s,color .15s}
@@ -97,6 +98,7 @@
 .bm-title-text{padding:8px 0}
 .bm-page{max-width:none;width:100%;min-width:0}
 .bm-table th,.bm-table td{overflow-wrap:anywhere}
+.bm-table thead th{white-space:nowrap;overflow-wrap:normal}
 .bm-table .bm-status{max-width:100%;white-space:normal}
 .bm-table .bm-link{max-width:100%;padding:4px 8px;white-space:normal}
 .bm-empty-state{min-width:0}
@@ -118,13 +120,13 @@
 {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
 <div class="bm-actions">
    {% if can_propose %}<a class="btn bm-create" href="{% url 'thuong:propose' %}">Lập/Đề xuất bảng thưởng</a>{% endif %}
-  {% if can_export %}<form method="post" action="{% url 'thuong:export' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default:'' }}">{% endfor %}<button class="btn" type="submit">Xuất bảng thưởng</button></form>{% endif %}
+  {% if can_export %}<button class="btn" type="button" onclick="document.getElementById('bm-export').showModal()">Xuất bảng thưởng</button>{% endif %}
 </div>
-<div class="bm-table-wrap"><table class="table table-sm bm-table"><thead><tr>{% if can_decide_period or can_send_period %}<th><label class="bm-select-all"><input id="bm-select-all" type="checkbox"> Chọn tất cả</label></th>{% endif %}<th>Mã thưởng</th><th>Họ và tên</th><th>Phòng ban</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Tác vụ</th></tr></thead><tbody>
+<div class="bm-table-wrap"><table class="table table-sm bm-table"><thead><tr>{% if can_decide_period or can_send_period %}<th scope="col" class="bm-check-column"><input id="bm-select-all" type="checkbox" aria-label="Chọn tất cả nhân viên trên trang này" title="Chọn tất cả nhân viên trên trang này"></th>{% endif %}<th>Mã thưởng</th><th>Họ và tên</th><th>Phòng ban</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Tác vụ</th></tr></thead><tbody>
 {% for row in rows %}<tr>{% if can_decide_period or can_send_period %}<td><input class="bm-select-row" form="{% if can_decide_period %}bm-bulk-form{% else %}bm-submit-form{% endif %}" type="checkbox" name="nhan_vien_ids" value="{{ row.nguoi_dung.employee.pk }}" aria-label="Chọn {{ row.nguoi_dung.employee.ho_va_ten }}"></td>{% endif %}<td class="bm-code">{{ row.ma_hien_thi }}</td><td class="bm-employee">{{ row.nguoi_dung.employee.ho_va_ten }}</td><td><span class="bm-dept">{{ row.nguoi_dung.employee.phong_ban.ten_phong_ban }}</span></td><td class="bm-money">{{ row.thuong_chuyen_can|money }}</td><td class="bm-money">{{ row.thuong_tham_nien|money }}</td><td class="bm-money">{{ row.thuong_khac|money }}</td><td class="bm-total">{{ row.tong_thuong|money }}</td><td><span class="bm-status {{ row.trang_thai }}">{% if row.trang_thai == 'draft' %}Bản nháp{% elif row.trang_thai == 'pending' %}Chờ duyệt{% elif row.trang_thai == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td><td>{% if row.ngay_duyet and row.trang_thai != 'pending' and row.trang_thai != 'draft' %}{{ row.ngay_duyet|date:'d/m/Y' }}{% else %}<span class="bm-no-date" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td><td><div class="bm-row-actions"><a class="bm-link" href="{% url 'thuong:detail' row.nguoi_dung.employee.pk row.nam row.thang %}">Xem chi tiết</a></div></td></tr>{% empty %}<tr><td colspan="11" class="bm-empty-cell"><div class="bm-empty-state"><div>{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU BẢNG THƯỞNG</h2><p>Chưa có bảng thưởng cho Tháng {{ form.thang.value }}/{{ form.nam.value }}.<br>Vui lòng chọn kỳ thưởng khác hoặc kiểm tra lại sau.</p><div class="bm-empty-info">Bảng thưởng sẽ hiển thị khi kỳ được chọn có dữ liệu thưởng phù hợp.</div></div></div></td></tr>{% endfor %}
 </tbody></table></div>
 {% if can_send_period %}<form id="bm-submit-form" method="post" action="{% url 'thuong:submit' selected_nam selected_thang %}" class="bm-bulk-actions">{% csrf_token %}<button class="bm-decision bm-approve" type="submit">Gửi duyệt</button></form><script>
-(() => { const all = document.getElementById('bm-select-all'); const rows = [...document.querySelectorAll('.bm-select-row')]; all?.addEventListener('change', () => rows.forEach(row => row.checked = all.checked)); rows.forEach(row => row.addEventListener('change', () => { if (all) all.checked = rows.length > 0 && rows.every(item => item.checked); })); document.getElementById('bm-submit-form')?.addEventListener('submit', event => { const selected = rows.filter(row => row.checked); if (!selected.length) { event.preventDefault(); alert('Vui lòng chọn ít nhất một nhân viên.'); return; } if (!confirm(`Xác nhận gửi duyệt thưởng cho ${selected.length} nhân viên đã chọn?`)) event.preventDefault(); }); })();
+(() => { const rows = [...document.querySelectorAll('.bm-select-row')]; document.getElementById('bm-submit-form')?.addEventListener('submit', event => { const selected = rows.filter(row => row.checked); if (!selected.length) { event.preventDefault(); alert('Vui lòng chọn ít nhất một nhân viên.'); return; } if (!confirm(`Xác nhận gửi duyệt thưởng cho ${selected.length} nhân viên đã chọn?`)) event.preventDefault(); }); })();
 </script>{% endif %}
 {% if can_decide_period %}
 <style>
@@ -169,10 +171,8 @@
 {% endif %}
 {% if can_decide_period %}<form id="bm-bulk-form" method="post" action="{% url 'thuong:decision' selected_nam selected_thang %}" class="bm-bulk-actions">{% csrf_token %}<button class="bm-decision bm-approve" name="action" value="approve" type="submit">Duyệt nhân viên đã chọn</button><button class="bm-decision bm-reject" name="action" value="reject" type="submit">Từ chối nhân viên đã chọn</button></form><script>
 (() => {
- const all = document.getElementById('bm-select-all');
  const rows = [...document.querySelectorAll('.bm-select-row')];
- all?.addEventListener('change', () => rows.forEach(row => row.checked = all.checked));
- rows.forEach(row => row.addEventListener('change', () => { if (all) all.checked = rows.length > 0 && rows.every(item => item.checked); }));
+
  document.getElementById('bm-bulk-form')?.addEventListener('submit', event => {
    const selected = rows.filter(row => row.checked);
    if (!selected.length) { event.preventDefault(); alert('Vui lòng chọn ít nhất một nhân viên.'); return; }
@@ -222,4 +222,56 @@
 </nav>{% endif %}
 <div class="bm-total-line">Tổng thưởng đang hiển thị:<strong>{{ tong_tien|money }} ₫</strong></div>
 
+{% if can_decide_period or can_send_period %}
+<script>
+const chonTatCa = document.getElementById('bm-select-all');
+const cacOChon = [...document.querySelectorAll('.bm-select-row')];
+chonTatCa.addEventListener('change', () => {
+ cacOChon.forEach(o => o.checked = chonTatCa.checked);
+ chonTatCa.indeterminate = false;
+});
+cacOChon.forEach(o => o.addEventListener('change', () => {
+ const soDaChon = cacOChon.filter(o => o.checked).length;
+ chonTatCa.checked = soDaChon === cacOChon.length;
+ chonTatCa.indeterminate = soDaChon > 0 && soDaChon < cacOChon.length;
+}));
+</script>
+{% endif %}
+{% if can_export %}
+<style>
+#bm-export{width:min(520px,calc(100% - 32px));padding:24px;border:1px solid #e1e7ee;border-radius:12px;color:#17385e}
+#bm-export::backdrop{background:rgb(17 28 44 / 35%)}
+.bm-export-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.bm-export-heading h2{margin:0;font-size:20px}
+.bm-export-heading button{border:0;background:transparent;font-size:26px;color:inherit}
+.bm-export-actions{display:flex;gap:10px;margin-top:20px}
+.bm-export-actions .btn{border:1px solid #17385e;color:#17385e}
+.bm-export-actions .btn[aria-pressed="true"]{background:#17385e;color:#fff}
+.bm-export-actions .btn:hover{background:#e8eef7}
+.bm-export-actions .btn[aria-pressed="true"]:hover{background:#102c4b}
+.bm-export-actions .btn:focus-visible{outline:3px solid #e5ad3880;outline-offset:2px}
+</style>
+<dialog id="bm-export" aria-labelledby="bm-export-title">
+ <div class="bm-export-heading"><h2 id="bm-export-title">Xuất bảng thưởng</h2><button type="button" aria-label="Đóng" onclick="this.closest('dialog').close()">×</button></div>
+ <p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng thưởng đã duyệt.</p>
+ <form method="post" action="{% url 'thuong:export' 'csv' %}">
+  {% csrf_token %}
+  {% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}
+  <div class="bm-export-actions">
+   <button class="btn" type="submit" aria-pressed="true">CSV</button>
+   <button class="btn" type="submit" aria-pressed="false" formaction="{% url 'thuong:export' 'json' %}">JSON</button>
+   <button class="btn" type="submit" aria-pressed="false" formaction="{% url 'thuong:export' 'txt' %}">TXT</button>
+  </div>
+ </form>
+</dialog>
+<script>
+document.querySelector('.bm-export-actions').addEventListener('click', event => {
+ const selected = event.target.closest('button');
+ if (!selected) return;
+ for (const button of event.currentTarget.querySelectorAll('button')) {
+  button.setAttribute('aria-pressed', String(button === selected));
+ }
+});
+</script>
+{% endif %}
 </main>{% endblock %}
