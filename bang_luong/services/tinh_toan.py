@@ -9,7 +9,7 @@ from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
 from bang_cong.models import TongHopCong
 from thuong.models import Thuong
-from thuong.views import cac_khoan_thuong_tinh_luong
+from thuong.services.tinh_toan import cac_khoan_thuong_tinh_luong
 from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang, nap_cong_ngay
 from nghi_phep.models import NgayNghi
 from bang_luong.models import Luong

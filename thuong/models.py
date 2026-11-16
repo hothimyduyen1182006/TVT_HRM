@@ -23,8 +23,8 @@ class Thuong(models.Model):
                                  editable=False, db_column='Ma_thuong')
     nguoi_dung = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
                                    related_name='bang_thuong', db_column='Ma_nguoi_dung')
-    thang = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)], db_column='Thang')
-    nam = models.PositiveSmallIntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)], db_column='Nam')
+    thang = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)], db_column='Thang')
+    nam = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)], db_column='Nam')
     thuong_chuyen_can = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_chuyen_can')
     thuong_tham_nien = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_tham_nien')
     thuong_khac = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_khac')
@@ -35,7 +35,7 @@ class Thuong(models.Model):
     nguoi_duyet = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.PROTECT, related_name='bang_thuong_da_duyet', db_column='Ma_nguoi_duyet')
     ngay_duyet = models.DateTimeField(null=True, blank=True, db_column='Ngay_duyet')
-    ly_do_tu_choi = models.TextField(blank=True, default='', db_column='Ly_do_tu_choi')
+    ly_do_tu_choi = models.TextField(null=True, blank=True, db_column='Ly_do_tu_choi')
 
     class Meta:
         db_table = 'Thuong'
@@ -49,7 +49,8 @@ class Thuong(models.Model):
             models.CheckConstraint(check=Q(trang_thai__in=['draft', 'pending', 'approved', 'rejected']), name='thuong_trang_thai_hop_le'),
             models.CheckConstraint(check=~Q(trang_thai__in=['approved', 'rejected'])
                 | Q(nguoi_duyet__isnull=False, ngay_duyet__isnull=False), name='thuong_duyet_du_thong_tin'),
-            models.CheckConstraint(check=~Q(trang_thai='rejected') | ~Q(ly_do_tu_choi=''), name='thuong_tu_choi_co_ly_do'),
+            models.CheckConstraint(check=~Q(trang_thai='rejected')
+                | (Q(ly_do_tu_choi__isnull=False) & ~Q(ly_do_tu_choi='')), name='thuong_tu_choi_co_ly_do'),
         ]
 
 

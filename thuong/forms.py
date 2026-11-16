@@ -60,7 +60,7 @@ class BonusFilter(forms.Form):
             else:
                 data = {'thang': today.month, 'nam': today.year}
         super().__init__(data=data)
-        chon_ky_thuong(self.fields, timezone.localdate().year)
+        chon_ky_thuong(self.fields, today.year)
         nhan_vien_hien = nhan_vien_duoc_hien_thi(nguoi_dung)
         self.fields['nhan_vien'].queryset = nhan_vien_hien
         self.fields['phong_ban'].queryset = PhongBan.objects.filter(
@@ -101,7 +101,7 @@ class BonusProposalForm(forms.Form):
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100)
     nhan_vien = forms.ModelChoiceField(label='Nhân viên', queryset=NhanVien.objects.none())
     ten = forms.CharField(label='Tên khoản thưởng khác', max_length=100, required=False)
-    ly_do = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea(attrs={'rows': 3}), required=False)
+    ly_do = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea, required=False)
     so_tien = VNDField(
         label='Số tiền (VNĐ)',
         min_value=0,

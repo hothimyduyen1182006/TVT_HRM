@@ -9,7 +9,7 @@ from bang_luong.models import Luong
 from bang_cong.thang_lich import thang_lich, thang_tu_ma
 from .tinh_toan import du_lieu_tinh_luong
 from .thue import loi_nguon_thue
-from thuong.views import cac_khoan_thuong_tinh_luong
+from thuong.services.tinh_toan import cac_khoan_thuong_tinh_luong
 
 
 def loi_nguon_thuong(record):
