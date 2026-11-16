@@ -50,31 +50,12 @@ class BieuMauThietLapLuong(forms.Form):
 
     so_nguoi_phu_thuoc = forms.IntegerField(label='Số người phụ thuộc', min_value=0, initial=0, required=False)
 
-    KHOA_CAU_HINH = {
-        'so_nguoi_phu_thuoc': 'tax_dependents',
-        'ma_so_bhxh': 'insurance_number',
-        'ma_so_thue': 'tax_code',
-        'ten_ngan_hang': 'bank_name',
-        'so_tai_khoan': 'bank_account',
-        'luong_dong_bao_hiem': 'insurance_base',
-        'can_cu_bao_hiem': 'insurance_basis',
-        'doi_tuong_tinh_thue': 'tax_method',
-        'giam_tru_ban_than': 'claim_personal_deduction',
-        'can_cu_thue': 'tax_basis',
-        'phu_cap_an_trua': 'lunch_allowance',
-        'luong_gio_tang_ca': 'overtime_hourly_rate',
-        'can_cu_luong_gio_tang_ca': 'overtime_basis',
-        'da_kiem_tra': 'verified',
-    }
     KHOA_TY_LE = {'ty_le_bhxh': 'BHXH', 'ty_le_bhyt': 'BHYT', 'ty_le_bhtn': 'BHTN'}
 
     def __init__(self, ho_so=None, data=None):
         thiet_lap = ho_so.thiet_lap_luong if ho_so else None
         gia_tri_mac_dinh = dict(thiet_lap or {})
-        for ten_truong, khoa_cu in self.KHOA_CAU_HINH.items():
-            if khoa_cu in gia_tri_mac_dinh:
-                gia_tri_mac_dinh[ten_truong] = gia_tri_mac_dinh.pop(khoa_cu)
-        cac_ty_le = gia_tri_mac_dinh.pop('insurance_rates', {})
+        cac_ty_le = gia_tri_mac_dinh.pop('ty_le_bao_hiem', {})
         for ten_truong, ma_bao_hiem in self.KHOA_TY_LE.items():
             if cac_ty_le:
                 gia_tri_mac_dinh[ten_truong] = Decimal(str(cac_ty_le.get(ma_bao_hiem, 0))) * 100
@@ -91,13 +72,11 @@ class BieuMauThietLapLuong(forms.Form):
     def du_lieu_thiet_lap(self):
         from bang_luong.services.tinh_toan import chuan_hoa_du_lieu
         du_lieu = dict(self.cleaned_data)
-        for ten_truong, khoa_cu in self.KHOA_CAU_HINH.items():
-            du_lieu[khoa_cu] = du_lieu.pop(ten_truong)
-        du_lieu['insurance_rates'] = {
+        du_lieu['ty_le_bao_hiem'] = {
             ma_bao_hiem: format((du_lieu.pop(ten_truong) / 100).normalize(), 'f')
             for ten_truong, ma_bao_hiem in self.KHOA_TY_LE.items()
         }
-        du_lieu['tax_dependents'] = du_lieu['tax_dependents'] or 0
+        du_lieu['so_nguoi_phu_thuoc'] = du_lieu['so_nguoi_phu_thuoc'] or 0
         return chuan_hoa_du_lieu(du_lieu)
 
 

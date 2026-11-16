@@ -33,8 +33,8 @@ class AutomaticTaxTests(TestCase):
         from bang_cong.models import LichLamViec
         LichLamViec.objects.update(ngay=date(2026,10,5))
         ChamCong.objects.update(ngay=date(2026,10,5))
-        PayrollInput.objects.update(tax_method='resident_2026',tax_amount=99999999,
-            insurance_base=0,insurance_rates={},tax_basis='Cư trú; HĐ >= 3 tháng; đăng ký giảm trừ tại TVT; không người phụ thuộc')
+        PayrollInput.objects.update(doi_tuong_tinh_thue='resident_2026',tien_thue=99999999,
+            luong_dong_bao_hiem=0,ty_le_bao_hiem={},can_cu_thue='Cư trú; HĐ >= 3 tháng; đăng ký giảm trừ tại TVT; không người phụ thuộc')
         self.emp.luong_co_ban=20000000
         self.emp.save()
 
@@ -51,9 +51,9 @@ class AutomaticTaxTests(TestCase):
         self.assertEqual(row.chi_tiet['source_data']['tax'],'225000')
 
     def test_dependents_and_personal_deduction_are_period_inputs(self):
-        PayrollInput.objects.filter(employee=self.emp).update(tax_dependents=1)
+        PayrollInput.objects.filter(employee=self.emp).update(so_nguoi_phu_thuoc=1)
         self.assertEqual(self.salary().tax,0)
-        PayrollInput.objects.filter(employee=self.emp).update(tax_dependents=0,claim_personal_deduction=False)
+        PayrollInput.objects.filter(employee=self.emp).update(so_nguoi_phu_thuoc=0,giam_tru_ban_than=False)
         self.assertEqual(self.salary().tax,1500000)
 
     def test_meal_cash_cap_other_taxable_allowances_and_post_tax_deductions(self):
@@ -70,7 +70,7 @@ class AutomaticTaxTests(TestCase):
 
     def test_lawful_ot_is_exempt_and_bonus_is_taxable(self):
         ChamCong.objects.filter(nhan_vien=self.emp).update(gio_ra=time(19))
-        PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=100000,overtime_basis='Lương giờ hợp lệ')
+        PayrollInput.objects.filter(employee=self.emp).update(luong_gio_tang_ca=100000,can_cu_luong_gio_tang_ca='Lương giờ hợp lệ')
         row=self.salary()
         self.assertEqual(row.luong_tang_ca,300000)
         self.assertEqual(row.thue_tncn,225000)
@@ -83,27 +83,27 @@ class AutomaticTaxTests(TestCase):
         self.assertEqual(self.salary().tax,275000)
 
     def test_unsupported_scope_or_missing_verification_never_silently_returns_zero(self):
-        PayrollInput.objects.filter(employee=self.emp).update(tax_method='other')
+        PayrollInput.objects.filter(employee=self.emp).update(doi_tuong_tinh_thue='other')
         with self.assertRaises(ValidationError): self.salary()
-        PayrollInput.objects.filter(employee=self.emp).update(tax_method='resident_2026',verified=False)
+        PayrollInput.objects.filter(employee=self.emp).update(doi_tuong_tinh_thue='resident_2026',da_kiem_tra=False)
         with self.assertRaises(ValidationError): self.salary()
         self.assertFalse(Luong.objects.exists())
 
     def test_excess_ot_needs_review_instead_of_assuming_all_pay_exempt(self):
         ChamCong.objects.filter(nhan_vien=self.emp).update(gio_ra=time(22))
-        PayrollInput.objects.filter(employee=self.emp).update(overtime_hourly_rate=100000,overtime_basis='Căn cứ')
+        PayrollInput.objects.filter(employee=self.emp).update(luong_gio_tang_ca=100000,can_cu_luong_gio_tang_ca='Căn cứ')
         with self.assertRaisesMessage(ValidationError,'cảnh báo'): self.salary()
-        PayrollInput.objects.filter(employee=self.emp).update(tax_exempt_overtime=600000)
+        PayrollInput.objects.filter(employee=self.emp).update(tien_tang_ca_mien_thue=600000)
         row=self.salary()
         self.assertEqual(row.luong_tang_ca,750000)
         self.assertEqual(row.thue_tncn,232500)
-        PayrollInput.objects.filter(employee=self.emp).update(tax_exempt_overtime=999999)
+        PayrollInput.objects.filter(employee=self.emp).update(tien_tang_ca_mien_thue=999999)
         with self.assertRaises(ValidationError): self.salary()
 
     def test_recalculation_is_not_cumulative_and_changed_relief_blocks_approval(self):
         first=self.salary()
         self.assertEqual(loi_duyet_luong(first),'')
-        PayrollInput.objects.filter(employee=self.emp).update(tax_dependents=1)
+        PayrollInput.objects.filter(employee=self.emp).update(so_nguoi_phu_thuoc=1)
         self.assertTrue(loi_duyet_luong(first))
         for _ in range(2):
             current=self.salary()
@@ -114,15 +114,15 @@ class AutomaticTaxTests(TestCase):
         row=self.salary()
         xu_ly_trang_thai_luong(self.director,self.period.pk,'approve','Đã kiểm tra')
         self.assertEqual(loi_nguon_thue(Luong.objects.get(pk=row.pk)),'')
-        PayrollInput.objects.filter(employee=self.emp).update(tax_dependents=1)
+        PayrollInput.objects.filter(employee=self.emp).update(so_nguoi_phu_thuoc=1)
         with self.assertRaises(ValidationError): xu_ly_trang_thai_luong(self.director,self.period.pk,'paid','Chi trả','Chứng từ')
         with self.assertRaises(ValidationError): xuat_du_lieu_luong(self.hr,Luong.objects.all(),'csv',10,2026,{})
         self.assertFalse(Luong.objects.filter(trang_thai='paid').exists())
 
     def test_form_does_not_accept_a_tax_override_or_legacy_method(self):
         form=PayrollInputForm(self.hr)
-        self.assertNotIn('tax_amount',form.fields)
-        self.assertNotIn('legacy',dict(form.fields['tax_method'].choices))
+        self.assertNotIn('tien_thue',form.fields)
+        self.assertNotIn('legacy',dict(form.fields['doi_tuong_tinh_thue'].choices))
 
     def test_new_tax_pages_render_without_showing_historical_manual_amount(self):
         row=self.salary()

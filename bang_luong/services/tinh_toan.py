@@ -167,9 +167,9 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
     luong_theo_cong = employee.luong_co_ban / standard * cong_huong_luong
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     overtime=tong_hop_tang_ca_tinh_luong(employee,attendance.nam,attendance.thang)
-    if overtime and (not inputs.overtime_hourly_rate or not inputs.overtime_basis.strip()):
+    if overtime and (not inputs.luong_gio_tang_ca or not inputs.can_cu_luong_gio_tang_ca.strip()):
         raise ValidationError(f'{employee}: NHAN_SU cần nhập lương giờ căn cứ OT và căn cứ áp dụng trước khi tính lương.')
-    ot_rate=inputs.overtime_hourly_rate or ZERO
+    ot_rate=inputs.luong_gio_tang_ca or ZERO
     ot_lines=[{**{khoa: str(dong[khoa]) if khoa in ['hours','multiplier'] else dong[khoa]
                      for khoa in ['id','date','start','end','hours','multiplier']},
                'amount': str(ot_rate * dong['hours'] * dong['multiplier'])} for dong in overtime]
@@ -185,8 +185,8 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
         Decimal('1'), rounding=ROUND_HALF_UP,
     )
     deductions = sum((dong.amount for dong in adjustments if dong.kind=='deduction'),ZERO) + late_penalty
-    chi_tiet_bao_hiem = {ten: str(inputs.insurance_base * Decimal(str(ty_le)))
-                       for ten, ty_le in inputs.insurance_rates.items()}
+    chi_tiet_bao_hiem = {ten: str(inputs.luong_dong_bao_hiem * Decimal(str(ty_le)))
+                       for ten, ty_le in inputs.ty_le_bao_hiem.items()}
     bao_hiem = sum((Decimal(value) for value in chi_tiet_bao_hiem.values()), ZERO)
     tax_details = tinh_thue_tncn(inputs, attendance, luong_theo_cong, ot_pay, thuong, bao_hiem, adjustments, overtime)
     tax = tax_details['tax']
@@ -202,9 +202,9 @@ def du_lieu_tinh_luong(employee, attendance, period, standard=None):
                    'late_penalty': {'amount': str(late_penalty), 'minutes': int(late_minutes),
                                     'hourly_rate': str(SIMULATED_LATE_HOURLY_RATE), 'simulation': True},
                    'ot': ot_lines, 'overtime_warnings': [warning for dong in overtime for warning in dong['warnings']], 'bonuses': bonus_lines, 'insurance': chi_tiet_bao_hiem,
-                   'overtime_hourly_rate':str(ot_rate),'overtime_basis':inputs.overtime_basis,
-                   'insurance_base': str(inputs.insurance_base), 'insurance_rates': inputs.insurance_rates,
-                   'tax_basis': inputs.tax_basis, 'tax_calculation': chuan_hoa_du_lieu(tax_details), 'insurance_basis': inputs.insurance_basis,
+                   'luong_gio_tang_ca':str(ot_rate),'can_cu_luong_gio_tang_ca':inputs.can_cu_luong_gio_tang_ca,
+                   'luong_dong_bao_hiem': str(inputs.luong_dong_bao_hiem), 'ty_le_bao_hiem': inputs.ty_le_bao_hiem,
+                   'can_cu_thue': inputs.can_cu_thue, 'tax_calculation': chuan_hoa_du_lieu(tax_details), 'can_cu_bao_hiem': inputs.can_cu_bao_hiem,
                    'hourly_rate': str(hourly), 'attendance_pay_exact': str(luong_theo_cong), 'net_exact': str(net),
                    'adjustments': [{'id': dong.pk, 'name': dong.name, 'kind': dong.kind,
                                     'amount': str(dong.amount), 'basis': dong.basis} for dong in adjustments]})
@@ -254,18 +254,18 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
         ],
         'overtime': [{khoa: dong[khoa] for khoa in ['id','date','start','end','hours','multiplier']} for dong in overtime],
         'overtime_policy': 'automatic-checkout-1700-v1',
-        'overtime_hourly_rate': inputs.overtime_hourly_rate,
-        'overtime_basis':inputs.overtime_basis,
+        'luong_gio_tang_ca': inputs.luong_gio_tang_ca,
+        'can_cu_luong_gio_tang_ca':inputs.can_cu_luong_gio_tang_ca,
         'bonuses': [{'id': dong['id'], 'amount': dong['amount']} for dong in sorted(bonuses, key=lambda dong: (isinstance(dong['id'], str), dong['id']))],
         'adjustments': [{khoa:dong[khoa] for khoa in ['id','kind','amount']} for dong in adjustment_rows],
-        'insurance_base': inputs.insurance_base,
-        'insurance_rates': {khoa: Decimal(str(ty_le)) for khoa, ty_le in inputs.insurance_rates.items()},
+        'luong_dong_bao_hiem': inputs.luong_dong_bao_hiem,
+        'ty_le_bao_hiem': {khoa: Decimal(str(ty_le)) for khoa, ty_le in inputs.ty_le_bao_hiem.items()},
         'tax': tax_details['tax'],
     }
-    if inputs.tax_method != 'legacy':
+    if inputs.doi_tuong_tinh_thue != 'legacy':
         du_lieu['tax_calculation'] = tax_details
-        du_lieu['tax_inputs'] = {'method': inputs.tax_method, 'dependents': inputs.tax_dependents,
-            'personal_deduction': inputs.claim_personal_deduction, 'exempt_ot': inputs.tax_exempt_overtime}
+        du_lieu['tax_inputs'] = {'method': inputs.doi_tuong_tinh_thue, 'dependents': inputs.so_nguoi_phu_thuoc,
+            'personal_deduction': inputs.giam_tru_ban_than, 'exempt_ot': inputs.tien_tang_ca_mien_thue}
         du_lieu['adjustments'] = adjustment_rows
     if employee.thiet_lap_luong is not None:
         du_lieu['employee_settings'] = employee.thiet_lap_luong
@@ -275,8 +275,8 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
 def doi_chieu_chi_tiet_cu(breakdown):
     """Đối chiếu các thành phần đã lưu cho phiếu cũ chưa có source_data."""
     return {
-        'insurance_base': Decimal(str(breakdown['insurance_base'])),
-        'insurance_rates': {khoa: Decimal(str(value)) for khoa, value in breakdown['insurance_rates'].items()},
+        'luong_dong_bao_hiem': Decimal(str(breakdown['luong_dong_bao_hiem'])),
+        'ty_le_bao_hiem': {khoa: Decimal(str(value)) for khoa, value in breakdown['ty_le_bao_hiem'].items()},
         'insurance': {khoa: Decimal(str(value)) for khoa, value in breakdown['insurance'].items()},
         'hourly_rate': Decimal(str(breakdown['hourly_rate'])),
         'ot': sorted((phan_tu['date'], Decimal(phan_tu['hours']), Decimal(phan_tu['multiplier']), Decimal(phan_tu['amount']))

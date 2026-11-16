@@ -38,11 +38,11 @@ def tinh_thue_luy_tien(income):
 
 
 def tinh_thue_tncn(inputs, attendance, wage, overtime_pay, bonus, insurance, adjustments, overtime):
-    if inputs.tax_method == 'legacy':
-        return {'policy': 'legacy', 'tax': inputs.tax_amount}
-    if inputs.tax_method != 'resident_2026':
+    if inputs.doi_tuong_tinh_thue == 'legacy':
+        return {'policy': 'legacy', 'tax': inputs.tien_thue}
+    if inputs.doi_tuong_tinh_thue != 'resident_2026':
         raise ValidationError('Chưa hỗ trợ tự tính cho chế độ thuế này. Cần đối soát riêng, không mặc định thuế bằng 0.')
-    if not inputs.verified or not inputs.tax_basis.strip():
+    if not inputs.da_kiem_tra or not inputs.can_cu_thue.strip():
         raise ValidationError('HR cần xác nhận đủ hồ sơ và căn cứ tính thuế trước khi tính lương.')
     if attendance.nam != 2026 or attendance.thang < 7:
         raise ValidationError('Chế độ tự tính hiện hỗ trợ 07–12/2026. Kỳ khác cần cấu hình chính sách phù hợp.')
@@ -54,22 +54,22 @@ def tinh_thue_tncn(inputs, attendance, wage, overtime_pay, bonus, insurance, adj
     for dong in allowances:
         if dong.tax_category != 'taxable' and not dong.basis.strip():
             raise ValidationError('Khoản không chịu thuế cần căn cứ hợp lệ: ' + dong.name)
-    if inputs.tax_exempt_overtime is None:
+    if inputs.tien_tang_ca_mien_thue is None:
         if any(phan_tu.get('warnings') for phan_tu in overtime):
             raise ValidationError('OT có cảnh báo hạn mức; HR cần đối soát và nhập số tiền OT đủ điều kiện miễn thuế.')
         exempt_ot = overtime_pay
     else:
-        exempt_ot = inputs.tax_exempt_overtime
+        exempt_ot = inputs.tien_tang_ca_mien_thue
         if exempt_ot > overtime_pay:
             raise ValidationError('Tiền OT miễn thuế không được vượt tiền OT thực tế.')
     taxable_gross = max(ZERO, wage + bonus + allowance + overtime_pay - exempt_ot - meal_exempt - other_exempt)
-    personal = PERSONAL if inputs.claim_personal_deduction else ZERO
-    dependent = DEPENDENT * inputs.tax_dependents
+    personal = PERSONAL if inputs.giam_tru_ban_than else ZERO
+    dependent = DEPENDENT * inputs.so_nguoi_phu_thuoc
     taxable = max(ZERO, taxable_gross - insurance - personal - dependent)
     tax, brackets = tinh_thue_luy_tien(taxable)
     return {'policy': POLICY, 'tax': tax, 'taxable_income': taxable, 'taxable_gross': taxable_gross,
             'gross': wage + bonus + allowance + overtime_pay, 'insurance_deduction': insurance,
-            'personal_deduction': personal, 'dependent_count': inputs.tax_dependents,
+            'personal_deduction': personal, 'dependent_count': inputs.so_nguoi_phu_thuoc,
             'dependent_deduction': dependent, 'meal_cash': meals, 'meal_exempt': meal_exempt,
             'other_exempt_allowances': other_exempt, 'overtime_exempt': exempt_ot, 'brackets': brackets}
 
@@ -91,7 +91,7 @@ def loi_nguon_thue(record):
         adjustments=cac_khoan_phu_cap_khau_tru(nhan_vien,attendance)
         bonuses = cac_khoan_thuong_tinh_luong(record.nhan_vien_id, attendance.nam, attendance.thang)
         overtime = tong_hop_tang_ca_tinh_luong(record.nhan_vien, attendance.nam, attendance.thang)
-        insurance = sum((inputs.insurance_base * Decimal(str(ty_le)) for ty_le in inputs.insurance_rates.values()), ZERO)
+        insurance = sum((inputs.luong_dong_bao_hiem * Decimal(str(ty_le)) for ty_le in inputs.ty_le_bao_hiem.values()), ZERO)
         exact_wage = Decimal(record.chi_tiet['attendance_pay_exact'])
         exact_ot = sum((Decimal(phan_tu['amount']) for phan_tu in record.chi_tiet.get('ot', [])), ZERO)
         chi_tiet = tinh_thue_tncn(inputs, attendance, exact_wage, exact_ot,

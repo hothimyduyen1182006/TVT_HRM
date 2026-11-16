@@ -131,15 +131,15 @@ class CanCuLuong(SimpleNamespace):
     """Căn cứ trong bộ nhớ, không phải model hay bảng dữ liệu theo kỳ."""
 
     def full_clean(self):
-        if not self.verified or not self.tax_basis or not self.insurance_basis:
+        if not self.da_kiem_tra or not self.can_cu_thue or not self.can_cu_bao_hiem:
             raise ValidationError('Thiếu thiết lập bảo hiểm/thuế đã được NHAN_SU xác nhận.')
-        if self.insurance_base is None or not self.insurance_base.is_finite() or self.insurance_base < 0:
+        if self.luong_dong_bao_hiem is None or not self.luong_dong_bao_hiem.is_finite() or self.luong_dong_bao_hiem < 0:
             raise ValidationError('Lương đóng bảo hiểm phải là số không âm.')
-        if not isinstance(self.insurance_rates, dict):
+        if not isinstance(self.ty_le_bao_hiem, dict):
             raise ValidationError('Tỷ lệ bảo hiểm phải là danh sách theo mã bảo hiểm.')
         tong_gia_tri = Decimal(0)
         try:
-            for ten, ty_le in self.insurance_rates.items():
+            for ten, ty_le in self.ty_le_bao_hiem.items():
                 gia_tri = Decimal(str(ty_le))
                 if not ten or not gia_tri.is_finite() or not 0 <= gia_tri <= 1:
                     raise ValueError
@@ -148,33 +148,33 @@ class CanCuLuong(SimpleNamespace):
             raise ValidationError('Tỷ lệ bảo hiểm phải từ 0 đến 1.')
         if tong_gia_tri > 1:
             raise ValidationError('Tổng tỷ lệ bảo hiểm không được vượt 100%.')
-        if self.overtime_hourly_rate is not None and (
-                not self.overtime_hourly_rate.is_finite() or self.overtime_hourly_rate <= 0
-                or not self.overtime_basis.strip()):
+        if self.luong_gio_tang_ca is not None and (
+                not self.luong_gio_tang_ca.is_finite() or self.luong_gio_tang_ca <= 0
+                or not self.can_cu_luong_gio_tang_ca.strip()):
             raise ValidationError('Lương giờ OT phải lớn hơn 0 và có căn cứ áp dụng.')
-        if self.tax_exempt_overtime is not None and (
-                not self.tax_exempt_overtime.is_finite() or self.tax_exempt_overtime < 0):
+        if self.tien_tang_ca_mien_thue is not None and (
+                not self.tien_tang_ca_mien_thue.is_finite() or self.tien_tang_ca_mien_thue < 0):
             raise ValidationError('Tiền OT miễn thuế phải là số không âm.')
 
 
 def can_cu_luong_nhan_vien(employee, period):
     """Chỉ đọc thiết lập chung của nhân viên hoặc snapshot khi đối chiếu phiếu cũ."""
     settings = employee.thiet_lap_luong
-    if not settings or not settings.get('verified'):
+    if not settings or not settings.get('da_kiem_tra'):
         raise ValidationError(f'{employee}: cần thiết lập và xác nhận tính lương trong Quản lý nhân viên.')
-    defaults = dict(insurance_base=0, insurance_rates={}, insurance_basis='',
-                    tax_method='resident_2026', tax_basis='', tax_amount=0,
-                    claim_personal_deduction=True, overtime_hourly_rate=None,
-                    overtime_basis='', verified=False, tax_exempt_overtime=None)
+    defaults = dict(luong_dong_bao_hiem=0, ty_le_bao_hiem={}, can_cu_bao_hiem='',
+                    doi_tuong_tinh_thue='resident_2026', can_cu_thue='', tien_thue=0,
+                    giam_tru_ban_than=True, luong_gio_tang_ca=None,
+                    can_cu_luong_gio_tang_ca='', da_kiem_tra=False, tien_tang_ca_mien_thue=None)
     gia_tri = CanCuLuong(**{khoa: settings.get(khoa, default) for khoa, default in defaults.items()})
     try:
-        for khoa in ['insurance_base', 'overtime_hourly_rate', 'tax_exempt_overtime', 'tax_amount']:
+        for khoa in ['luong_dong_bao_hiem', 'luong_gio_tang_ca', 'tien_tang_ca_mien_thue', 'tien_thue']:
             raw = getattr(gia_tri, khoa)
             if raw is not None:
                 setattr(gia_tri, khoa, Decimal(str(raw)))
     except (InvalidOperation, ValueError, TypeError):
         raise ValidationError('Thiết lập tiền bảo hiểm, thuế hoặc OT không hợp lệ.')
-    gia_tri.tax_dependents = getattr(employee, '_snapshot_tax_dependents', settings.get('tax_dependents', 0))
+    gia_tri.so_nguoi_phu_thuoc = getattr(employee, '_so_nguoi_phu_thuoc_da_luu', settings.get('so_nguoi_phu_thuoc', 0))
     gia_tri.shared_settings = settings
     gia_tri.full_clean()
     return gia_tri
@@ -191,7 +191,7 @@ def cac_khoan_phu_cap_khau_tru(employee, period):
                   and dong.name not in ['Phụ cấp ăn trưa', 'Ăn trưa']]
     settings = employee.thiet_lap_luong or {}
     return historical+[SimpleNamespace(pk=f'employee-{employee.pk}-lunch',name='Phụ cấp ăn trưa',kind='allowance',
-        amount=Decimal(str(settings.get('lunch_allowance',450000))),tax_category='meal_cash',
+        amount=Decimal(str(settings.get('phu_cap_an_trua',450000))),tax_category='meal_cash',
         basis='Phụ cấp ăn trưa dùng chung đã được xác nhận trong quản lý nhân viên')]
 
 
@@ -215,17 +215,17 @@ def nhan_vien_theo_phieu_luong(record):
         chi_tiet = record.chi_tiet
         tax = chi_tiet.get('source_data', {}).get('tax_inputs', {})
         employee.thiet_lap_luong = {
-            'insurance_base': chi_tiet.get('insurance_base', '0'),
-            'insurance_rates': chi_tiet.get('insurance_rates', {}),
-            'insurance_basis': chi_tiet.get('insurance_basis', ''),
-            'tax_method': tax.get('method', 'legacy'), 'tax_amount': str(record.thue_tncn),
-            'tax_basis': chi_tiet.get('tax_basis', ''),
-            'claim_personal_deduction': tax.get('personal_deduction', True),
-            'tax_exempt_overtime': tax.get('exempt_ot'),
-            'overtime_hourly_rate': chi_tiet.get('overtime_hourly_rate'),
-            'overtime_basis': chi_tiet.get('overtime_basis', ''), 'verified': True,
+            'luong_dong_bao_hiem': chi_tiet.get('luong_dong_bao_hiem', '0'),
+            'ty_le_bao_hiem': chi_tiet.get('ty_le_bao_hiem', {}),
+            'can_cu_bao_hiem': chi_tiet.get('can_cu_bao_hiem', ''),
+            'doi_tuong_tinh_thue': tax.get('method', 'legacy'), 'tien_thue': str(record.thue_tncn),
+            'can_cu_thue': chi_tiet.get('can_cu_thue', ''),
+            'giam_tru_ban_than': tax.get('personal_deduction', True),
+            'tien_tang_ca_mien_thue': tax.get('exempt_ot'),
+            'luong_gio_tang_ca': chi_tiet.get('luong_gio_tang_ca'),
+            'can_cu_luong_gio_tang_ca': chi_tiet.get('can_cu_luong_gio_tang_ca', ''), 'da_kiem_tra': True,
         }
-        employee._snapshot_tax_dependents = tax.get('dependents', 0)
+        employee._so_nguoi_phu_thuoc_da_luu = tax.get('dependents', 0)
     employee._snapshot_adjustments = cac_khoan_da_luu(record)
     return employee
 
@@ -237,15 +237,11 @@ def luu_thiet_lap_luong(actor, employee, settings):
     from django.utils import timezone
     employee=NhanVien.objects.select_for_update().get(pk=employee.pk)
     from nhan_vien.forms import BieuMauThietLapLuong
-    # Dữ liệu lưu dùng khóa nội bộ tiếng Anh; form nhận tên trường tiếng Việt.
-    payload = {
-        f'salary-{ten_truong}': settings[khoa]
-        for ten_truong, khoa in BieuMauThietLapLuong.KHOA_CAU_HINH.items()
-        if khoa in settings
-    }
+    # Form và JSON cùng tên tiếng Việt, chỉ thêm prefix khi kiểm tra lại dữ liệu.
+    payload = {f'salary-{ten_truong}': gia_tri for ten_truong, gia_tri in settings.items()}
     for ten_truong, ma_bao_hiem in BieuMauThietLapLuong.KHOA_TY_LE.items():
         payload[f'salary-{ten_truong}'] = Decimal(str(
-            settings.get('insurance_rates', {}).get(ma_bao_hiem, 0))) * 100
+            settings.get('ty_le_bao_hiem', {}).get(ma_bao_hiem, 0))) * 100
     bieu_mau=BieuMauThietLapLuong(employee,data=payload)
     if not bieu_mau.is_valid():
         raise ValidationError(bieu_mau.errors.as_text())

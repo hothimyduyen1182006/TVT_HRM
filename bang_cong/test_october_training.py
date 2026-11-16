@@ -47,7 +47,7 @@ class OctoberTrainingTests(TestCase):
         self.assertEqual(LeaveDay.objects.count(),3)
         self.assertEqual(set(Bonus.objects.values_list('status',flat=True)),{'draft','pending','approved','rejected'})
         self.assertEqual(PayrollInput.objects.count(),8)
-        self.assertEqual(PayrollInput.objects.filter(verified=False).get().employee.ma_ho_so,'NV08')
+        self.assertEqual(PayrollInput.objects.filter(da_kiem_tra=False).get().employee.ma_ho_so,'NV08')
         self.assertEqual(PayrollAdjustment.objects.filter(name='Phụ cấp ăn trưa',amount=450000,approved=True).count(),8)
         self.assertEqual(set(ChotBangCong.objects.values_list('nhan_vien__ma_ho_so',flat=True)),{'NV02','NV03','NV06'})
         self.assertEqual(KyCong.objects.get().trang_thai,'pending')
@@ -151,7 +151,7 @@ class OctoberTrainingTests(TestCase):
         record.trang_thai='present';record.gio_ra=time(17)
         luu_cham_cong(hr,record,'Đối chiếu và bổ sung giờ ra')
         inputs=PayrollInput.objects.get(employee=people['NV08'])
-        inputs.verified=True
+        inputs.da_kiem_tra=True
         save_input(hr,inputs)
         for code in ['NV01','NV04','NV05','NV07','NV08']:
             duyet_cong_nhan_vien(hr,people[code],attendance.pk)

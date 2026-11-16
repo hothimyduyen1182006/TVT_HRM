@@ -35,8 +35,8 @@ class BonusWorkflowTests(TestCase):
             user = get_user_model().objects.create_user(f'employee{i}')
             cls.people.append(NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'NV{i}', ho_va_ten=f'Nhân viên {i}',
                 phong_ban=phong, ngay_vao_lam=date(2020,1,1), luong_co_ban=10000000,
-                thiet_lap_luong={'verified':True, 'insurance_base':'0', 'insurance_rates':{},
-                    'insurance_basis':'Căn cứ kiểm thử', 'tax_method':'resident_2026', 'tax_basis':'Căn cứ kiểm thử'}))
+                thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{},
+                    'can_cu_bao_hiem':'Căn cứ kiểm thử', 'doi_tuong_tinh_thue':'resident_2026', 'can_cu_thue':'Căn cứ kiểm thử'}))
         cls.period = thang_lich(2026,10)
         for lich in lich_thang(2026,10,cls.period).values():
             if lich.loai_ngay == 'work':

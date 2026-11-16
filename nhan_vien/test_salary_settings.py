@@ -43,10 +43,10 @@ class SalarySettingsSaveTests(TestCase):
         luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
         saved = self.employee.thiet_lap_luong.copy()
-        self.assertEqual(saved['insurance_base'], '10000000')
-        self.assertEqual(saved['insurance_rates'], {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'})
-        self.assertEqual(saved['insurance_number'], '4826001234')
-        self.assertTrue(saved['verified'])
+        self.assertEqual(saved['luong_dong_bao_hiem'], '10000000')
+        self.assertEqual(saved['ty_le_bao_hiem'], {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'})
+        self.assertEqual(saved['ma_so_bhxh'], '4826001234')
+        self.assertTrue(saved['da_kiem_tra'])
         luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.thiet_lap_luong, saved)
@@ -56,7 +56,7 @@ class SalarySettingsSaveTests(TestCase):
         luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
         saved = self.employee.thiet_lap_luong.copy()
-        settings['insurance_rates']['BHXH'] = '2'
+        settings['ty_le_bao_hiem']['BHXH'] = '2'
         with self.assertRaises(ValidationError):
             luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
@@ -77,4 +77,4 @@ class SalarySettingsSaveTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.ho_va_ten, 'Tên đã cập nhật')
-        self.assertEqual(self.employee.thiet_lap_luong['insurance_base'], '10000000')
+        self.assertEqual(self.employee.thiet_lap_luong['luong_dong_bao_hiem'], '10000000')

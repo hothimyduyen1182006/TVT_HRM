@@ -23,9 +23,9 @@ class PayrollSubmissionTests(TestCase):
         for employee in self.employees:
             employee.base_salary = Decimal('8000000')
             employee.payroll_settings = {
-                'verified': True, 'insurance_base': '8000000', 'insurance_rates': {'BHXH': '0.08'},
-                'insurance_basis': 'Confirmed insurance', 'tax_method': 'legacy',
-                'tax_amount': '0', 'tax_basis': 'Confirmed tax', 'lunch_allowance': '450000',
+                'da_kiem_tra': True, 'luong_dong_bao_hiem': '8000000', 'ty_le_bao_hiem': {'BHXH': '0.08'},
+                'can_cu_bao_hiem': 'Confirmed insurance', 'doi_tuong_tinh_thue': 'legacy',
+                'tien_thue': '0', 'can_cu_thue': 'Confirmed tax', 'phu_cap_an_trua': '450000',
             }
             employee.save()
             ChamCong.objects.bulk_create([ChamCong(

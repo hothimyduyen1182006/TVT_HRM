@@ -26,7 +26,7 @@ def phieu_luong_du_cong_duyet(queryset):
 def du_lieu_hien_thi_luong(record):
     chi_tiet = record.chi_tiet
     bao_hiem = []
-    cac_ty_le = chi_tiet.get('insurance_rates', {})
+    cac_ty_le = chi_tiet.get('ty_le_bao_hiem', {})
     for ten, so_tien in chi_tiet.get('insurance', {}).items():
         ty_le = cac_ty_le.get(ten)
         bao_hiem.append({'name': ten, 'amount': Decimal(str(so_tien)),
