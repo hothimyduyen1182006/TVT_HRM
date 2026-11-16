@@ -2,6 +2,15 @@ from django.db import migrations, models
 from django.db.models import Sum
 
 
+def ensure_overtime_column(apps, schema_editor):
+    summary = apps.get_model('attendance', 'TongHopCong')
+    field = summary._meta.get_field('tong_gio_tang_ca')
+    with schema_editor.connection.cursor() as cursor:
+        columns = schema_editor.connection.introspection.get_table_description(cursor, summary._meta.db_table)
+    if field.column not in {column.name for column in columns}:
+        schema_editor.add_field(summary, field)
+
+
 def backfill_monthly_overtime(apps, schema_editor):
     TongHopCong = apps.get_model('attendance', 'TongHopCong')
     ChamCong = apps.get_model('attendance', 'ChamCong')
@@ -36,5 +45,6 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
+        migrations.RunPython(ensure_overtime_column, migrations.RunPython.noop),
         migrations.RunPython(backfill_monthly_overtime, migrations.RunPython.noop),
     ]
