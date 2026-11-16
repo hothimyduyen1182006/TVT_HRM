@@ -46,7 +46,7 @@ class VietnameseNamesMigrationTests(TransactionTestCase):
             permission_id, content_type_id = permission.pk, permission.content_type_id
 
             call_command('migrate', verbosity=0, interactive=False)
-            from .models import ChamCong, KyCong, NhatKyCong
+            from ..models import ChamCong, KyCong, NhatKyCong
             from django.contrib.auth.models import Group, Permission, User
             current = ChamCong.objects.get(pk=record.pk)
             self.assertEqual((current.nhan_vien_id, current.ngay, current.gio_vao, current.gio_ra),

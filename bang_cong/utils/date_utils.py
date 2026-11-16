@@ -1,8 +1,12 @@
-"""Runtime view of a calendar month; this module defines no Django model or table."""
+"""Tiện ích kỳ tháng dùng chung cho bảng công và bảng lương."""
+import calendar
 from datetime import date, time
+from decimal import Decimal
 
 
 class ThangLich:
+    """Runtime representation of a calendar month; creates no database table."""
+
     def __init__(self, nam, thang):
         self.nam = int(nam)
         self.thang = int(thang)
@@ -10,17 +14,19 @@ class ThangLich:
 
     @property
     def trang_thai(self):
-        from bang_cong.models import ChotBangCong
         from nhan_vien.models import NhanVien
-        employees = NhanVien.objects.filter(dang_hoat_dong=True, ngay_vao_lam__year__lte=self.nam)
-        expected = set(employees.filter(ngay_vao_lam__lte=self.last_day).values_list('pk', flat=True))
-        approved = set(self.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True))
-        return 'approved' if expected and expected.issubset(approved) else 'pending'
+
+        can_duyet = set(NhanVien.objects.filter(
+            dang_hoat_dong=True,
+            ngay_vao_lam__lte=self.last_day,
+        ).values_list('pk', flat=True))
+        da_duyet = set(
+            self.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True)
+        )
+        return 'approved' if can_duyet and can_duyet.issubset(da_duyet) else 'pending'
 
     @property
     def last_day(self):
-        import calendar
-        from datetime import date
         return date(self.nam, self.thang, calendar.monthrange(self.nam, self.thang)[1])
 
     @property
@@ -30,12 +36,18 @@ class ThangLich:
     @property
     def employee_approvals(self):
         from bang_cong.models import ChotBangCong
-        return ChotBangCong.objects.filter(tong_hop__nam=self.nam, tong_hop__thang=self.thang)
+        return ChotBangCong.objects.filter(
+            tong_hop__nam=self.nam,
+            tong_hop__thang=self.thang,
+        )
 
     @property
     def records(self):
         from bang_luong.models import Luong
-        return Luong.objects.filter(tong_hop__nam=self.nam, tong_hop__thang=self.thang)
+        return Luong.objects.filter(
+            tong_hop__nam=self.nam,
+            tong_hop__thang=self.thang,
+        )
 
     @property
     def status(self):
@@ -75,11 +87,11 @@ class ThangLich:
 
     @property
     def gio_chuan(self):
-        from decimal import Decimal
         return Decimal(8)
 
     def __str__(self):
         return f'{self.thang:02}/{self.nam}'
+
 
 def thang_lich(nam, thang):
     return ThangLich(nam, thang)
@@ -92,7 +104,11 @@ def thang_tu_ma(ma):
 
 def cac_thang_trong_nam(nam):
     from bang_cong.models import TongHopCong
-    months = set(TongHopCong.objects.filter(nam=nam).values_list('thang', flat=True))
-    months.add(date.today().month if date.today().year == int(nam) else 1)
-    for month in sorted(months):
-        yield ThangLich(nam, month)
+
+    thang_da_co = set(
+        TongHopCong.objects.filter(nam=nam).values_list('thang', flat=True)
+    )
+    hom_nay = date.today()
+    thang_da_co.add(hom_nay.month if hom_nay.year == int(nam) else 1)
+    for thang in sorted(thang_da_co):
+        yield ThangLich(nam, thang)
