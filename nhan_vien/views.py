@@ -198,7 +198,7 @@ def sua_nhan_vien(request, ma_nhan_vien):
                 'tong_hop__nam', 'tong_hop__thang',
             ).distinct()
             for year, month in months:
-                error = cap_nhat_luong_nhan_vien(request.user, employee.pk, year, month)
+                error = cap_nhat_luong_nhan_vien(request.user, nhan_vien.pk, year, month)
                 if error:
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')
