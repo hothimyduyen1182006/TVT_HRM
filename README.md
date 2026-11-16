@@ -38,7 +38,7 @@ Máy khác cần sao lưu database và chạy `python manage.py migrate` sau khi
 ## Tên model và trường Bảng công
 
 App `bang_cong` dùng các model `ChamCong`, `TongHopCong`,
-`ChotBangCong`, `NhatKyCong`, `LichSuDieuChinhCong` và `LichSuTangCa`.
+`ChotBangCong` và `LichSuTangCa`.
 Ví dụ: `month/year` → `thang/nam`, `check_in/check_out` → `gio_vao/gio_ra`,
 `employee` → `nhan_vien`, `paid_units` → `tong_cong`, `status` → `trang_thai`.
 Các model ngoài Bảng công giữ tên trường hiện tại; các tham chiếu tới Bảng công đã cập nhật.
@@ -65,7 +65,6 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 - `ChamCong` → bảng `Cham_cong`: giờ vào/ra, công ngày và kết quả OT; công thức vẫn nằm trong services.
 - `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
 - `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
-- `LichSuDieuChinhCong` → `Lich_su_dieu_chinh_cong`: một dòng cho mỗi trường thay đổi, liên kết nhật ký JSON gốc.
 - Tháng công và lương được suy ra từ ngày/tháng/năm trên dữ liệu tổng hợp công; không có model kỳ tháng riêng. Lịch làm việc được tính từ quy tắc lịch trong service. Không thêm quy trình phản hồi hoặc duyệt OT.
 - Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
 - Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
@@ -74,7 +73,7 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 
 - Áp dụng tất cả phòng ban. Ngày làm việc: OT = max(0, check-out − max(17:00, check-in)), khi có bản ghi Có mặt hợp lệ và lịch ngày.
 - Ngày nghỉ/lễ: tính giờ làm thực tế trừ nghỉ trưa; không sinh công thường. Hệ số ban ngày: 1,5 ngày thường; 2 nghỉ tuần; 3 lễ.
-- Cùng một hàm `automatic_overtime()` phục vụ Bảng công, lịch sử chỉnh sửa và nguồn lương. Giờ OT được suy ra từ giờ vào/ra, giữ 4 chữ số thập phân; cột `so_gio_tang_ca` lưu kết quả trong lần cập nhật công, không tạo thêm công thức OT.
+- Cùng một hàm `automatic_overtime()` phục vụ Bảng công và nguồn lương. Giờ OT được suy ra từ giờ vào/ra, giữ 4 chữ số thập phân; cột `so_gio_tang_ca` lưu kết quả trong lần cập nhật công, không tạo thêm công thức OT.
 - Không còn gửi yêu cầu, duyệt/từ chối hoặc quyền OT theo phòng. URL cũ trả 404. `LichSuTangCa` và cờ phòng cũ giữ trong schema để bảo toàn lịch sử, không tham gia tính; admin lịch sử chỉ đọc.
 - Lương OT = lương giờ căn cứ HR xác nhận × giờ OT tự động × hệ số. Không tự dùng thưởng/tiền ăn làm căn cứ. Tính lại thay snapshot chờ duyệt; không cộng vào tiền OT đã lưu trước đó.
 - Phiếu đã chi trả giữ nguyên snapshot. Phiếu cũ chưa chi trả có nguồn OT cũ cần mở lại theo quyền và tính lại trước khi duyệt/chi trả/xuất.
@@ -116,13 +115,10 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 - Chọn Xem chi tiết để mở /bang_cong/nhan-vien/<id>/ với chỉ số tháng và bảng từng ngày.
   Có lọc khoảng ngày, tình trạng, đi trễ/nghỉ phép/nghỉ không phép và phân trang.
 - Nhân viên thông thường vào /bang_cong/ sẽ thấy giao diện công cá nhân.
-- Lịch sử tại /bang_cong/nhan-vien/<id>/lich-su/ hiển thị từng trường trước/sau, người sửa,
-  lý do; lọc theo thời gian điều chỉnh, trường và người. Chỉ hiển thị lần sửa thực sự;
-  không đưa tạo mới, lưu không đổi, duyệt hoặc tính lại tự động vào lịch sử điều chỉnh.
-- Nhân sự/Giám đốc xuất công và lịch sử theo bộ lọc bằng CSV UTF-8 mở được bằng Excel,
+- Nhân sự/Giám đốc xuất công theo bộ lọc bằng CSV UTF-8 mở được bằng Excel,
   không phải file .xlsx. Nhân viên và Trưởng phòng không có quyền xuất.
 - Trạng thái duyệt lưu riêng theo nhân viên/tháng; Nhân sự/Giám đốc nhấn Duyệt bảng công
-  cạnh Lịch sử điều chỉnh công trên trang chi tiết. Kỳ công hoàn tất khi đủ nhân viên đã duyệt.
+  trên trang chi tiết. Kỳ công hoàn tất khi đủ nhân viên đã duyệt.
   Cần kiểm tra cho biết có bản ghi thiếu dữ liệu,
   không phải trạng thái phê duyệt mới. Ngày trống không tự trở thành nghỉ không phép.
 - Bố cục dùng xanh đậm/vàng theo mẫu. Công chuẩn và giờ làm lấy từ dữ liệu thực tế trong ca;

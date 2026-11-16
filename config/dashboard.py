@@ -7,7 +7,7 @@ from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
 from bang_cong.thang_lich import thang_lich
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 
 
 class DashboardFilter(forms.Form):
@@ -27,7 +27,11 @@ def dashboard_context(user, form):
     employees = nhan_vien_duoc_hien_thi(user).filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
     period = thang_lich(day.year, day.month)
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
-    leaves = set(LeaveDay.objects.filter(employee__in=employees, date=day, approved=True).values_list('employee_id', flat=True))
+    leaves = set(NgayNghi.objects.filter(
+        don_nghi_phep__nhan_vien__in=employees,
+        don_nghi_phep__trang_thai='da_duyet',
+        ngay=day,
+    ).values_list('don_nghi_phep__nhan_vien_id', flat=True))
     counts = {'ontime': 0, 'late': 0, 'unchecked': 0}
     rows = []
     for employee in employees.select_related('phong_ban', 'chuc_vu').order_by('ma_ho_so'):

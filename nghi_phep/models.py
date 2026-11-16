@@ -1,167 +1,191 @@
+﻿
 from datetime import date, timedelta
-from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
 
-FULL_DAY_UNITS = Decimal('1.0000')
-ANNUAL_LEAVE_DAYS = 12
+SO_NGAY_PHEP_NAM = 12
 
 
-def annual_leave_days_used(employee, year, exclude_request_id=None):
-    year_start = date(year, 1, 1)
-    year_end = date(year, 12, 31)
-    requests = LeaveRequest.objects.filter(
-        employee=employee,
-        leave_type='annual',
-        Trang_thai__in=('pending', 'approved'),
-        Ngay_bat_dau__lte=year_end,
-        Ngay_ket_thuc__gte=year_start,
+def tinh_ngay_phep_da_dung(nhan_vien, nam, bo_qua_ma_don=None):
+    dau_nam = date(nam, 1, 1)
+    cuoi_nam = date(nam, 12, 31)
+
+    cac_don = DonNghiPhep.objects.filter(
+        nhan_vien=nhan_vien,
+        loai_nghi='phep_nam',
+        trang_thai__in=['cho_duyet', 'da_duyet'],
+        ngay_bat_dau__lte=cuoi_nam,
+        ngay_ket_thuc__gte=dau_nam,
     )
-    if exclude_request_id is not None:
-        requests = requests.exclude(pk=exclude_request_id)
+    if bo_qua_ma_don is not None:
+        cac_don = cac_don.exclude(pk=bo_qua_ma_don)
 
-    used_dates = set()
-    for request in requests.only('Ngay_bat_dau', 'Ngay_ket_thuc'):
-        start = max(request.Ngay_bat_dau, year_start)
-        end = min(request.Ngay_ket_thuc, year_end)
-        for day_offset in range((end - start).days + 1):
-            used_dates.add(start + timedelta(days=day_offset))
-    return len(used_dates)
+    cac_ngay_da_dung = set()
 
+    for don in cac_don.only('ngay_bat_dau', 'ngay_ket_thuc'):
+        ngay_dau = max(don.ngay_bat_dau, dau_nam)
+        ngay_cuoi = min(don.ngay_ket_thuc, cuoi_nam)
 
-class LeaveDay(models.Model):
-    """Ngày nghỉ đã duyệt, được bảng công và bảng lương dùng để tính công."""
-    employee = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
-    date = models.DateField('Ngày nghỉ')
-    units = models.DecimalField(
-        'Số công nghỉ',
-        max_digits=5,
-        decimal_places=4,
-    )
-    paid = models.BooleanField('Hưởng lương', default=False)
-    reason = models.CharField('Lý do', max_length=255)
-    approved = models.BooleanField('Đã duyệt', default=False)
+        for so_ngay_lech in range((ngay_cuoi - ngay_dau).days + 1):
+            cac_ngay_da_dung.add(ngay_dau + timedelta(days=so_ngay_lech))
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=['employee', 'date'],
-                name='unique_employee_leave_day',
-            ),
-            models.CheckConstraint(check=models.Q(units=FULL_DAY_UNITS), name='leave_day_full_day_only'),
-        ]
-
-    def clean(self):
-        if self.units != FULL_DAY_UNITS:
-            raise ValidationError({'units': 'Mỗi ngày nghỉ phải tương đương 1 công.'})
-
-        if self.approved and self.employee_id:
-            # Import cục bộ để tránh phụ thuộc vòng với app bảng công.
-            from bang_cong.models import ChotBangCong
-            employee_is_approved = ChotBangCong.objects.filter(
-                tong_hop__nam=self.date.year,
-                tong_hop__thang=self.date.month,
-                tong_hop__nhan_vien_id=self.employee_id,
-            ).exists()
-            if employee_is_approved:
-                raise ValidationError('Bảng công đã duyệt, không được sửa nghỉ phép của kỳ này.')
+    return len(cac_ngay_da_dung)
 
 
-class LeaveRequest(models.Model):
-    LEAVE_TYPES = [
-        ('annual', 'Nghỉ phép năm'),
-        ('sick', 'Nghỉ ốm'),
-        ('personal', 'Việc riêng'),
-        ('unpaid', 'Nghỉ không lương'),
-    ]
-    STATUS_CHOICES = [
-        ('pending', 'Đang chờ'),
-        ('approved', 'Đã duyệt'),
-        ('rejected', 'Từ chối'),
+class DonNghiPhep(models.Model):
+    LOAI_NGHI = [
+        ('phep_nam', 'Nghỉ theo quỹ phép'),
+        ('luong_dac_biet', 'Nghỉ hưởng lương đặc biệt'),
+        ('khong_luong', 'Nghỉ không lương'),
     ]
 
-    # Tên field và tên cột được giữ đồng nhất với cấu trúc database tiếng Việt.
-    Ma_don = models.BigAutoField(primary_key=True)
-    # employee vẫn là tên quan hệ trong Python; Ma_nguoi_dung là tên cột khóa ngoại.
-    employee = models.ForeignKey(
+    CAC_TRANG_THAI = [
+        ('cho_duyet', 'Đang chờ'),
+        ('da_duyet', 'Đã duyệt'),
+        ('tu_choi', 'Từ chối'),
+        ('da_huy', 'Đã hủy'),
+    ]
+
+    ma_don = models.BigAutoField(primary_key=True)
+
+    nhan_vien = models.ForeignKey(
         'employees.NhanVien',
         on_delete=models.PROTECT,
-        related_name='leave_requests',
+        related_name='don_nghi_phep',
         db_column='Ma_nguoi_dung',
     )
-    Ngay_bat_dau = models.DateField('Từ ngày')
-    Ngay_ket_thuc = models.DateField('Đến ngày')
-    leave_type = models.CharField(
+
+    ngay_bat_dau = models.DateField('Từ ngày')
+    ngay_ket_thuc = models.DateField('Đến ngày')
+
+    loai_nghi = models.CharField(
         'Loại nghỉ',
         max_length=20,
-        choices=LEAVE_TYPES,
-        default='annual',
+        choices=LOAI_NGHI,
+        default='phep_nam',
     )
-    paid = models.BooleanField('Nghỉ hưởng lương', default=False)
-    Ly_do = models.CharField('Lý do', max_length=255)
-    Tep_dinh_kem = models.FileField(
+
+    ly_do = models.CharField('Lý do', max_length=255)
+
+    tep_dinh_kem = models.FileField(
         'Ảnh minh chứng',
         upload_to='leave_evidence/%Y/%m/',
         blank=True,
         null=True,
     )
-    Trang_thai = models.CharField(
+
+    trang_thai = models.CharField(
         'Trạng thái',
         max_length=12,
-        choices=STATUS_CHOICES,
-        default='pending',
+        choices=CAC_TRANG_THAI,
+        default='cho_duyet',
     )
-    review_note = models.TextField('Lý do từ chối', blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    reviewed_by = models.ForeignKey(
+
+    ghi_chu_duyet = models.TextField(
+        'Lý do từ chối',
+        blank=True,
+    )
+
+    ngay_tao = models.DateTimeField(auto_now_add=True)
+
+    nguoi_duyet = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
         on_delete=models.PROTECT,
-        related_name='reviewed_leave_requests',
+        related_name='don_nghi_phep_da_duyet',
     )
-    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    ngay_duyet = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['-ngay_tao']
 
     @property
-    def days_count(self):
-        return (self.Ngay_ket_thuc - self.Ngay_bat_dau).days + 1
+    def so_ngay_nghi(self):
+        return (self.ngay_ket_thuc - self.ngay_bat_dau).days + 1
+
+    @property
+    def huong_luong(self):
+        return self.loai_nghi in ('phep_nam', 'luong_dac_biet')
 
     def clean(self):
-        if (
-            self.Ngay_bat_dau
-            and self.Ngay_ket_thuc
-            and self.Ngay_ket_thuc < self.Ngay_bat_dau
-        ):
-            raise ValidationError('Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.')
+        loi = {}
+        if self.ngay_bat_dau and self.ngay_ket_thuc:
+            if self.ngay_ket_thuc < self.ngay_bat_dau:
+                raise ValidationError({
+                    'ngay_ket_thuc': 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.'
+                })
 
-        if (
-            self.employee_id
-            and self.Ngay_bat_dau
-            and self.Ngay_bat_dau < self.employee.ngay_vao_lam
-        ):
-            raise ValidationError('Ngày nghỉ không được trước ngày vào làm.')
+            if self.nhan_vien_id and self.trang_thai in ('cho_duyet', 'da_duyet'):
+                don_trung = DonNghiPhep.objects.filter(
+                    nhan_vien_id=self.nhan_vien_id,
+                    trang_thai__in=('cho_duyet', 'da_duyet'),
+                    ngay_bat_dau__lte=self.ngay_ket_thuc,
+                    ngay_ket_thuc__gte=self.ngay_bat_dau,
+                ).exclude(pk=self.pk)
+                if don_trung.exists():
+                    loi['ngay_bat_dau'] = 'Khoảng thời gian nghỉ bị trùng với một đơn khác.'
 
-        if (
-            self.employee_id
-            and self.leave_type == 'annual'
-            and self.Ngay_bat_dau
-            and self.Ngay_ket_thuc
-        ):
-            for year in range(self.Ngay_bat_dau.year, self.Ngay_ket_thuc.year + 1):
-                year_start = date(year, 1, 1)
-                year_end = date(year, 12, 31)
-                start = max(self.Ngay_bat_dau, year_start)
-                end = min(self.Ngay_ket_thuc, year_end)
-                requested_days = (end - start).days + 1
-                used_days = annual_leave_days_used(self.employee, year, self.pk)
-                if used_days + requested_days > ANNUAL_LEAVE_DAYS:
-                    remaining = max(0, ANNUAL_LEAVE_DAYS - used_days)
-                    raise ValidationError(
-                        f'Năm {year} chỉ còn {remaining} ngày phép năm; hạn mức là {ANNUAL_LEAVE_DAYS} ngày.'
-                    )
+            if self.nhan_vien_id and self.ngay_bat_dau < self.nhan_vien.ngay_vao_lam:
+                loi['ngay_bat_dau'] = 'Ngày nghỉ không được trước ngày vào làm.'
+
+            if self.nhan_vien_id and self.loai_nghi == 'phep_nam':
+                for nam in range(self.ngay_bat_dau.year, self.ngay_ket_thuc.year + 1):
+                    dau_nam = max(self.ngay_bat_dau, date(nam, 1, 1))
+                    cuoi_nam = min(self.ngay_ket_thuc, date(nam, 12, 31))
+                    so_ngay_yeu_cau = (cuoi_nam - dau_nam).days + 1
+                    da_dung = tinh_ngay_phep_da_dung(self.nhan_vien, nam, self.pk)
+                    if da_dung + so_ngay_yeu_cau > SO_NGAY_PHEP_NAM:
+                        con_lai = max(0, SO_NGAY_PHEP_NAM - da_dung)
+                        loi['loai_nghi'] = f'Năm {nam} chỉ còn {con_lai} ngày phép năm.'
+                        break
+
+        if loi:
+            raise ValidationError(loi)
+
+    def huy(self):
+        if self.trang_thai != 'cho_duyet':
+            raise ValidationError('Chỉ được hủy đơn đang chờ duyệt.')
+
+        self.trang_thai = 'da_huy'
+        self.save(update_fields=['trang_thai'])
+
+    def __str__(self):
+        return f'Đơn nghỉ phép #{self.ma_don} - {self.nhan_vien}'
+
+
+class NgayNghi(models.Model):
+    don_nghi_phep = models.ForeignKey(
+        DonNghiPhep,
+        on_delete=models.PROTECT,
+        related_name='cac_ngay_nghi',
+    )
+
+    ngay = models.DateField('Ngày nghỉ')
+
+    class Meta:
+        ordering = ['-ngay']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['don_nghi_phep', 'ngay'],
+                name='unique_leave_request_day',
+            ),
+        ]
+
+    @property
+    def nhan_vien(self):
+        return self.don_nghi_phep.nhan_vien
+
+    @property
+    def huong_luong(self):
+        return self.don_nghi_phep.huong_luong
+
+    def __str__(self):
+        return f'{self.nhan_vien} - {self.ngay}'

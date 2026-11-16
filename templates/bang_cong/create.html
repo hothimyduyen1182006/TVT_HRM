@@ -1,0 +1,5 @@
+﻿{% extends 'bang_cong/base.html' %}
+{% block attendance_content %}
+<div class="at-breadcrumb"><a href="{% url 'bang_cong:danh-sach' %}">Bảng công tổng hợp</a> / Ghi nhận chấm công</div>
+<div class="at-edit"><h1>Ghi nhận chấm công</h1><p class="at-muted">Bản công đã ghi nhận không thể chỉnh sửa.</p><form method="post">{% csrf_token %}{{ form.as_p }}<div class="d-flex gap-2"><button class="at-button">Ghi nhận</button><a class="at-button secondary" href="{% url 'bang_cong:danh-sach' %}">Hủy</a></div></form></div>
+{% endblock %}

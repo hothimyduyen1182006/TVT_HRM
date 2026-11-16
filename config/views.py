@@ -9,7 +9,7 @@ from django.views.decorators.http import require_safe
 from nhan_vien.access import co_vai_tro, yeu_cau_vai_tro, NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import NhanVien, HocVan, HopDongLaoDong
-from nghi_phep.models import LeaveRequest
+from nghi_phep.models import DonNghiPhep
 from django.core.paginator import Paginator
 from .dashboard import DashboardFilter, dashboard_context
 from django.urls import reverse
@@ -82,12 +82,14 @@ def protected_media(request, path):
     employees = nhan_vien_duoc_hien_thi(request.user)
     for model, field_name in [
         (NhanVien, 'hinh_anh'), (HocVan, 'tep_bang_cap'),
-        (HopDongLaoDong, 'tep_hop_dong'), (LeaveRequest, 'Tep_dinh_kem'),
+        (HopDongLaoDong, 'tep_hop_dong'), (DonNghiPhep, 'tep_dinh_kem'),
     ]:
         if model is NhanVien:
             scope = {'pk__in': employees.values('pk')}
         elif model in (HocVan, HopDongLaoDong):
             scope = {'ho_so_ca_nhan__in': employees}
+        elif model is DonNghiPhep:
+            scope = {'nhan_vien__in': employees}
         else:
             scope = {'employee__in': employees}
         record = model.objects.filter(**scope, **{field_name: path}).first()

@@ -5,9 +5,8 @@
 | ERD | Model | Quy tắc |
 |---|---|---|
 | Cham_cong | ChamCong | Một nhân viên/ngày; khóa chính số nguyên `Ma_cham_cong`. |
-| Tong_hop_cong | TongHopCong | Một nhân viên/kỳ và một nhân viên/tháng/năm; khóa chính `Ma_tong_hop`. |
+| Tong_hop_cong | TongHopCong | Một nhân viên/kỳ; khóa chính `Ma_tong_hop`, gồm tổng giờ tăng ca `Tong_gio_tang_ca`. |
 | Chot_bang_cong | ChotBangCong | Một bản tổng hợp gắn tối đa một bản chốt; `Ma_nguoi_chot`, `Ngay_chot`; bản chốt mới tự gắn đúng tổng hợp. |
-| Lich_su_dieu_chinh_cong | LichSuDieuChinhCong | Lưu bản chấm công, người sửa, trường sửa, trước/sau, lý do và thời gian. |
 | Luong | Luong | Liên kết duy nhất `Ma_tong_hop`, `Ma_thuong`; kiểm tra nhân viên và kỳ công/thưởng trước khi lưu. |
 | Thuong theo nhân viên/kỳ | TongThuong | Một bản tổng thưởng dùng cho lương. Bonus là từng khoản thưởng/đề xuất, không phải bản tổng thứ hai. |
 
@@ -52,19 +51,16 @@ Kiểm tra quyền được giữ ở backend. Các thao tác duyệt/chi trả 
 
 Theo yêu cầu, không chạy bộ kiểm thử chức năng. Đã kiểm tra migration trên bản sao, đối chiếu toàn bộ hàng lương trước/sau, kiểm tra liên kết và khóa ngoại trước khi áp dụng database thật.
 
-## Lịch sử sửa công và khóa sau duyệt
+## Sửa công và khóa sau duyệt
 
-- Bỏ model NhatKyCong. Bảng nhật ký cũ chỉ giữ dữ liệu lưu trữ, không còn ghi mới hay xuất hiện trong Admin.
-- LichSuDieuChinhCong độc lập, lưu bản chấm công, nhân viên/ngày công, người sửa, thời gian, trường, giá trị cũ/mới và lý do. Thông tin nhân viên/ngày vẫn giữ khi bản ghi chấm công cũ không còn.
-- Chỉ sửa một bản chấm công đã tồn tại và có thay đổi mới ghi lịch sử; tạo mới, tính lại khi duyệt và duyệt công không ghi vào bảng này.
-- Công có bản chốt là khóa vĩnh viễn, không dựa vào thời điểm cập nhật. Backend không hỗ trợ mở lại công; việc mở lại lương không mở lại công.
-- Migration attendance.0014_independent_adjustment_history chuyển lịch sử sửa từ nhật ký cũ và bỏ quan hệ nhat_ky. Không xóa dữ liệu nhật ký gốc.
-- Đã kiểm tra trên database sao chép: bảo toàn dữ liệu cũ, sửa có lịch sử, lưu không đổi không tạo lịch sử, duyệt không tạo lịch sử, chặn sửa sau duyệt và chặn mở lại. Không chạy toàn bộ test suite.
+- Bản chấm công đã ghi nhận không thể chỉnh sửa qua ứng dụng.
+- Công có bản chốt là khóa vĩnh viễn; backend không hỗ trợ mở lại công.
+- Migration `attendance.0023_remove_attendance_adjustment_history` bỏ model lịch sử sửa khỏi trạng thái Django, giữ nguyên bảng lịch sử cũ trong cơ sở dữ liệu.
+- Migration `attendance.0024_summary_total_overtime` đồng bộ cột `Tong_gio_tang_ca` theo ERD và nạp lại tổng OT từ chấm công ngày.
 
 ## Loại bỏ dữ liệu lặp (migration 0015)
 
 - ChotBangCong chỉ lưu mã chốt, bản tổng hợp, người duyệt và ngày duyệt. Nhân viên/tháng lấy qua bản tổng hợp. OneToOne tới tổng hợp kết hợp tính duy nhất nhân viên/tháng thay cho ràng buộc lặp.
-- LichSuDieuChinhCong bỏ nhan_vien/ngay_cong lưu riêng; lấy qua bản chấm công. Khóa ngoại chuyển sang PROTECT, bắt buộc tồn tại, để không mất đối tượng của lịch sử.
 - TongHopCong bỏ so_gio_lam và ngay_cap_nhat không phục vụ giao diện; tổng giờ làm vẫn được tính từ ChamCong trên các trang hiện tại.
 - Giữ các trường công ngày, ghi chú và căn cứ công vì đang phục vụ chức năng hiện có. Đây là các phần mở rộng ERD, không phải dữ liệu lặp có thể xóa trực tiếp.
 - Migration kiểm tra mọi bản chốt và lịch sử khớp dữ liệu gốc trước khi bỏ cột; dừng nếu có liên kết thiếu hoặc không khớp. Bản sao lưu trước migration giữ dữ liệu gốc.
@@ -79,7 +75,7 @@ Theo yêu cầu, không chạy bộ kiểm thử chức năng. Đã kiểm tra m
 
 - ChamCong chỉ còn 9 trường lưu database: mã chấm công, nhân viên, ngày, giờ vào, giờ ra, số giờ làm, trạng thái, số giờ tăng ca và số phút trễ. Quan hệ nhân viên vẫn qua Employee như phương án đã thống nhất; không đổi sang auth.User trong lần này.
 - Công thực tế, công nghỉ hưởng lương và tổng công ngày là giá trị tính trong service, không còn cột công ngày. Nguồn phép và lịch được nạp theo tháng để dùng lại khi tổng hợp/hiển thị.
-- Bỏ cột Ghi chú và thông tin cập nhật khỏi form, bảng ngày, trang chi tiết và CSV chấm công. Lý do chỉnh sửa và người sửa vẫn nằm trong LichSuDieuChinhCong.
+- Bỏ cột Ghi chú và thông tin cập nhật khỏi form, bảng ngày, trang chi tiết và CSV chấm công.
 - Toàn bộ bản chấm công cũ (gồm ghi chú và thông tin cập nhật) được sao nguyên sang bảng lưu trữ attendance_chamcong_archive_0017 trước khi bỏ cột, không tạo model hoạt động cho bảng lưu trữ.
 - Các công đã chốt giữ actual/leave trong căn cứ tháng cong_ngay_da_chot. Điều này bảo toàn các kỳ lịch sử có nguồn nghỉ phép không còn, thay vì âm thầm tính lại thành 0.
 - Đối chiếu trên bản sao: 416 kết quả công ngày khớp dữ liệu cũ, bảng lương không đổi, trang công/lương/lịch sử và sửa công hoạt động. Không chạy toàn bộ bộ kiểm thử.

@@ -33,7 +33,6 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 - Ràng buộc database duy nhất (employee, date); kiểm tra checkout > checkin khi có cả hai.
 - LichSuTangCa: employee, ngày, giờ được duyệt, loại ngày, hệ số, thông tin duyệt.
 - ChotBangCong: bản tổng hợp công và người duyệt theo nhân viên/tháng.
-- LichSuDieuChinhCong: người sửa, thời gian, lý do, trước/sau; người thường không sửa/xóa.
 
 Chưa tự áp dụng lịch 08:00–17:00, nghỉ trưa hay hệ số OT cho đến khi nhóm chốt.
 Không tự gán nghỉ không phép cho ngày thiếu chấm công. Kỳ đã duyệt phải mở lại có lý do.

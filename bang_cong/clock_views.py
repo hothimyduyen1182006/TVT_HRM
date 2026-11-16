@@ -1,7 +1,4 @@
-"""Nhận thao tác chấm công và chuẩn bị dữ liệu hiển thị trong ngày."""
-
-from datetime import datetime, time
-from decimal import Decimal
+"""Hiển thị trang chấm công và xử lý thao tác vào ca, kết thúc ca."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -17,86 +14,68 @@ from .services.cham_cong import ghi_nhan_cham_cong, xem_lich_cham_cong
 from .services.quy_trinh import ky_cong_da_khoa
 
 
-def _calculate_work_hours(record, now, period):
-    """Tính giờ làm đã ghi nhận và giờ làm tạm tính trong ngày."""
-    hours = record.so_gio_lam if record else Decimal(0)
-    elapsed_hours = Decimal(0)
-
-    if not record or not record.gio_vao:
-        return hours, elapsed_hours
-
-    check_in = datetime.combine(record.ngay, record.gio_vao)
-
-    # Đã check-out: hiển thị tổng thời gian thực tế giữa hai lần chấm công.
-    if record.gio_ra:
-        check_out = datetime.combine(record.ngay, record.gio_ra)
-        elapsed_seconds = (check_out - check_in).total_seconds()
-        elapsed_hours = Decimal(str(elapsed_seconds)) / Decimal(3600)
-        return hours, elapsed_hours
-
-    # Chưa check-out: tạm tính đến hiện tại, giới hạn trong ca và trước 17 giờ.
-    if period:
-        day = now.date()
-        shift_start = datetime.combine(day, period.gio_bat_dau)
-        shift_end = datetime.combine(day, period.gio_ket_thuc)
-        start = max(check_in, shift_start)
-        end = min(now.replace(tzinfo=None), shift_end, datetime.combine(day, time(17)))
-
-        lunch_start = datetime.combine(day, period.bat_dau_nghi_trua)
-        lunch_end = datetime.combine(day, period.ket_thuc_nghi_trua)
-        lunch_seconds = max(
-            0,
-            (min(end, lunch_end) - max(start, lunch_start)).total_seconds(),
-        )
-        worked_seconds = max(0, (end - start).total_seconds() - lunch_seconds)
-        hours = Decimal(str(worked_seconds)) / Decimal(3600)
-
-    return hours, elapsed_hours
-
-
 @login_required
 @require_http_methods(['GET', 'POST'])
 def cham_cong_hom_nay(request):
-    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    nhan_vien = NhanVien.objects.filter(
+        nguoi_dung=request.user,
+        dang_hoat_dong=True,
+    ).first()
     if not nhan_vien:
-        raise PermissionDenied('Tài khoản chưa liên kết nhân viên đang làm việc.')
+        raise PermissionDenied('Tài khoản chưa liên kết với nhân viên đang làm việc.')
+
     hien_tai = timezone.localtime().replace(microsecond=0)
     hom_nay = hien_tai.date()
 
     if request.method == 'POST':
         thao_tac = request.POST.get('action')
         try:
-            ban_ghi = ghi_nhan_cham_cong(request.user, thao_tac, request.POST.get('note', ''))
-            request.session['clock_success'] = {'record': ban_ghi.pk, 'action': thao_tac}
+            ban_ghi = ghi_nhan_cham_cong(
+                request.user,
+                thao_tac,
+            )
+            # Lưu để GET sau redirect có thể hiện thao tác vừa thành công.
+            request.session['clock_success'] = {
+                'record': ban_ghi.pk,
+                'action': thao_tac,
+            }
         except ValidationError as loi:
             messages.error(request, ' '.join(loi.messages))
         return redirect('bang_cong:cham-cong')
 
     ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay=hom_nay).first()
     ke_hoach = xem_lich_cham_cong(hom_nay)
-    ky_cong, lich_ngay = ke_hoach['period'], ke_hoach['day']
-    da_khoa = ky_cong_da_khoa(ky_cong, nhan_vien.pk, hom_nay) if ky_cong and ky_cong.pk else False
+    ky_cong = ke_hoach['ky_cong']
+    lich_ngay = ke_hoach['lich_ngay']
+
+    da_khoa = ky_cong_da_khoa(ky_cong, nhan_vien.pk, hom_nay) if ky_cong else False
     duoc_cham_cong = bool(
-        not ke_hoach['error'] and ky_cong and not da_khoa
-        and lich_ngay and lich_ngay.loai_ngay == 'work' and nhan_vien.ngay_vao_lam <= hom_nay
+        not ke_hoach['loi']
+        and not da_khoa
+        and lich_ngay
+        and lich_ngay.loai_ngay == 'work'
+        and nhan_vien.ngay_vao_lam <= hom_nay
     )
     dang_trong_ca = bool(ban_ghi and ban_ghi.gio_vao and not ban_ghi.gio_ra)
-    trang_thai_trang = 'done' if ban_ghi and ban_ghi.gio_ra else (
-        'checkout' if ban_ghi and ban_ghi.gio_vao else 'checkin')
-    thanh_cong = request.session.pop('clock_success', {})
-    if not ban_ghi or thanh_cong.get('record') != ban_ghi.pk:
-        thanh_cong = {}
+    trang_thai_trang = (
+        'da_hoan_tat' if ban_ghi and ban_ghi.gio_ra
+        else 'dang_trong_ca' if dang_trong_ca
+        else 'chua_vao_ca'
+    )
 
-    so_gio, tong_gio_vao_ra = _calculate_work_hours(ban_ghi, hien_tai, ky_cong)
-    so_phut = int(so_gio * 60)
+    thao_tac_vua_xong = request.session.pop('clock_success', {})
+    if not ban_ghi or thao_tac_vua_xong.get('record') != ban_ghi.pk:
+        thao_tac_vua_xong = {}
 
     return render(request, 'bang_cong/checkin.html', {
-        'employee': nhan_vien, 'record': ban_ghi, 'today_record': ban_ghi,
-        'period': ky_cong, 'now': hien_tai, 'today': hom_nay,
-        'success': thanh_cong.get('action'), 'page_state': trang_thai_trang,
-        'can_check_in': duoc_cham_cong and ban_ghi is None,
-        'can_check_out': duoc_cham_cong and dang_trong_ca,
-        'locked': da_khoa, 'is_late': bool(ban_ghi and ban_ghi.so_phut_tre),
-        'schedule_error': ke_hoach['error'], 'elapsed_hours': tong_gio_vao_ra,
-        'duration': f'{so_phut // 60:02}:{so_phut % 60:02}',
+        'nhan_vien': nhan_vien,
+        'ban_ghi_hom_nay': ban_ghi,
+        'ky_cong': ky_cong,
+        'hom_nay': hom_nay,
+        'thao_tac_thanh_cong': thao_tac_vua_xong.get('action'),
+        'trang_thai_trang': trang_thai_trang,
+        'co_the_vao_ca': duoc_cham_cong and ban_ghi is None,
+        'co_the_ket_thuc_ca': duoc_cham_cong and dang_trong_ca,
+        'da_khoa': da_khoa,
+        'loi_lich': ke_hoach['loi'],
     })

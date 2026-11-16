@@ -10,11 +10,9 @@ from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 
 from .models import (
-    LichSuDieuChinhCong, NhatKyCong, ChamCong,
-    ChotBangCong, TongHopCong, LichLamViec,
+    NhatKyCong, ChamCong, ChotBangCong, TongHopCong, LichLamViec,
 )
-from .services.hien_thi import lay_nhat_ky_cong, danh_sach_dieu_chinh
-from .services.quy_trinh import tong_hop_dung_tinh_luong, ghi_lich_su_dieu_chinh
+from .services.quy_trinh import tong_hop_dung_tinh_luong
 from .services.quy_trinh import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong, luu_cham_cong
 from . import tests as attendance_tests
 
@@ -43,26 +41,6 @@ class MonthlySummaryTests(TestCase):
         self.assertEqual(TongHopCong.objects.count(), 1)
         self.assertEqual(NhatKyCong.objects.count(), audit_count)
 
-    def test_adjustments_keep_original_json_and_history_output(self):
-        row = luu_cham_cong(self.hr, self.record(), 'Create')
-        row.gio_ra = time(19)
-        luu_cham_cong(self.hr, row, 'Correct checkout')
-        audit = NhatKyCong.objects.get(hanh_dong='edit_record')
-        original = (audit.du_lieu_cu.copy(), audit.du_lieu_moi.copy())
-        details = {item.truong_dieu_chinh: item for item in audit.adjustments.all()}
-        self.assertEqual(details['check_out'].gia_tri_cu, '17:00:00')
-        self.assertEqual(details['check_out'].gia_tri_moi, '19:00:00')
-        self.assertEqual(details['overtime_hours'].gia_tri_moi, '2.0000')
-        self.assertEqual(details['check_out'].cham_cong_id, row.pk)
-        count = LichSuDieuChinhCong.objects.count()
-        ghi_lich_su_dieu_chinh(audit)
-        self.assertEqual(LichSuDieuChinhCong.objects.count(), count)
-        output = danh_sach_dieu_chinh(lay_nhat_ky_cong(self.emp, 2026, 1))
-        audit.adjustments.all().delete()
-        self.assertEqual(output, danh_sach_dieu_chinh(lay_nhat_ky_cong(self.emp, 2026, 1)))
-        audit.refresh_from_db()
-        self.assertEqual(original, (audit.du_lieu_cu, audit.du_lieu_moi))
-
     def test_views_and_payroll_comparison_do_not_create_summaries(self):
         self.record(nguoi_cap_nhat=self.hr).save()
         self.client.force_login(self.hr)
@@ -72,7 +50,6 @@ class MonthlySummaryTests(TestCase):
         summary = tong_hop_dung_tinh_luong(self.emp, self.period)
         self.assertIsNone(summary.pk)
         self.assertFalse(TongHopCong.objects.exists())
-        self.assertFalse(LichSuDieuChinhCong.objects.exists())
 
     def test_approval_links_summary_and_keeps_record_lock(self):
         self.fill_month(self.emp)

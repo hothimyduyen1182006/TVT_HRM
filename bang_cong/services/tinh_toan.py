@@ -1,4 +1,4 @@
-"""Tính công ngày và tăng ca; không tự lưu hoặc phê duyệt dữ liệu."""
+﻿"""Tính công ngày và tăng ca; không tự lưu hoặc phê duyệt dữ liệu."""
 import calendar
 from datetime import date, datetime, time
 from types import SimpleNamespace
@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_DOWN
 
 from django.core.exceptions import ValidationError
 
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from bang_cong.models import ChamCong
 from bang_cong.thang_lich import thang_lich, cac_thang_trong_nam
 
@@ -68,6 +68,17 @@ def tinh_so_gio(ngay, gio_bat_dau, gio_ket_thuc):
     return (Decimal(so_giay) / Decimal(3600)).quantize(
         Decimal('0.0001'), rounding=ROUND_DOWN,
     )
+
+
+def tinh_phut_di_tre(ngay, gio_vao, ky_cong):
+    """Tính số phút đi trễ; có giây lẻ thì làm tròn lên một phút."""
+    if not gio_vao:
+        return 0
+
+    gio_vao = datetime.combine(ngay, gio_vao)
+    gio_bat_dau = datetime.combine(ngay, ky_cong.gio_bat_dau)
+    giay_di_tre = max(0, int((gio_vao - gio_bat_dau).total_seconds()))
+    return (giay_di_tre + 59) // 60
 
 
 def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
@@ -161,14 +172,20 @@ def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
         if lich_ngay.loai_ngay == 'work':
             ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
             ket_qua['actual'] = min(lich_ngay.cong_chuan, ket_qua['hours'] / ky_cong.gio_chuan)
-            # Ghi nhận phút trễ, làm tròn lên khi có giây; tiền phạt tính ở Bảng lương.
-            giay_di_tre = max(0, int((thoi_diem(ban_ghi.gio_vao) - thoi_diem(ky_cong.gio_bat_dau)).total_seconds()))
-            ket_qua['late'] = (giay_di_tre + 59) // 60
+
+    # Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
+    if lich_ngay.loai_ngay == 'work':
+        ket_qua['late'] = tinh_phut_di_tre(ban_ghi.ngay, ban_ghi.gio_vao, ky_cong)
 
     if nghi_phep is None:
-        nghi_phep = LeaveDay.objects.filter(employee_id=ban_ghi.nhan_vien_id, date=ban_ghi.ngay, approved=True).first()
-    ket_qua['leave'] = nghi_phep.units if nghi_phep and nghi_phep.paid else KHONG
-    if nghi_phep and ket_qua['actual'] + nghi_phep.units > lich_ngay.cong_chuan:
+        nghi_phep = NgayNghi.objects.filter(
+            don_nghi_phep__nhan_vien_id=ban_ghi.nhan_vien_id,
+            don_nghi_phep__trang_thai='da_duyet',
+            ngay=ban_ghi.ngay,
+        ).select_related('don_nghi_phep').first()
+    so_cong_nghi = Decimal('1.0000') if nghi_phep else KHONG
+    ket_qua['leave'] = so_cong_nghi if nghi_phep and nghi_phep.huong_luong else KHONG
+    if nghi_phep and ket_qua['actual'] + so_cong_nghi > lich_ngay.cong_chuan:
         raise ValidationError('Công thực tế và nghỉ phép vượt công chuẩn ngày; cần kiểm tra dữ liệu.')
     if ban_ghi.trang_thai == 'leave' and not nghi_phep:
         raise ValidationError('Chưa có nghỉ phép được duyệt cho ngày này.')
@@ -180,9 +197,15 @@ def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
 def nap_cong_ngay(ds_ban_ghi, ky_cong, lich=None):
     """Nạp nguồn nghỉ phép một lần cho cả tháng, dùng lại khi hiển thị/tính lương."""
     lich = lich if lich is not None else lich_thang(ky_cong.nam, ky_cong.thang, ky_cong)
-    ds_phep = {(phep.employee_id, phep.date): phep for phep in LeaveDay.objects.filter(
-        employee_id__in={r.nhan_vien_id for r in ds_ban_ghi},
-        date__year=ky_cong.nam, date__month=ky_cong.thang, approved=True)}
+    ds_phep = {
+        (phep.don_nghi_phep.nhan_vien_id, phep.ngay): phep
+        for phep in NgayNghi.objects.filter(
+            don_nghi_phep__nhan_vien_id__in={r.nhan_vien_id for r in ds_ban_ghi},
+            don_nghi_phep__trang_thai='da_duyet',
+            ngay__year=ky_cong.nam,
+            ngay__month=ky_cong.thang,
+        ).select_related('don_nghi_phep')
+    }
     for r in ds_ban_ghi:
         r._ket_qua_cong = ket_qua_cong_ngay(r, ky_cong, lich.get(r.ngay), ds_phep.get((r.nhan_vien_id, r.ngay), False))
 
@@ -197,3 +220,5 @@ def tinh_cong_ngay(ban_ghi, ky_cong):
     lich_ngay = lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     ban_ghi.so_gio_tang_ca = tinh_tang_ca_tu_dong(ban_ghi, ky_cong, lich_ngay)['hours']
     return ban_ghi
+
+

@@ -1,6 +1,5 @@
 from datetime import timedelta
-from decimal import Decimal
-import mimetypes
+from mimetypes import guess_type
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,267 +13,290 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
-from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, yeu_cau_vai_tro, nhan_vien_duoc_hien_thi
-from nhan_vien.models import PhongBan, NhanVien
+from bang_cong.services.quy_trinh import cap_nhat_tong_hop
+from bang_cong.thang_lich import thang_lich
+from nhan_vien.access import (
+    GIAM_DOC,
+    NHAN_SU,
+    TRUONG_PHONG,
+    co_vai_tro,
+    nhan_vien_duoc_hien_thi,
+    yeu_cau_vai_tro,
+)
+from nhan_vien.models import NhanVien, PhongBan
 
-from .forms import EVIDENCE_CONTENT_TYPES, LeaveEvidenceForm, LeaveFilterForm, LeaveRequestForm
-from .models import ANNUAL_LEAVE_DAYS, LeaveDay, LeaveRequest, annual_leave_days_used
-
-REVIEWER_ROLES = (NHAN_SU, GIAM_DOC, TRUONG_PHONG)
-
-
-def reviewer_scope(user):
-    if co_vai_tro(user, *REVIEWER_ROLES):
-        return nhan_vien_duoc_hien_thi(user)
-    return NhanVien.objects.none()
+from .forms import (
+    CAC_LOAI_TEP_CHO_PHEP,
+    DonNghiPhepForm,
+    LocDonNghiPhepForm,
+    TepMinhChungForm,
+)
+from .models import SO_NGAY_PHEP_NAM, DonNghiPhep, NgayNghi, tinh_ngay_phep_da_dung
 
 
-def request_scope(user, own_employee=None):
-    scope = nhan_vien_duoc_hien_thi(user)
-    if own_employee:
-        scope |= NhanVien.objects.filter(pk=own_employee.pk)
-    return scope
+VAI_TRO_DUOC_DUYET = (NHAN_SU, GIAM_DOC, TRUONG_PHONG)
+
+
+# Trả về danh sách nhân viên người dùng được xem, kèm hồ sơ của chính họ nếu có.
+def pham_vi_co_the_xem(nguoi_dung, nhan_vien=None):
+    pham_vi = nhan_vien_duoc_hien_thi(nguoi_dung)
+    if nhan_vien:
+        pham_vi |= NhanVien.objects.filter(pk=nhan_vien.pk)
+    return pham_vi
 
 
 @login_required
-def leave_list(request):
-    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    scope = reviewer_scope(request.user)
-    is_reviewer = co_vai_tro(request.user, *REVIEWER_ROLES)
-    default_view = 'manage' if is_reviewer else 'mine'
-    requested_view = request.POST.get('view') if request.method == 'POST' else request.GET.get('view')
-    active_view = requested_view or default_view
-    if not is_reviewer or active_view not in {'mine', 'manage'}:
-        active_view = default_view
-    manage_view = is_reviewer and active_view == 'manage'
-    requests = LeaveRequest.objects.select_related(
-        'employee', 'employee__phong_ban', 'reviewed_by'
-    )
-    if manage_view:
-        requests = requests.filter(employee__in=scope)
-    elif own_employee:
-        requests = requests.filter(employee=own_employee)
-    else:
-        requests = requests.none()
+def danh_sach_don_nghi(request):
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    la_nguoi_duyet = co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+    pham_vi = nhan_vien_duoc_hien_thi(request.user) if la_nguoi_duyet else NhanVien.objects.none()
 
-    form = LeaveRequestForm(data=request.POST or None, files=request.FILES or None)
-    if request.method == 'POST':
-        if manage_view:
-            messages.error(request, 'Hãy chuyển sang tab Đơn nghỉ phép của tôi để gửi đơn.')
-        elif not own_employee:
-            messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
-        elif form.is_valid():
-            uploaded_evidence = form.cleaned_data.get('Tep_dinh_kem')
-            item = form.save(commit=False)
-            # Keep the uploaded object attached explicitly before saving the new request.
-            if uploaded_evidence:
-                item.Tep_dinh_kem = uploaded_evidence
-            item.employee = own_employee
-            item.paid = item.leave_type in ('annual', 'sick')
-            try:
-                item.full_clean()
-                item.save()
-            except ValidationError as exc:
-                form.add_error(None, exc)
-            else:
-                if uploaded_evidence and item.Tep_dinh_kem:
-                    messages.success(
-                        request,
-                        f'Đã gửi đơn nghỉ phép kèm minh chứng "{item.Tep_dinh_kem.name.rsplit("/", 1)[-1]}".'
-                    )
-                else:
-                    messages.success(request, 'Đã gửi đơn nghỉ phép. Đơn này chưa có tệp minh chứng.')
-                if is_reviewer:
-                    return redirect(f"{reverse('nghi_phep:list')}?view=mine")
-                return redirect('nghi_phep:list')
-    departments = (
-        PhongBan.objects.filter(pk__in=scope.values('phong_ban_id')).distinct()
-        if is_reviewer
-        else PhongBan.objects.none()
-    )
-    filters = LeaveFilterForm(departments, request.GET)
-    if not filters.is_valid():
-        requests = requests.none()
+    tab_mac_dinh = 'manage' if la_nguoi_duyet else 'mine'
+    tab_yeu_cau = request.POST.get('view') if request.method == 'POST' else request.GET.get('view')
+    tab_hien_tai = tab_yeu_cau if la_nguoi_duyet and tab_yeu_cau in {'mine', 'manage'} else tab_mac_dinh
+    dang_quan_ly = la_nguoi_duyet and tab_hien_tai == 'manage'
+
+    cac_don = DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet')
+    if dang_quan_ly:
+        cac_don = cac_don.filter(nhan_vien__in=pham_vi)
+    elif nhan_vien:
+        cac_don = cac_don.filter(nhan_vien=nhan_vien)
     else:
-        data = filters.cleaned_data
-        if data['q']:
-            requests = requests.filter(
-                Q(employee__ho_va_ten__icontains=data['q'])
-                | Q(employee__ma_ho_so__icontains=data['q'])
-            )
-        if data['department']:
-            requests = requests.filter(employee__phong_ban_id=data['department'])
-        if data['status']:
-            requests = requests.filter(Trang_thai=data['status'])
-        if data['leave_type']:
-            requests = requests.filter(leave_type=data['leave_type'])
-        if data['start_date']:
-            requests = requests.filter(Ngay_ket_thuc__gte=data['start_date'])
-        if data['end_date']:
-            requests = requests.filter(Ngay_bat_dau__lte=data['end_date'])
-    selected_start = filters.cleaned_data.get('start_date') if filters.is_valid() else None
-    annual_leave_year = selected_start.year if selected_start else timezone.localdate().year
-    annual_leave_used = (
-        annual_leave_days_used(own_employee, annual_leave_year)
-        if own_employee else 0
+        cac_don = cac_don.none()
+
+    bieu_mau = DonNghiPhepForm(
+        data=request.POST or None,
+        files=request.FILES or None,
+        nhan_vien=nhan_vien,
     )
+    if request.method == 'POST':
+        if not nhan_vien:
+            messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
+        elif bieu_mau.is_valid():
+            don = bieu_mau.save(commit=False)
+            don.save()
+            messages.success(request, 'Đã gửi đơn nghỉ phép.')
+            if la_nguoi_duyet:
+                return redirect(f"{reverse('nghi_phep:list')}?view=mine")
+            return redirect('nghi_phep:list')
+
+    cac_phong_ban = (
+        PhongBan.objects.filter(pk__in=pham_vi.values('phong_ban_id')).distinct()
+        if la_nguoi_duyet else PhongBan.objects.none()
+    )
+    bo_loc = LocDonNghiPhepForm(cac_phong_ban, request.GET)
+    if not bo_loc.is_valid():
+        cac_don = cac_don.none()
+    else:
+        dieu_kien = bo_loc.cleaned_data
+        if dieu_kien['q']:
+            cac_don = cac_don.filter(
+                Q(nhan_vien__ho_va_ten__icontains=dieu_kien['q'])
+                | Q(nhan_vien__ma_ho_so__icontains=dieu_kien['q'])
+            )
+        cac_truong_loc = {
+            'department': 'nhan_vien__phong_ban_id',
+            'status': 'trang_thai',
+            'leave_type': 'loai_nghi',
+            'start_date': 'ngay_ket_thuc__gte',
+            'end_date': 'ngay_bat_dau__lte',
+        }
+        for ten_truong, truong_model in cac_truong_loc.items():
+            if dieu_kien[ten_truong]:
+                cac_don = cac_don.filter(**{truong_model: dieu_kien[ten_truong]})
+
+    # Đọc ngày bắt đầu hợp lệ ngay cả khi trường khác trong form có lỗi.
+    ngay_chon = None
+    if bieu_mau.is_bound:
+        bieu_mau.is_valid()
+        ngay_chon = bieu_mau.cleaned_data.get('ngay_bat_dau')
+
+    nam_phep = ngay_chon.year if ngay_chon else timezone.localdate().year
+    da_dung = tinh_ngay_phep_da_dung(nhan_vien, nam_phep) if nhan_vien else 0
+
     return render(request, 'nghi_phep/list.html', {
-        'requests': requests,
-        'form': form,
-        'filters': filters,
-        'is_reviewer': is_reviewer,
-        'own_employee': own_employee,
-        'can_review': is_reviewer,
-        'active_view': active_view,
-        'manage_view': manage_view,
-        'annual_leave_year': annual_leave_year,
-        'annual_leave_days': ANNUAL_LEAVE_DAYS,
-        'annual_leave_remaining': max(0, ANNUAL_LEAVE_DAYS - annual_leave_used),
+        'requests': cac_don,
+        'form': bieu_mau,
+        'filters': bo_loc,
+        'is_reviewer': la_nguoi_duyet,
+        'own_employee': nhan_vien,
+        'can_review': la_nguoi_duyet,
+        'active_view': tab_hien_tai,
+        'manage_view': dang_quan_ly,
+        'annual_leave_year': nam_phep,
+        'annual_leave_remaining': max(0, SO_NGAY_PHEP_NAM - da_dung),
     })
 
 
 @login_required
-def leave_detail(request, pk):
-    linked_employee_id = NhanVien.objects.filter(nguoi_dung=request.user).values_list('pk', flat=True).first()
-    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    item = get_object_or_404(
-        LeaveRequest.objects.select_related('employee', 'employee__phong_ban', 'reviewed_by'),
-        pk=pk,
-        employee__in=request_scope(request.user, own_employee),
+def chi_tiet_don_nghi(request, ma_don):
+    ma_nhan_vien_lien_ket = NhanVien.objects.filter(nguoi_dung=request.user).values_list('pk', flat=True).first()
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    don = get_object_or_404(
+        DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet'),
+        pk=ma_don,
+        nhan_vien__in=pham_vi_co_the_xem(request.user, nhan_vien),
     )
-    can_review = co_vai_tro(request.user, *REVIEWER_ROLES)
-    if item.employee_id == linked_employee_id:
-        can_review = False
-    back_view = request.GET.get('view', 'manage' if can_review else 'mine')
-    if back_view not in ('mine', 'manage'):
-        back_view = 'manage' if can_review else 'mine'
-    evidence_available = False
-    if item.Tep_dinh_kem:
-        try:
-            evidence_available = item.Tep_dinh_kem.storage.exists(item.Tep_dinh_kem.name)
-        except (OSError, SuspiciousFileOperation):
-            evidence_available = False
+    duoc_duyet = (
+        co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+        and don.nhan_vien_id != ma_nhan_vien_lien_ket
+    )
+    tab_quay_lai = request.GET.get('view', 'manage' if duoc_duyet else 'mine')
+    if tab_quay_lai not in ('mine', 'manage'):
+        tab_quay_lai = 'manage' if duoc_duyet else 'mine'
+
+    try:
+        co_tep = bool(don.tep_dinh_kem and don.tep_dinh_kem.storage.exists(don.tep_dinh_kem.name))
+    except (OSError, SuspiciousFileOperation):
+        co_tep = False
+
     return render(request, 'nghi_phep/detail.html', {
-        'item': item,
-        'can_review': can_review,
-        'days_count': item.days_count,
-        'back_view': back_view,
-        'evidence_available': evidence_available,
-        'can_attach_evidence': bool(item.Trang_thai == 'pending' and item.employee_id == linked_employee_id
-                                    and not evidence_available),
+        'item': don,
+        'can_review': duoc_duyet,
+        'days_count': don.so_ngay_nghi,
+        'back_view': tab_quay_lai,
+        'evidence_available': co_tep,
+        'can_attach_evidence': bool(
+            don.trang_thai == 'cho_duyet'
+            and don.nhan_vien_id == ma_nhan_vien_lien_ket
+            and not co_tep
+        ),
+        'can_cancel': (
+            don.trang_thai == 'cho_duyet'
+            and don.nhan_vien_id == ma_nhan_vien_lien_ket
+        ),
     })
 
 
 @login_required
 @require_POST
-def attach_leave_evidence(request, pk):
-    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    if not own_employee:
+def huy_don_nghi(request, ma_don):
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    if not nhan_vien:
         raise PermissionDenied
-    item = get_object_or_404(LeaveRequest, pk=pk, employee=own_employee, Trang_thai='pending')
-    if item.Tep_dinh_kem and item.Tep_dinh_kem.storage.exists(item.Tep_dinh_kem.name):
-        messages.error(request, 'Đơn này đã có ảnh minh chứng.')
-        return redirect('nghi_phep:detail', pk=item.pk)
 
-    form = LeaveEvidenceForm(request.POST, request.FILES)
-    if form.is_valid():
-        item.Tep_dinh_kem = form.cleaned_data['evidence']
-        item.save(update_fields=['Tep_dinh_kem'])
-        messages.success(request, f'Đã đính kèm ảnh minh chứng "{item.Tep_dinh_kem.name.rsplit("/", 1)[-1]}".')
+    with transaction.atomic():
+        don = get_object_or_404(
+            DonNghiPhep.objects.select_for_update(),
+            pk=ma_don,
+            nhan_vien=nhan_vien,
+        )
+        try:
+            don.huy()
+        except ValidationError as loi:
+            messages.error(request, '; '.join(loi.messages))
+        else:
+            messages.success(request, 'Đã hủy đơn nghỉ phép.')
+
+    return redirect('nghi_phep:detail', ma_don=don.pk)
+
+
+@login_required
+@require_POST
+def bo_sung_minh_chung(request, ma_don):
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    if not nhan_vien:
+        raise PermissionDenied
+    don = get_object_or_404(
+        DonNghiPhep, pk=ma_don, nhan_vien=nhan_vien, trang_thai='cho_duyet',
+    )
+    if don.tep_dinh_kem and don.tep_dinh_kem.storage.exists(don.tep_dinh_kem.name):
+        messages.error(request, 'Đơn này đã có tệp minh chứng.')
+        return redirect('nghi_phep:detail', ma_don=don.pk)
+
+    bieu_mau = TepMinhChungForm(request.POST, request.FILES)
+    if bieu_mau.is_valid():
+        don.tep_dinh_kem = bieu_mau.cleaned_data['tep_dinh_kem']
+        don.save(update_fields=['tep_dinh_kem'])
+        ten_tep = don.tep_dinh_kem.name.rsplit('/', 1)[-1]
+        messages.success(request, f'Đã đính kèm tệp minh chứng "{ten_tep}".')
     else:
-        messages.error(request, '; '.join(error for errors in form.errors.values() for error in errors))
-    return redirect('nghi_phep:detail', pk=item.pk)
+        messages.error(request, '; '.join(err for loi in bieu_mau.errors.values() for err in loi))
+    return redirect('nghi_phep:detail', ma_don=don.pk)
 
 
 @never_cache
 @login_required
 @require_safe
-def leave_evidence(request, pk):
-    own_employee = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    item = get_object_or_404(
-        LeaveRequest,
-        pk=pk,
-        employee__in=request_scope(request.user, own_employee),
+def tai_minh_chung(request, ma_don):
+    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    don = get_object_or_404(
+        DonNghiPhep,
+        pk=ma_don,
+        nhan_vien__in=pham_vi_co_the_xem(request.user, nhan_vien),
     )
-    if not item.Tep_dinh_kem:
+    if not don.tep_dinh_kem:
         raise Http404
-    content_type = mimetypes.guess_type(item.Tep_dinh_kem.name)[0] or 'application/octet-stream'
-    inline_file = content_type in EVIDENCE_CONTENT_TYPES
+    loai_tep = guess_type(don.tep_dinh_kem.name)[0] or 'application/octet-stream'
     try:
-        opened = item.Tep_dinh_kem.open('rb')
+        tep = don.tep_dinh_kem.open('rb')
     except (OSError, SuspiciousFileOperation):
         raise Http404
-    response = FileResponse(
-        opened,
-        content_type=content_type,
-        as_attachment=not inline_file,
-        filename=item.Tep_dinh_kem.name.rsplit('/', 1)[-1],
+
+    phan_hoi = FileResponse(
+        tep,
+        content_type=loai_tep,
+        as_attachment=loai_tep not in CAC_LOAI_TEP_CHO_PHEP,
+        filename=don.tep_dinh_kem.name.rsplit('/', 1)[-1],
     )
-    response['X-Content-Type-Options'] = 'nosniff'
-    return response
+    phan_hoi['X-Content-Type-Options'] = 'nosniff'
+    return phan_hoi
 
 
 @login_required
 @require_POST
-def review_leave(request, pk, action):
-    yeu_cau_vai_tro(request.user, *REVIEWER_ROLES)
-    item = get_object_or_404(
-        LeaveRequest.objects.select_related('employee'),
-        pk=pk,
-        employee__in=nhan_vien_duoc_hien_thi(request.user),
+def xu_ly_don_nghi(request, ma_don, thao_tac):
+    yeu_cau_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+    don = get_object_or_404(
+        DonNghiPhep.objects.select_related('nhan_vien'),
+        pk=ma_don,
+        nhan_vien__in=nhan_vien_duoc_hien_thi(request.user),
     )
-    own_employee = NhanVien.objects.filter(nguoi_dung=request.user).only('pk').first()
-    if own_employee and item.employee_id == own_employee.pk:
+    nhan_vien_dang_dung = NhanVien.objects.filter(nguoi_dung=request.user).only('pk').first()
+    if nhan_vien_dang_dung and don.nhan_vien_id == nhan_vien_dang_dung.pk:
         raise PermissionDenied
-    if item.Trang_thai != 'pending' or action not in ('approve', 'reject'):
+    if don.trang_thai != 'cho_duyet' or thao_tac not in ('approve', 'reject'):
         messages.error(request, 'Đơn này đã được xử lý hoặc thao tác không hợp lệ.')
-        return redirect('nghi_phep:detail', pk=item.pk)
-    review_note = request.POST.get('review_note', '').strip()
-    if action == 'reject' and not review_note:
-        messages.error(request, 'Vui lòng nhập lý do từ chối để nhân viên biết nội dung xử lý.')
-        return redirect('nghi_phep:detail', pk=item.pk)
+        return redirect('nghi_phep:detail', ma_don=don.pk)
+
+    ghi_chu = request.POST.get('ghi_chu_duyet', '').strip()
+    if thao_tac == 'reject' and not ghi_chu:
+        messages.error(request, 'Vui lòng nhập lý do từ chối.')
+        return redirect('nghi_phep:detail', ma_don=don.pk)
+
     try:
         with transaction.atomic():
-            item = LeaveRequest.objects.select_for_update().get(pk=pk)
-            if item.Trang_thai != 'pending':
+            don = DonNghiPhep.objects.select_for_update().get(pk=ma_don)
+            if don.trang_thai != 'cho_duyet':
                 raise ValidationError('Đơn này đã được xử lý.')
-            if action == 'approve':
-                item.full_clean()
-                for day_offset in range(item.days_count):
-                    leave_date = item.Ngay_bat_dau + timedelta(days=day_offset)
-                    leave = LeaveDay(
-                        employee=item.employee,
-                        date=leave_date,
-                        units=Decimal('1.0000'),
-                        paid=item.paid,
-                        reason=item.Ly_do,
-                        approved=True,
+            if thao_tac == 'approve':
+                don.full_clean()
+                for so_ngay in range(don.so_ngay_nghi):
+                    NgayNghi.objects.create(
+                        don_nghi_phep=don,
+                        ngay=don.ngay_bat_dau + timedelta(days=so_ngay),
                     )
-                    leave.full_clean()
-                    leave.save()
-                item.Trang_thai = 'approved'
-                item.review_note = review_note
+                don.trang_thai = 'da_duyet'
             else:
-                item.Trang_thai = 'rejected'
-                item.review_note = review_note
-            item.reviewed_by = request.user
-            item.reviewed_at = timezone.now()
-            item.save(update_fields=['Trang_thai', 'review_note', 'reviewed_by', 'reviewed_at'])
-            if action == 'approve':
-                from bang_cong.services.quy_trinh import cap_nhat_tong_hop
-                from bang_cong.thang_lich import thang_lich
-                start = (item.Ngay_bat_dau.year, item.Ngay_bat_dau.month)
-                end = (item.Ngay_ket_thuc.year, item.Ngay_ket_thuc.month)
-                year, month = start
-                while (year, month) <= end:
-                    cap_nhat_tong_hop(item.employee, thang_lich(year, month))
-                    month += 1
-                    if month == 13:
-                        year, month = year + 1, 1
-    except ValidationError as exc:
-        messages.error(request, '; '.join(exc.messages))
+                don.trang_thai = 'tu_choi'
+
+            don.ghi_chu_duyet = ghi_chu
+            don.nguoi_duyet = request.user
+            don.ngay_duyet = timezone.now()
+            don.save(update_fields=['trang_thai', 'ghi_chu_duyet', 'nguoi_duyet', 'ngay_duyet'])
+
+            if thao_tac == 'approve':
+                nam, thang = don.ngay_bat_dau.year, don.ngay_bat_dau.month
+                while (nam, thang) <= (don.ngay_ket_thuc.year, don.ngay_ket_thuc.month):
+                    cap_nhat_tong_hop(don.nhan_vien, thang_lich(nam, thang))
+                    if thang == 12:
+                        nam, thang = nam + 1, 1
+                    else:
+                        thang += 1
+    except ValidationError as loi:
+        messages.error(request, '; '.join(loi.messages))
     except IntegrityError:
         messages.error(request, 'Một ngày trong đơn đã có dữ liệu nghỉ phép. Vui lòng kiểm tra bảng công.')
     else:
         messages.success(request, 'Đã cập nhật trạng thái đơn nghỉ phép.')
-    return redirect('nghi_phep:detail', pk=item.pk)
+    return redirect('nghi_phep:detail', ma_don=don.pk)

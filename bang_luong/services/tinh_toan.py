@@ -11,7 +11,7 @@ from bang_cong.models import TongHopCong
 from thuong.models import Thuong
 from thuong.views import cac_khoan_thuong_tinh_luong
 from bang_cong.services.tinh_toan import lich_thang, cong_chuan_thang, nap_cong_ngay
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from bang_luong.models import Luong
 from bang_cong.thang_lich import thang_lich, thang_tu_ma
 from .thue import tinh_thue_tncn
@@ -243,8 +243,15 @@ def du_lieu_nguon(employee, attendance, inputs, records, overtime, bonuses, adju
             'late_minutes': r.so_phut_tre, 'actual_units': r.cong_thuc_te,
             'paid_leave_units': r.cong_nghi_co_luong, 'paid_units': r.tong_cong,
         } for r in ds_ban_ghi],
-        'leave': list(LeaveDay.objects.filter(employee=employee, date__year=attendance.nam,
-            date__month=attendance.thang, approved=True).order_by('date').values('date', 'units', 'paid')),
+        'leave': [
+            {'date': ngay_nghi.ngay, 'units': Decimal('1'), 'paid': ngay_nghi.huong_luong}
+            for ngay_nghi in NgayNghi.objects.filter(
+                don_nghi_phep__nhan_vien=employee,
+                don_nghi_phep__trang_thai='da_duyet',
+                ngay__year=attendance.nam,
+                ngay__month=attendance.thang,
+            ).select_related('don_nghi_phep').order_by('ngay')
+        ],
         'overtime': [{khoa: dong[khoa] for khoa in ['id','date','start','end','hours','multiplier']} for dong in overtime],
         'overtime_policy': 'automatic-checkout-1700-v1',
         'overtime_hourly_rate': inputs.overtime_hourly_rate,

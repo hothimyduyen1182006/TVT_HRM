@@ -21,7 +21,7 @@ from django.views.decorators.http import require_POST
 from bang_cong.models import ChamCong
 from bang_cong.services.tinh_toan import ket_qua_cong_ngay, lich_thang
 from bang_cong.thang_lich import thang_lich
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import NgayNghi
 from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, nhan_vien_duoc_hien_thi
 from nhan_vien.models import NhanVien
 from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
@@ -79,9 +79,11 @@ def tinh_thuong_chuyen_can(nhan_vien, thang, nam):
             nhan_vien=nhan_vien, ngay__range=(ngay_bat_dau, ngay_ket_thuc)
         )
     }
-    ngay_nghi_phep = set(LeaveDay.objects.filter(
-        employee=nhan_vien, date__range=(ngay_bat_dau, ngay_ket_thuc), approved=True
-    ).values_list('date', flat=True))
+    ngay_nghi_phep = set(NgayNghi.objects.filter(
+        don_nghi_phep__nhan_vien=nhan_vien,
+        don_nghi_phep__trang_thai='da_duyet',
+        ngay__range=(ngay_bat_dau, ngay_ket_thuc),
+    ).values_list('ngay', flat=True))
     if any(ngay.ngay not in records and ngay.ngay not in ngay_nghi_phep for ngay in ngay_lam_viec):
         raise ValidationError(f'Thiếu dữ liệu chấm công của {nhan_vien}.')
 
