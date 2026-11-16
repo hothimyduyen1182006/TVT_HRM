@@ -23,10 +23,9 @@ class ClockTests(TestCase):
             with self.assertRaises(ValidationError):
                 ghi_nhan_cham_cong(self.user, 'in')
         with self.at(17):
-            row = ghi_nhan_cham_cong(self.user, 'out', 'Hoàn thành công việc')
+            row = ghi_nhan_cham_cong(self.user, 'out')
             self.assertEqual(row.so_gio_lam, 8)
             self.assertEqual(row.tong_cong, 1)
-            self.assertEqual(row.ghi_chu, 'Hoàn thành công việc')
             with self.assertRaises(ValidationError):
                 ghi_nhan_cham_cong(self.user, 'out')
         self.assertFalse(NhatKyCong.objects.exists())
@@ -64,16 +63,16 @@ class ClockTests(TestCase):
             self.assertEqual(row.gio_vao, time(8, 15))
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.context['success'], 'in')
-            self.assertEqual(response.context['page_state'], 'checkout')
-            self.assertTrue(response.context['can_check_out'])
+            self.assertEqual(response.context['thao_tac_thanh_cong'], 'in')
+            self.assertEqual(response.context['trang_thai_trang'], 'dang_trong_ca')
+            self.assertTrue(response.context['co_the_ket_thuc_ca'])
         with self.at(17):
             self.client.post(url, {'action': 'out'})
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.context['success'], 'out')
-            self.assertEqual(response.context['page_state'], 'done')
-            self.assertFalse(response.context['can_check_out'])
+            self.assertEqual(response.context['thao_tac_thanh_cong'], 'out')
+            self.assertEqual(response.context['trang_thai_trang'], 'da_hoan_tat')
+            self.assertFalse(response.context['co_the_ket_thuc_ca'])
 
     def test_unlinked_user_denied(self):
         self.client.force_login(self.hr)
@@ -126,9 +125,9 @@ class AutomaticMonthClockTests(TestCase):
     def test_get_previews_inherited_shift_without_writing(self):
         with self.at():
             response = self.client.get(reverse('bang_cong:cham-cong'))
-        self.assertTrue(response.context['can_check_in'])
-        self.assertEqual(response.context['period'].gio_bat_dau, time(8))
-        self.assertIsNone(response.context['period'].pk)
+        self.assertTrue(response.context['co_the_vao_ca'])
+        self.assertEqual(response.context['ky_cong'].gio_bat_dau, time(8))
+        self.assertIsNone(response.context['ky_cong'].pk)
         self.assertContains(response, 'value="in"')
         self.assertEqual(KyCong.objects.count(), 1)
         self.assertEqual(LichLamViec.objects.count(), 31)
@@ -173,7 +172,7 @@ class AutomaticMonthClockTests(TestCase):
     def test_weekly_rest_does_not_open_period_or_allow_punch(self):
         with self.at(number=14):
             response = self.client.get(reverse('bang_cong:cham-cong'))
-            self.assertFalse(response.context['can_check_in'])
+            self.assertFalse(response.context['co_the_vao_ca'])
             with self.assertRaises(ValidationError): ghi_nhan_cham_cong(self.user, 'in')
         self.assertEqual(KyCong.objects.count(), 1)
 
@@ -184,14 +183,14 @@ class AutomaticMonthClockTests(TestCase):
         self.assertEqual(before, LichLamViec.objects.values().get(pk=holiday.pk))
         with self.at(number=13):
             response = self.client.get(reverse('bang_cong:cham-cong'))
-            self.assertFalse(response.context['can_check_in'])
+            self.assertFalse(response.context['co_the_vao_ca'])
             with self.assertRaises(ValidationError): ghi_nhan_cham_cong(self.other_user,'in')
 
     def test_valid_source_is_used_without_manual_confirmation(self):
         self.period.save()
         with self.at():
             response = self.client.get(reverse('bang_cong:cham-cong'))
-            self.assertTrue(response.context['can_check_in'])
+            self.assertTrue(response.context['co_the_vao_ca'])
             ghi_nhan_cham_cong(self.user,'in')
         self.assertEqual(KyCong.objects.count(),2)
 

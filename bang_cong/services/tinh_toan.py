@@ -70,6 +70,17 @@ def tinh_so_gio(ngay, gio_bat_dau, gio_ket_thuc):
     )
 
 
+def tinh_phut_di_tre(ngay, gio_vao, ky_cong):
+    """Tính số phút đi trễ; có giây lẻ thì làm tròn lên một phút."""
+    if not gio_vao:
+        return 0
+
+    gio_vao = datetime.combine(ngay, gio_vao)
+    gio_bat_dau = datetime.combine(ngay, ky_cong.gio_bat_dau)
+    giay_di_tre = max(0, int((gio_vao - gio_bat_dau).total_seconds()))
+    return (giay_di_tre + 59) // 60
+
+
 def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
     """Tính OT cho mọi phòng ban, không dùng các yêu cầu duyệt OT cũ."""
     # Giữ khóa kết quả để tương thích template và dữ liệu lương/lịch sử đã lưu.
@@ -161,9 +172,10 @@ def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
         if lich_ngay.loai_ngay == 'work':
             ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
             ket_qua['actual'] = min(lich_ngay.cong_chuan, ket_qua['hours'] / ky_cong.gio_chuan)
-            # Ghi nhận phút trễ, làm tròn lên khi có giây; tiền phạt tính ở Bảng lương.
-            giay_di_tre = max(0, int((thoi_diem(ban_ghi.gio_vao) - thoi_diem(ky_cong.gio_bat_dau)).total_seconds()))
-            ket_qua['late'] = (giay_di_tre + 59) // 60
+
+    # Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
+    if lich_ngay.loai_ngay == 'work':
+        ket_qua['late'] = tinh_phut_di_tre(ban_ghi.ngay, ban_ghi.gio_vao, ky_cong)
 
     if nghi_phep is None:
         nghi_phep = NgayNghi.objects.filter(
