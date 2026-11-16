@@ -86,6 +86,7 @@
 .payroll-module .pr-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 15px; }
 .payroll-module .pr-errors { flex-basis: 100%; color: #b42318; }
 .payroll-module .pr-table-scroll { width: 100%; overflow-x: auto; }
+.payroll-module .pr-submit-payroll { display: flex; justify-content: center; margin: 18px 0 22px; }
 .payroll-module .pr-table { width: 100%; border-collapse: collapse; font-size: 15px; }
 .payroll-module .pr-table th {
     min-width: 90px;
@@ -120,6 +121,7 @@
 .payroll-module .pr-net-cell { color: var(--pr-navy); font-size: 17px; font-weight: 750; }
 .payroll-module .pr-table .pr-status { min-width: 120px; font-weight: 700; }
 .payroll-module .pr-table .pr-status-pending { background: #e2ebf8 !important; color: #245aa1; }
+.payroll-module .pr-table .pr-status-submitted { background: #fff2cc !important; color: #8a5b00; }
 .payroll-module .pr-table .pr-status-approved { background: #dfeaf8 !important; color: #24599a; }
 .payroll-module .pr-table .pr-status-paid { background: #e1f2e5 !important; color: #1b8047; }
 .payroll-module .pr-table .pr-empty-table { padding: 0; background: #e0eafa !important; border: 0; }

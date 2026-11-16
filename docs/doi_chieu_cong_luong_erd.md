@@ -19,8 +19,8 @@ Tên trường Python và ID đang dùng trong URL được giữ nguyên. `db_c
 - Công, tổng hợp và lương liên kết với Employee qua `Ma_nhan_vien`. Employee liên kết một-một với tài khoản Django. Không gán nhầm mã nhân viên thành mã tài khoản `Ma_nguoi_dung` trong sơ đồ.
 - `TongThuong` vẫn dùng bảng `Tong_thuong`; các khoản thưởng chi tiết và quy trình đề xuất/duyệt vẫn giữ nguyên.
 - Chưa tạo `Ma_phan_hoi`: sơ đồ chưa định nghĩa bảng phản hồi và website chưa có quy trình tương ứng. Nhật ký gốc được nối qua `nhat_ky`.
-- Không còn model KyCong hoặc LichLamViec. PayrollPeriod quản lý trực tiếp tháng/năm, trạng thái công và trạng thái lương riêng biệt để giữ thao tác duyệt/mở lại toàn tháng. ChotBangCong và TongHopCong trỏ vào tháng dùng chung này. Lịch mới lấy từ `lich_thang()` trong `services/tinh_toan.py`.
-- Căn cứ lịch sử được lưu chung trong `PayrollPeriod.can_cu_cong`, không lưu lặp trong tổng hợp công. Ca mặc định 08:00–17:00, nghỉ trưa 12:00–13:00, chuẩn 8 giờ/công; kỳ cũ giữ giờ và lịch đã áp dụng.
+- Không có model kỳ tháng riêng. Tháng được xác định từ ngày/tháng/năm của dữ liệu tổng hợp công; trạng thái duyệt công lưu trong `ChotBangCong` và trạng thái lương lưu theo phiếu lương. Lịch ngày được tính bằng `lich_thang()` trong `services/tinh_toan.py`.
+- Ca mặc định 08:00–17:00, nghỉ trưa 12:00–13:00, chuẩn 8 giờ/công.
 - Liên kết tổng hợp của bản chốt cũ vẫn cho phép NULL để tương thích dữ liệu lịch sử; mọi bản chốt mới qua `save()` đều được gắn bản tổng hợp và kiểm tra đúng nhân viên/kỳ.
 - Bảng lịch sử OT đã ngừng dùng được giữ nguyên trong database; migration chỉ bỏ model khỏi trạng thái Django.
 
@@ -47,7 +47,7 @@ Kiểm tra quyền được giữ ở backend. Các thao tác duyệt/chi trả 
 - attendance.0012_unified_month_links: chuyển khóa ngoại tổng hợp/chốt công, sao chép căn cứ vào tổng hợp.
 - payroll.0011_retire_attendance_period: bỏ khóa ngoại tới kỳ công cũ.
 - attendance.0013_retire_ky_cong: bỏ model KyCong, giữ nguyên bảng gốc chỉ để lưu trữ.
-- `attendance_period` trong Python là thuộc tính tương thích trả về cùng PayrollPeriod; không còn bảng kỳ công hoạt động hay quan hệ OneToOne tới KyCong.
+- Không còn thuộc tính tương thích hoặc quan hệ Python tới model kỳ công.
 - ID phiếu lương, chấm công và bản tổng hợp giữ nguyên. ID dùng trong đường dẫn thao tác kỳ công hiện là ID tháng dùng chung; liên kết trên giao diện được tạo theo ID mới.
 
 Theo yêu cầu, không chạy bộ kiểm thử chức năng. Đã kiểm tra migration trên bản sao, đối chiếu toàn bộ hàng lương trước/sau, kiểm tra liên kết và khóa ngoại trước khi áp dụng database thật.

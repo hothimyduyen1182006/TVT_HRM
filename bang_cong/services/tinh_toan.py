@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 
 from nghi_phep.models import NgayNghi
 from bang_cong.models import ChamCong
-from bang_luong.models import PayrollPeriod
+from bang_cong.thang_lich import thang_lich, cac_thang_trong_nam
 
 CHINH_SACH_OT = 'automatic-checkout-1700-v1'
 KHONG = Decimal(0)
@@ -41,18 +41,14 @@ def lich_du_kien(ngay):
 
 
 def lich_thang(nam, thang, ky_cong=None):
-    """Lịch thuần tính toán; ưu tiên căn cứ cũ đã lưu trong kỳ."""
-    ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
-    luu_tru = ky_cong.lich_luu_tru if ky_cong else {}
-    if not luu_tru and nam != 2026:
+    """Lịch tháng được suy ra trực tiếp từ quy tắc đã cấu hình trong code."""
+    ky_cong = ky_cong or thang_lich(nam, thang)
+    if nam != 2026:
         return {}
     ket_qua = {}
     for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
         ngay = date(nam, thang, so_ngay)
-        cu = luu_tru.get(ngay.isoformat())
-        if cu is None and luu_tru:
-            raise ValidationError('Lịch lưu trữ chưa đầy đủ, cần kiểm tra kỳ công.')
-        loai, cong, ghi_chu = cu if cu is not None else lich_du_kien(ngay)
+        loai, cong, ghi_chu = lich_du_kien(ngay)
         ket_qua[ngay] = SimpleNamespace(ngay=ngay, loai_ngay=loai,
                                        cong_chuan=Decimal(str(cong)), ghi_chu=ghi_chu)
     return ket_qua
@@ -62,16 +58,6 @@ def cong_chuan_thang(ky_cong):
     return sum((ngay.cong_chuan for ngay in lich_thang(
         ky_cong.nam, ky_cong.thang, ky_cong,
     ).values()), KHONG)
-
-
-def luu_can_cu_lich(ky_cong, ds_ngay):
-    """Cố định lịch khi duyệt lần đầu để đổi cấu hình không đổi lịch sử."""
-    if not ky_cong.lich_luu_tru:
-        ky_cong.lich_luu_tru = {
-            lich.ngay.isoformat(): [lich.loai_ngay, str(lich.cong_chuan), lich.ghi_chu]
-            for lich in ds_ngay
-        }
-        ky_cong.save(update_fields=['can_cu_cong'])
 
 
 def tinh_so_gio(ngay, gio_bat_dau, gio_ket_thuc):
@@ -95,9 +81,7 @@ def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
             or ban_ghi.gio_ra <= ban_ghi.gio_vao or ban_ghi.ngay < ban_ghi.nhan_vien.ngay_vao_lam):
         return ket_qua
 
-    ky_cong = ky_cong or PayrollPeriod.objects.filter(
-        nam=ban_ghi.ngay.year, thang=ban_ghi.ngay.month,
-    ).first()
+    ky_cong = ky_cong or thang_lich(ban_ghi.ngay.year, ban_ghi.ngay.month)
     lich_ngay = lich_ngay or lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     if not ky_cong or not lich_ngay:
         ket_qua['error'] = 'Thiếu cấu hình kỳ công hoặc lịch ngày để xác định OT.'
@@ -129,7 +113,7 @@ def tinh_tang_ca_tu_dong(ban_ghi, ky_cong=None, lich_ngay=None):
 
 def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
     """Lấy OT trong tháng và cảnh báo tổng giờ tăng ca theo tháng/năm."""
-    ky_cong = PayrollPeriod.objects.filter(nam=nam, thang=thang).first()
+    ky_cong = thang_lich(nam, thang)
     lich_cua_thang = lich_thang(nam, thang, ky_cong)
     danh_sach = []
     for ban_ghi in ChamCong.objects.filter(
@@ -143,7 +127,7 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
 
     tong_gio_thang = sum((tang_ca['hours'] for tang_ca in danh_sach), KHONG)
     tong_gio_nam = KHONG
-    cac_ky_cong = {(ky.nam, ky.thang): ky for ky in PayrollPeriod.objects.filter(nam=nam)}
+    cac_ky_cong = {(ky.nam, ky.thang): ky for ky in cac_thang_trong_nam(nam)}
     lich_nam = {ngay: lich for ky in cac_ky_cong.values() for ngay, lich in lich_thang(nam, ky.thang, ky).items()}
     for ban_ghi in ChamCong.objects.filter(nhan_vien=nhan_vien, ngay__year=nam).select_related('nhan_vien'):
         tong_gio_nam += tinh_tang_ca_tu_dong(
@@ -158,16 +142,12 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
 
 def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
     """Tính trong bộ nhớ; không ghi công ngày vào database."""
-    ky_cong = ky_cong or PayrollPeriod.objects.filter(nam=ban_ghi.ngay.year, thang=ban_ghi.ngay.month).first()
+    ky_cong = ky_cong or thang_lich(ban_ghi.ngay.year, ban_ghi.ngay.month)
     if not ky_cong:
         raise ValidationError('Chưa cấu hình tháng chấm công.')
     lich_ngay = lich_ngay or lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month, ky_cong).get(ban_ghi.ngay)
     if lich_ngay is None:
         raise ValidationError('Chưa cấu hình lịch cho ngày này.')
-    da_chot = ky_cong.can_cu_cong.get('cong_ngay_da_chot', {}).get(str(ban_ghi.pk))
-    if da_chot:
-        return {'hours': Decimal(ban_ghi.so_gio_lam), 'actual': Decimal(da_chot['actual']),
-                'leave': Decimal(da_chot['leave']), 'late': ban_ghi.so_phut_tre}
     ket_qua = {'hours': KHONG, 'actual': KHONG, 'leave': KHONG, 'late': 0}
     if ban_ghi.gio_vao and ban_ghi.gio_ra:
         thoi_diem = lambda gio: datetime.combine(ban_ghi.ngay, gio)

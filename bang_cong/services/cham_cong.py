@@ -1,8 +1,7 @@
 """Kiểm tra, kế thừa lịch làm việc và ghi nhận check-in/check-out."""
 
 import calendar
-from datetime import date, time
-from decimal import Decimal
+from datetime import date
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -10,16 +9,15 @@ from django.utils import timezone
 
 from nhan_vien.models import NhanVien
 from bang_cong.models import ChamCong
-from bang_luong.models import PayrollPeriod
+from bang_cong.thang_lich import thang_lich
 from .quy_trinh import ky_cong_da_khoa, cap_nhat_tong_hop
 from .tinh_toan import tinh_cong_ngay, lich_thang
 
 
-CAC_TRUONG_CA_LAM_VIEC = ('gio_bat_dau', 'bat_dau_nghi_trua', 'ket_thuc_nghi_trua', 'gio_ket_thuc', 'gio_chuan')
-
 def kiem_tra_lich_lam_viec(ky_cong):
     """Kiểm tra ca và lịch từ cấu hình hoặc căn cứ lịch sử."""
-    ky_cong.full_clean(validate_unique=False, validate_constraints=False)
+    if not ky_cong.gio_bat_dau < ky_cong.bat_dau_nghi_trua < ky_cong.ket_thuc_nghi_trua < ky_cong.gio_ket_thuc or ky_cong.gio_chuan <= 0:
+        raise ValidationError('Thứ tự ca làm hoặc giờ chuẩn không hợp lệ.')
     ds_ngay = list(lich_thang(ky_cong.nam, ky_cong.thang, ky_cong).values())
     if len(ds_ngay) != calendar.monthrange(ky_cong.nam, ky_cong.thang)[1]:
         raise ValidationError('Chưa cấu hình lịch làm việc cho năm này.')
@@ -33,15 +31,8 @@ def kiem_tra_lich_lam_viec(ky_cong):
 
 def xem_lich_cham_cong(ngay):
     """GET chỉ đọc lịch, không mở kỳ hoặc ghi dữ liệu."""
-    ky_cong = PayrollPeriod.objects.filter(nam=ngay.year, thang=ngay.month).first()
+    ky_cong = thang_lich(ngay.year, ngay.month)
     ke_hoach = {'period': ky_cong, 'day': None, 'source': None, 'weekly': {}, 'error': ''}
-    if not ky_cong and ngay.year == 2026:
-        ky_cong = PayrollPeriod(nam=ngay.year, thang=ngay.month, gio_bat_dau=time(8),
-            bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13),
-            gio_ket_thuc=time(17), gio_chuan=Decimal(8))
-    if not ky_cong:
-        ke_hoach['error'] = 'Chưa cấu hình ca và lịch làm việc cho năm này.'
-        return ke_hoach
     try:
         ds_ngay = kiem_tra_lich_lam_viec(ky_cong)
     except ValidationError as loi:
@@ -56,10 +47,7 @@ def dam_bao_lich_cham_cong(ngay, nguoi_thuc_hien):
     ke_hoach = xem_lich_cham_cong(ngay)
     if ke_hoach['error']:
         raise ValidationError(ke_hoach['error'])
-    ban_xem_truoc = ke_hoach['period']
-    ky_cong, _ = PayrollPeriod.objects.get_or_create(nam=ngay.year, thang=ngay.month,
-        defaults={truong: getattr(ban_xem_truoc, truong) for truong in CAC_TRUONG_CA_LAM_VIEC})
-    ky_cong = PayrollPeriod.objects.select_for_update().get(pk=ky_cong.pk)
+    ky_cong = ke_hoach['period']
     ds_ngay = kiem_tra_lich_lam_viec(ky_cong)
     return ky_cong, next(lich for lich in ds_ngay if lich.ngay == ngay)
 

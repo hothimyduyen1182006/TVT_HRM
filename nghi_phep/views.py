@@ -14,7 +14,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
 from bang_cong.services.quy_trinh import cap_nhat_tong_hop
-from bang_luong.models import PayrollPeriod
+from bang_cong.thang_lich import thang_lich
 from nhan_vien.access import (
     GIAM_DOC,
     NHAN_SU,
@@ -286,14 +286,13 @@ def xu_ly_don_nghi(request, ma_don, thao_tac):
             don.save(update_fields=['trang_thai', 'ghi_chu_duyet', 'nguoi_duyet', 'ngay_duyet'])
 
             if thao_tac == 'approve':
-                thang_dau = (don.ngay_bat_dau.year, don.ngay_bat_dau.month)
-                thang_cuoi = (don.ngay_ket_thuc.year, don.ngay_ket_thuc.month)
-                for ky_cong in PayrollPeriod.objects.filter(
-                    nam__gte=don.ngay_bat_dau.year,
-                    nam__lte=don.ngay_ket_thuc.year,
-                ):
-                    if thang_dau <= (ky_cong.nam, ky_cong.thang) <= thang_cuoi:
-                        cap_nhat_tong_hop(don.nhan_vien, ky_cong)
+                nam, thang = don.ngay_bat_dau.year, don.ngay_bat_dau.month
+                while (nam, thang) <= (don.ngay_ket_thuc.year, don.ngay_ket_thuc.month):
+                    cap_nhat_tong_hop(don.nhan_vien, thang_lich(nam, thang))
+                    if thang == 12:
+                        nam, thang = nam + 1, 1
+                    else:
+                        thang += 1
     except ValidationError as loi:
         messages.error(request, '; '.join(loi.messages))
     except IntegrityError:

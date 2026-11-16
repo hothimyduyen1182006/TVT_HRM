@@ -1,4 +1,4 @@
-﻿from collections import Counter
+from collections import Counter
 from decimal import Decimal
 from django import forms
 from django.db.models import Count, F
@@ -6,7 +6,7 @@ from django.utils import timezone
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
-from bang_luong.models import PayrollPeriod as KyCong
+from bang_cong.thang_lich import thang_lich
 from nghi_phep.models import NgayNghi
 
 
@@ -25,7 +25,7 @@ class DashboardFilter(forms.Form):
 def dashboard_context(user, form):
     day = form.cleaned_data['date']
     employees = nhan_vien_duoc_hien_thi(user).filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
-    period = KyCong.objects.filter(nam=day.year, thang=day.month).first()
+    period = thang_lich(day.year, day.month)
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
     leaves = set(NgayNghi.objects.filter(
         don_nghi_phep__nhan_vien__in=employees,
@@ -68,4 +68,3 @@ def dashboard_context(user, form):
         rows = [r for r in rows if r['employee'].phong_ban_id == selected.pk]
     return {'selected_day': day, 'total_employees': total, 'department_count': len(departments), 'departments': departments,
             'genders': gender_rows, 'attendance_counts': counts, 'employee_rows': rows, 'schedule_missing': period is None}
-

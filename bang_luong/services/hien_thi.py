@@ -5,7 +5,8 @@ import json
 from decimal import Decimal
 from django.db.models import Sum, Count, Q, Exists, OuterRef
 from bang_cong.models import ChamCong, ChotBangCong
-from bang_luong.models import Luong, PayrollAuditLog, PayrollPeriod
+from bang_luong.models import Luong
+from bang_cong.thang_lich import thang_lich
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponse
@@ -15,12 +16,11 @@ from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 def phieu_luong_du_cong_duyet(queryset):
     """Giữ phiếu cũ trong database, chỉ công bố khi công đã duyệt."""
     ban_chot = ChotBangCong.objects.filter(
-        tong_hop__ky_cong_id=OuterRef('ky_luong_id'),
-        tong_hop__nhan_vien_id=OuterRef('nhan_vien_id'),
+        tong_hop__nam=OuterRef('tong_hop__nam'),
+        tong_hop__thang=OuterRef('tong_hop__thang'),
+        tong_hop__nhan_vien_id=OuterRef('tong_hop__nhan_vien_id'),
     )
-    return queryset.annotate(cong_da_duyet=Exists(ban_chot)).filter(
-        Q(ky_luong__trang_thai='approved') | Q(cong_da_duyet=True),
-    )
+    return queryset.annotate(cong_da_duyet=Exists(ban_chot)).filter(cong_da_duyet=True)
 
 
 def du_lieu_hien_thi_luong(record):
@@ -39,8 +39,7 @@ def du_lieu_hien_thi_luong(record):
         tong_thu_nhap += record.luong_tang_ca  # Đối chiếu phiếu cũ; tuyệt đối không tính lại số tiền đã lưu.
     total_deductions = record.tong_bao_hiem + record.thue_tncn + record.tong_khau_tru
     metrics = {'actual': None, 'absent': None, 'late_count': None}
-    ky_luong = record.ky_luong
-    ky_cong = ky_luong.attendance_period
+    ky_cong = thang_lich(record.tong_hop.nam, record.tong_hop.thang)
     employee_approved = ky_cong.employee_approvals.filter(tong_hop__nhan_vien_id=record.nhan_vien_id).exists()
     if ky_cong.trang_thai == 'approved' or employee_approved:
         from bang_cong.services.tinh_toan import nap_cong_ngay
@@ -64,11 +63,13 @@ def phieu_luong_trong_pham_vi(user, form):
     if not form.is_valid():
         return Luong.objects.none()
     du_lieu = form.cleaned_data
-    ds_dong = Luong.objects.select_related('ky_luong').filter(
-        nhan_vien__in=form.nhan_vien_trong_pham_vi(user), ky_luong__thang=du_lieu['month'],
-        ky_luong__nam=du_lieu['year'])
+    ds_dong = Luong.objects.select_related('tong_hop', 'tong_hop__nhan_vien').filter(
+        tong_hop__nhan_vien__in=form.nhan_vien_trong_pham_vi(user),
+        tong_hop__thang=du_lieu['month'], tong_hop__nam=du_lieu['year'])
     if du_lieu.get('q'):
-        ds_dong = ds_dong.filter(Q(ten_nhan_vien__icontains=du_lieu['q']) | Q(ma_nhan_vien__icontains=du_lieu['q']))
+        ds_dong = ds_dong.filter(
+            Q(tong_hop__nhan_vien__ho_va_ten__icontains=du_lieu['q']) |
+            Q(tong_hop__nhan_vien__ma_ho_so__icontains=du_lieu['q']))
     if du_lieu.get('status'):
         ds_dong = ds_dong.filter(trang_thai=du_lieu['status'])
     return phieu_luong_du_cong_duyet(ds_dong)
@@ -77,7 +78,8 @@ def phieu_luong_trong_pham_vi(user, form):
 def phieu_luong_ca_nhan(user):
     """Phiếu lương của tài khoản hiện tại, không mở rộng theo vai trò quản lý."""
     return phieu_luong_du_cong_duyet(
-        Luong.objects.select_related('ky_luong').filter(nhan_vien__nguoi_dung=user),
+        Luong.objects.select_related('tong_hop', 'tong_hop__nhan_vien').filter(
+            tong_hop__nhan_vien__nguoi_dung=user),
     )
 
 
@@ -98,10 +100,8 @@ def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope):
         raise ValidationError('Bảng công chưa duyệt, không được xuất phiếu lương.')
     if fmt not in ['csv', 'json', 'txt']:
         raise ValidationError('Định dạng không hợp lệ.')
-    period_ids = list(queryset.values_list('ky_luong_id', flat=True).distinct())
-    # Giữ khóa trạng thái đến khi tạo nội dung và log, tránh xuất cùng lúc mở lại kỳ.
-    list(PayrollPeriod.objects.select_for_update().filter(pk__in=period_ids).order_by('pk'))
-    ds_dong = list(queryset.select_related('ky_luong').order_by('ma_nhan_vien'))
+    ds_dong = list(queryset.select_for_update().select_related('tong_hop', 'tong_hop__nhan_vien')
+                    .order_by('tong_hop__nhan_vien__ma_ho_so'))
     if not ds_dong:
         raise ValidationError('Không có dữ liệu để xuất.')
     if any(row.trang_thai not in ['approved', 'paid'] for row in ds_dong):
@@ -141,13 +141,6 @@ def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope):
             writer.writerow([o_du_lieu_an_toan(row[khoa]) for khoa in cac_truong + ['status']])
         content = ('\ufeff' if fmt == 'csv' else '') + output.getvalue()
         content_type = 'text/csv; charset=utf-8' if fmt == 'csv' else 'text/plain; charset=utf-8'
-    for period_id in period_ids:
-        PayrollAuditLog.objects.create(
-            actor=actor, period_id=period_id, action='export',
-            reason=f'Export {fmt} {month:02}/{year}',
-            snapshot=[{'format': fmt, 'month': month, 'year': year,
-                       'scope': {**scope, 'record_ids': [row.pk for row in ds_dong if row.ky_luong_id == period_id]}}],
-        )
     response = HttpResponse(content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="payroll-{year}-{month:02}.{fmt}"'
     return response

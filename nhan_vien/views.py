@@ -192,12 +192,13 @@ def sua_nhan_vien(request, ma_nhan_vien):
             from bang_luong.services.quy_trinh import luu_thiet_lap_luong
             nhan_vien = luu_thiet_lap_luong(request.user, nhan_vien, bieu_mau_luong.du_lieu_thiet_lap())
         if set(bieu_mau.changed_data) & {'luong_co_ban', 'ma_ho_so', 'ho_va_ten', 'phong_ban'}:
-            from bang_luong.models import PayrollPeriod
+            from bang_luong.models import Luong
             from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            periods = PayrollPeriod.objects.filter(status='pending').select_related().order_by('pk')
-            for period in periods:
-                attendance = period.attendance_period
-                error = cap_nhat_luong_nhan_vien(request.user, employee.pk, attendance.nam, attendance.thang)
+            months = Luong.objects.filter(trang_thai='pending').values_list(
+                'tong_hop__nam', 'tong_hop__thang',
+            ).distinct()
+            for year, month in months:
+                error = cap_nhat_luong_nhan_vien(request.user, nhan_vien.pk, year, month)
                 if error:
                     messages.warning(request, error)
         messages.success(request, 'Sửa hồ sơ thành công.')
