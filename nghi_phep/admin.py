@@ -1,11 +1,11 @@
 from django.contrib import admin
 
-from nhan_vien.admin_utils import QuanTriKhoaTheoKyCong
+from nhan_vien.admin_utils import QuanTriKhoaTheoBangCong
 from .models import LeaveDay, LeaveRequest
 
 
 @admin.register(LeaveDay)
-class LeaveDayAdmin(QuanTriKhoaTheoKyCong):
+class LeaveDayAdmin(QuanTriKhoaTheoBangCong):
     list_display = ('employee', 'date', 'units', 'paid', 'approved')
     list_filter = ('approved', 'paid')
 

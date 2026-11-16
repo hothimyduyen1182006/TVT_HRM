@@ -80,24 +80,15 @@ class AutomaticOvertimeTests(TestCase):
         self.assertEqual(list(ChamCong.objects.values()),before)
 
 
-    def test_ui_exports_and_personal_scope_share_hours(self):
-        row=luu_cham_cong(self.hr,self.record(gio_ra=time(19)),'Công thực tế')
-        for actor in [self.user,self.hr,self.director]:
-            self.client.force_login(actor)
-            response=self.client.get(f'/bang_cong/{row.pk}/')
-            self.assertContains(response,'Tăng ca')
-            for label in ['Gửi yêu cầu duyệt OT','Duyệt OT','Từ chối OT']:
-                self.assertNotContains(response,label)
+    def test_personal_month_summary_includes_overtime(self):
+        row = luu_cham_cong(self.hr, self.record(gio_ra=time(19)), 'Công thực tế')
         self.client.force_login(self.user)
-        response=self.client.get('/bang_cong/ca-nhan/?month=10&year=2026')
-        self.assertEqual(response.context['summary']['ot'],2)
-        self.assertNotContains(response,'OT tự động:')
+        response = self.client.get('/bang_cong/ca-nhan/?month=10&year=2026')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['summary']['ot'], 2)
+        self.assertNotContains(response, 'OT tự động:')
         self.client.force_login(self.other_user)
-        self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/').status_code,404)
-        self.client.force_login(self.hr)
-        response=self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/?month=10&year=2026')
-        self.assertIn('OT tự động (giờ)',response.content.decode('utf-8-sig'))
-
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/?month=10&year=2026').status_code, 404)
     def test_rest_holiday_and_night_are_handled_separately(self):
         from .services.tinh_toan import tinh_tang_ca_tu_dong,tong_hop_tang_ca_tinh_luong
         day=LichLamViec.objects.get(ngay=date(2026,10,5))
@@ -254,10 +245,6 @@ class AttendanceTests(TestCase):
             for actor in [self.hr, self.director]:
                 with self.subTest(lock=lock, actor=actor.username):
                     self.client.force_login(actor)
-                    response = self.client.get(f'/bang_cong/{row.pk}/')
-                    self.assertEqual(response.status_code, 200)
-                    self.assertFalse(response.context['can_edit'])
-                    self.assertNotContains(response, f'href="/bang_cong/{row.pk}/sua/"')
                     self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/sua/').status_code, 403)
                     audits = NhatKyCong.objects.count()
                     response = self.client.post(f'/bang_cong/{row.pk}/sua/', {
@@ -286,9 +273,6 @@ class AttendanceTests(TestCase):
     def test_pending_attendance_keeps_edit_link_and_allows_update(self):
         row = luu_cham_cong(self.hr, self.record(), 'Tạo công')
         self.client.force_login(self.hr)
-        response = self.client.get(f'/bang_cong/{row.pk}/')
-        self.assertTrue(response.context['can_edit'])
-        self.assertContains(response, f'href="/bang_cong/{row.pk}/sua/"')
         self.assertEqual(self.client.get(f'/bang_cong/{row.pk}/sua/').status_code, 200)
         response = self.client.post(f'/bang_cong/{row.pk}/sua/', {
             'employee': self.emp.pk, 'date': '2026-01-05', 'check_in': '09:00',
@@ -301,12 +285,12 @@ class AttendanceTests(TestCase):
         own = luu_cham_cong(self.hr, self.record(), 'Công')
         other = luu_cham_cong(self.hr, self.record(nhan_vien=self.other), 'Công')
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(f'/bang_cong/{own.pk}/').status_code, 200)
-        self.assertEqual(self.client.get(f'/bang_cong/{other.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/?month=1&year=2026').status_code, 200)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/?month=1&year=2026').status_code, 404)
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
         self.dep.truong_phong = self.emp
         self.dep.save()
-        self.assertEqual(self.client.get(f'/bang_cong/{other.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/?month=1&year=2026').status_code, 404)
 
     def test_lists_and_create(self):
         self.client.force_login(self.hr)
@@ -437,25 +421,10 @@ class AttendanceTests(TestCase):
         self.client.force_login(self.user)
         for suffix in ['', 'lich-su/']:
             self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/{suffix}').status_code, 404)
-        self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/').status_code, 403)
         self.user.groups.add(Group.objects.get_or_create(name='Trưởng phòng')[0])
         self.dep.truong_phong = self.emp
         self.dep.save()
         self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.other.pk}/lich-su/').status_code, 404)
-
-    def test_attendance_csv_exports_filter_and_escape(self):
-        row = luu_cham_cong(self.hr, self.record(), 'Tạo')
-        row.ghi_chu = '=HYPERLINK("example")'
-        luu_cham_cong(self.hr, row, 'Nhân sự sửa ghi chú')
-        self.client.force_login(self.hr)
-        url = f'/bang_cong/nhan-vien/{self.emp.pk}/xuat/'
-        response = self.client.get(url, {'month': 1, 'year': 2026, 'start': '2026-01-05', 'end': '2026-01-05'})
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("'=HYPERLINK", response.content.decode('utf-8-sig'))
-        response = self.client.get(url, {'month': 1, 'year': 2026, 'mode': 'history', 'field': 'note'})
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('Ghi chú', response.content.decode('utf-8-sig'))
-        self.assertEqual(self.client.get(url, {'month': 13, 'year': 2026}).status_code, 400)
 
     def test_shared_navigation_on_application_and_admin_pages(self):
         root = User.objects.create_user('navigation-root', is_superuser=True, is_staff=True)

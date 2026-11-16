@@ -26,13 +26,14 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 
 ## Phạm vi phần bảng công
 
-- Lịch làm việc: hàm `bang_cong.services.tinh_toan.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; căn cứ lịch sử lưu trong `PayrollPeriod.can_cu_cong`. Không còn model LichLamViec hoạt động.
-- PayrollPeriod: tháng/năm dùng chung, trạng thái công và trạng thái lương tách biệt; không còn model KyCong. Tổng hợp/chốt công liên kết tháng này; căn cứ lịch sử nằm trong PayrollPeriod.can_cu_cong.
+- Lịch làm việc: hàm `bang_cong.services.tinh_toan.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; không có model lịch hoặc kỳ tháng riêng.
+- Tháng lương được lấy từ tháng/năm trên tổng hợp công; trạng thái duyệt công nằm trong `ChotBangCong`, trạng thái duyệt/chi trả lương nằm trên từng phiếu lương.
 - ChamCong: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
   công thực tế, công nghỉ hưởng lương, công hưởng lương và ghi chú.
 - Ràng buộc database duy nhất (employee, date); kiểm tra checkout > checkin khi có cả hai.
 - LichSuTangCa: employee, ngày, giờ được duyệt, loại ngày, hệ số, thông tin duyệt.
-- NhatKyCong: người sửa, thời gian, lý do, trước/sau; người thường không sửa/xóa.
+- ChotBangCong: bản tổng hợp công và người duyệt theo nhân viên/tháng.
+- LichSuDieuChinhCong: người sửa, thời gian, lý do, trước/sau; người thường không sửa/xóa.
 
 Chưa tự áp dụng lịch 08:00–17:00, nghỉ trưa hay hệ số OT cho đến khi nhóm chốt.
 Không tự gán nghỉ không phép cho ngày thiếu chấm công. Kỳ đã duyệt phải mở lại có lý do.
@@ -40,12 +41,10 @@ Cần chốt duyệt theo phòng hay toàn công ty, và xử lý dữ liệu c�
 
 ## Phạm vi phần bảng lương
 
-- PayrollPeriod: tháng/năm, phạm vi, pending/approved/paid, người và thời gian chuyển trạng thái.
 - PayrollRecord: employee và kỳ; duy nhất (employee, period); bản chụp mã/tên/phòng,
   lương cơ bản, công chuẩn, công hưởng lương, giờ OT, phút muộn, số công nghỉ và các thành tiền.
 - PayrollComponent: chi tiết thưởng/phụ cấp/bảo hiểm/thuế/khấu trừ, nguồn và chính sách áp dụng.
-- PayrollAuditLog: tính, duyệt, mở lại, chi trả; ghi lý do và bằng chứng thanh toán.
-- PayrollExportLog: người, thời gian, kỳ, phạm vi hiệu lực, định dạng và các bản ghi được xuất.
+- Luong: liên kết tổng hợp công và tổng thưởng; trạng thái duyệt/chi trả được lưu theo phiếu.
 
 Chỉ tính khi công đã duyệt và dữ liệu chính sách đầy đủ. Thiếu thuế/bảo hiểm phải báo rõ,
 không tự gán 0. Mọi phép tính tiền dùng Decimal; chỉ làm tròn kết quả cuối tới đồng.

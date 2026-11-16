@@ -17,4 +17,4 @@ class LichSuDieuChinhCongAdmin(QuanTriChiDoc):
 
 @admin.register(ChotBangCong)
 class ChotBangCongAdmin(QuanTriChiDoc):
-    list_display = ('nhan_vien', 'ky_cong', 'nguoi_duyet', 'ngay_duyet')
+    list_display = ('nhan_vien', 'nam', 'thang', 'nguoi_duyet', 'ngay_duyet')

@@ -6,7 +6,7 @@ from django.utils import timezone
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
-from bang_luong.models import PayrollPeriod as KyCong
+from bang_cong.thang_lich import thang_lich
 from nghi_phep.models import LeaveDay
 
 
@@ -25,7 +25,7 @@ class DashboardFilter(forms.Form):
 def dashboard_context(user, form):
     day = form.cleaned_data['date']
     employees = nhan_vien_duoc_hien_thi(user).filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
-    period = KyCong.objects.filter(nam=day.year, thang=day.month).first()
+    period = thang_lich(day.year, day.month)
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
     leaves = set(LeaveDay.objects.filter(employee__in=employees, date=day, approved=True).values_list('employee_id', flat=True))
     counts = {'ontime': 0, 'late': 0, 'unchecked': 0}

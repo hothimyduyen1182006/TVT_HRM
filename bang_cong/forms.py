@@ -60,22 +60,6 @@ class BoLocBangCong(BoLocKy):
         return du_lieu
 
 
-class BoLocCongNgay(BoLocBangCong):
-    """Bộ lọc chi tiết công ngày của một nhân viên."""
-    # Chọn loại công hoặc tình trạng cần xem; kế thừa các điều kiện lọc phía trên.
-    state = forms.ChoiceField(label='Tình trạng', required=False, choices=[('', 'Tất cả'),
-        ('paid', 'Có công hưởng lương'), ('actual', 'Có công thực tế'), ('paid_leave', 'Nghỉ hưởng lương'),
-        ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép'),
-        ('incomplete', 'Thiếu dữ liệu'), ('ot', 'Có tăng ca')])
-    # Giới hạn ngày công cần xem; có thể chỉ nhập một đầu khoảng ngày.
-    start = _truong_ngay('Ngày bắt đầu')
-    end = _truong_ngay('Ngày kết thúc')
-
-    def clean(self):
-        # Kiểm tra bộ lọc cha trước, sau đó kiểm tra thứ tự ngày bắt đầu/kết thúc.
-        return _kiem_tra_khoang_ngay(super().clean(), 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.')
-
-
 # Ánh xạ khóa dữ liệu lịch sử sang tên dễ đọc trên giao diện.
 # Giữ các khóa cũ để đọc được lịch sử đã lưu, kể cả trường ghi chú đã bỏ khỏi form.
 CAC_TRUONG_DIEU_CHINH = {'overtime_hours': 'Giờ OT tự động', 'check_in': 'Giờ vào ca', 'check_out': 'Giờ ra ca', 'status': 'Tình trạng',

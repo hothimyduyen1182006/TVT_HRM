@@ -261,13 +261,16 @@ def review_leave(request, pk, action):
             item.reviewed_at = timezone.now()
             item.save(update_fields=['Trang_thai', 'review_note', 'reviewed_by', 'reviewed_at'])
             if action == 'approve':
-                from bang_luong.models import PayrollPeriod as KyCong
                 from bang_cong.services.quy_trinh import cap_nhat_tong_hop
-                for period in KyCong.objects.filter(
-                    nam__gte=item.Ngay_bat_dau.year, nam__lte=item.Ngay_ket_thuc.year,
-                ):
-                    if (item.Ngay_bat_dau.year, item.Ngay_bat_dau.month) <= (period.nam, period.thang) <= (item.Ngay_ket_thuc.year, item.Ngay_ket_thuc.month):
-                        cap_nhat_tong_hop(item.employee, period)
+                from bang_cong.thang_lich import thang_lich
+                start = (item.Ngay_bat_dau.year, item.Ngay_bat_dau.month)
+                end = (item.Ngay_ket_thuc.year, item.Ngay_ket_thuc.month)
+                year, month = start
+                while (year, month) <= end:
+                    cap_nhat_tong_hop(item.employee, thang_lich(year, month))
+                    month += 1
+                    if month == 13:
+                        year, month = year + 1, 1
     except ValidationError as exc:
         messages.error(request, '; '.join(exc.messages))
     except IntegrityError:

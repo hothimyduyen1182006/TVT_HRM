@@ -135,10 +135,7 @@ class TongHopCong(models.Model):
     # Khóa chính tự tăng của bản tổng hợp tháng.
     id = models.BigAutoField(primary_key=True, db_column='Ma_tong_hop')
 
-    # Kỳ tháng dùng chung; ky_cong.summaries.all() lấy các tổng hợp thuộc kỳ.
-    ky_cong = models.ForeignKey(
-        'payroll.PayrollPeriod', on_delete=models.CASCADE, related_name='summaries',
-    )
+    # Tháng/năm lấy trực tiếp từ dữ liệu tổng hợp và lịch chấm công.
     # Nhân viên được tổng hợp; nhân viên.attendance_summaries.all() lấy lịch sử tổng hợp.
     nhan_vien = models.ForeignKey(
         'employees.NhanVien', on_delete=models.CASCADE,
@@ -158,8 +155,6 @@ class TongHopCong(models.Model):
     so_ngay_khong_phep = models.PositiveIntegerField(default=0, db_column='So_ngay_nghi_khong_phep')
     # Tổng công hưởng lương của nhân viên trong tháng.
     tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='Tong_cong')
-    # Tổng giờ tăng ca trong tháng.
-    gio_tang_ca = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='Tong_gio_tang_ca')
     # Số lần đi trễ và tổng số phút đi trễ của tháng.
     so_lan_tre = models.PositiveIntegerField(default=0, db_column='So_lan_di_tre')
     so_phut_tre = models.PositiveIntegerField(default=0, db_column='Tong_phut_di_tre')
@@ -182,17 +177,7 @@ class TongHopCong(models.Model):
                 fields=['nhan_vien', 'nam', 'thang'],
                 name='unique_employee_month_summary',
             ),
-            # Không tạo hai tổng hợp của cùng nhân viên trong cùng kỳ.
-            models.UniqueConstraint(
-                fields=['ky_cong', 'nhan_vien'],
-                name='unique_employee_period_summary',
-            ),
         ]
-
-    def clean(self):
-        # So sánh hai cặp (năm, tháng) để tránh gắn tổng hợp vào sai kỳ.
-        if self.ky_cong_id and (self.nam, self.thang) != (self.ky_cong.nam, self.ky_cong.thang):
-            raise ValidationError('Tháng/năm tổng hợp phải khớp kỳ công.')
 
 
 class ChotBangCong(models.Model):
@@ -223,9 +208,12 @@ class ChotBangCong(models.Model):
         return self.tong_hop.nhan_vien
 
     @property
-    def ky_cong(self):
-        # Lấy kỳ qua tổng hợp, không tạo thêm cột database.
-        return self.tong_hop.ky_cong
+    def nam(self):
+        return self.tong_hop.nam
+
+    @property
+    def thang(self):
+        return self.tong_hop.thang
 
 
 class LichSuDieuChinhCong(models.Model):

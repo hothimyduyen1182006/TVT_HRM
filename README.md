@@ -48,7 +48,7 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 - `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
 - `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
 - `LichSuDieuChinhCong` → `Lich_su_dieu_chinh_cong`: một dòng cho mỗi trường thay đổi, liên kết nhật ký JSON gốc.
-- Không còn model KyCong; PayrollPeriod quản lý tháng dùng chung và lịch sử OT cũ tiếp tục được giữ; lịch ngày dùng hàm trong service, căn cứ cũ được lưu trong `PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên)`. Không thêm quy trình phản hồi hoặc duyệt OT.
+- Tháng công và lương được suy ra từ ngày/tháng/năm trên dữ liệu tổng hợp công; không có model kỳ tháng riêng. Lịch làm việc được tính từ quy tắc lịch trong service. Không thêm quy trình phản hồi hoặc duyệt OT.
 - Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
 - Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
 
@@ -120,7 +120,7 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
 4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
    nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
 5. Lịch năm 2026 được tính từ code: thứ Hai–thứ Sáu, lễ và nghỉ bù. Không tạo lịch hoặc sửa từng ngày trong Admin.
-6. Công chuẩn lấy từ hàm dùng chung; căn cứ lịch cũ và kỳ đã chốt được bảo toàn trong PayrollPeriod.can_cu_cong (căn cứ tháng) và TongHopCong.can_cu_cong (căn cứ nhân viên).
+6. Công chuẩn lấy từ hàm lịch dùng chung; tháng được xác định từ ngày công và tổng hợp công.
 
    Với UC-3, sau cấu hình ban đầu, kỳ mới năm 2026 dùng ca cố định và lịch trong code
    có cấu hình hợp lệ. Mở trang chấm công chỉ xem trước; lần check-in thành công đầu tiên mới lưu
@@ -192,7 +192,7 @@ kỳ lương đã duyệt (nếu có), rồi mở công, sửa, duyệt công, t
 Không mở trực tiếp kỳ đã chi trả; cần quy trình điều chỉnh riêng do nhóm xác nhận.
 Thay đổi đầu vào lương làm mất hiệu lực lần tính trước và bắt buộc tính lại trước duyệt.
 Lương đã duyệt/chi trả xuất từ snapshot, không đọc lại lương cơ bản/thưởng hiện tại.
-Lịch sử tính cũ giữ trong PayrollAuditLog; lịch sử sửa công có trước/sau, người và lý do.
+Lịch sử sửa công lưu trạng thái trước/sau, người thực hiện và lý do; dữ liệu duyệt lương nằm trên từng phiếu lương.
 Chưa có lịch sử hợp đồng/ngày nghỉ việc theo hiệu lực: cần nhóm bổ sung nếu tính hồi tố
 cho nhân viên đã ngừng làm hoặc thay lương giữa tháng.
 

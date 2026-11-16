@@ -82,12 +82,13 @@ def loi_nguon_thue(record):
     from thuong.models import Bonus, payroll_bonus_records
     from bang_cong.services.tinh_toan import tong_hop_tang_ca_tinh_luong
     from .tinh_toan import chuan_hoa_du_lieu
-    attendance = record.ky_luong.attendance_period
+    from bang_cong.thang_lich import thang_lich
+    attendance = thang_lich(record.tong_hop.nam, record.tong_hop.thang)
     try:
         from .quy_trinh import can_cu_luong_nhan_vien,cac_khoan_phu_cap_khau_tru,nhan_vien_theo_phieu_luong
         nhan_vien=nhan_vien_theo_phieu_luong(record)
-        inputs=can_cu_luong_nhan_vien(nhan_vien,record.ky_luong)
-        adjustments=cac_khoan_phu_cap_khau_tru(nhan_vien,record.ky_luong)
+        inputs=can_cu_luong_nhan_vien(nhan_vien,attendance)
+        adjustments=cac_khoan_phu_cap_khau_tru(nhan_vien,attendance)
         bonuses = payroll_bonus_records(Bonus.objects.filter(employee=record.nhan_vien, year=attendance.nam, month=attendance.thang))
         overtime = tong_hop_tang_ca_tinh_luong(record.nhan_vien, attendance.nam, attendance.thang)
         insurance = sum((inputs.insurance_base * Decimal(str(ty_le)) for ty_le in inputs.insurance_rates.values()), ZERO)

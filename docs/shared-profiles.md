@@ -19,15 +19,9 @@ git pull origin main
 python manage.py migrate
 python manage.py import_tvt_profiles --dry-run
 python manage.py import_tvt_profiles --reset-passwords
-python manage.py prepare_october_training --dry-run
-python manage.py prepare_october_training
 ```
 
 Lệnh `import_tvt_profiles --reset-passwords` hỏi mật khẩu hai lần, không hiển thị khi nhập. Dùng mật khẩu đã thống nhất trong nhóm. Không cần nhập hay chia sẻ mật khẩu quản trị.
-
-Hai lệnh `prepare_october_training` kiểm tra rồi chuẩn bị công, thưởng, phép và lương 10/2026: 177 bản ghi công, 19 khoản thưởng, 5 đơn phép, 8 đầu vào lương và 3 phiếu lương ở các trạng thái để thao tác thử. Không phiếu nào đã chi trả. Xem [hướng dẫn thực hành đầy đủ](october-testing.md).
-
-Nếu tháng 10 trên máy nhận đã có dữ liệu khác, lệnh chuẩn bị sẽ dừng để bảo vệ dữ liệu đó; không tự xóa hoặc đặt lại. Nếu đã chạy thành công bộ tình huống này, chạy lại sẽ giữ nguyên các thao tác đã thực hiện.
 
 Bản cập nhật mới bổ sung cột tiền tăng ca ở Bảng lương, cột giờ tăng ca trong chi tiết Bảng công, nút Lọc không có biểu tượng và tự tính thuế TNCN. Sau `migrate`, đầu vào cũ được giữ ở chế độ lịch sử: với phiếu chưa khóa, HR vào **Nhân viên → Hồ sơ → Thiết lập tính lương → Chỉnh sửa**, chọn chế độ cá nhân cư trú/hợp đồng từ 03 tháng, xác nhận giảm trừ và căn cứ; phiếu chưa duyệt tự cập nhật khi lưu hợp lệ. Phụ cấp ăn trưa 450.000đ cần chọn phân loại tiền ăn giữa ca bằng tiền. Phiếu đã duyệt/chi trả không tự thay đổi. Xem [hướng dẫn thuế](income-tax.md).
 
