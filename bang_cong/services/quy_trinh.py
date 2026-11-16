@@ -1,7 +1,7 @@
 """Lưu và duyệt công; lịch sử chỉ ghi chỉnh sửa trước khi duyệt."""
 
 import calendar
-from datetime import date, timedelta
+from datetime import date
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -10,7 +10,7 @@ from django.utils import timezone
 from nhan_vien.access import yeu_cau_vai_tro, NHAN_SU, GIAM_DOC
 from nhan_vien.models import NhanVien
 from bang_cong.models import (
-    ChamCong, ChotBangCong, TongHopCong, LichSuDieuChinhCong,
+    ChamCong, ChotBangCong, TongHopCong,
 )
 from bang_cong.thang_lich import thang_lich, thang_tu_ma
 from .tinh_toan import tinh_cong_ngay
@@ -33,11 +33,6 @@ def cham_cong_da_khoa(ban_ghi):
     return ky_cong_da_khoa(ky_cong, ban_ghi.nhan_vien_id, ban_ghi.ngay)
 
 
-def nam_trong_han_sua(ngay_cong):
-    hom_nay = timezone.localdate()
-    return hom_nay - timedelta(days=7) <= ngay_cong <= hom_nay
-
-
 def _tinh_lai_cac_ban_ghi(ds_ban_ghi, ky_cong, nguoi_thuc_hien, ly_do):
     """Tính lại công và ghi lịch sử bằng cùng một luồng khi duyệt kỳ hoặc nhân viên."""
     for ban_ghi in ds_ban_ghi:
@@ -58,29 +53,18 @@ def du_lieu_cham_cong(ban_ghi):
 
 
 @transaction.atomic
-def luu_cham_cong(nguoi_thuc_hien, ban_ghi, ly_do):
+def ghi_nhan_cham_cong(nguoi_thuc_hien, ban_ghi):
+    """Tạo bản công mới; bản công đã tạo không thể sửa từ luồng này."""
     yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU, GIAM_DOC)
-    if not ly_do.strip():
-        raise ValidationError('Cần lý do thay đổi.')
-    ky_cong = thang_lich(ban_ghi.ngay.year, ban_ghi.ngay.month)
-    if ban_ghi.pk and not nam_trong_han_sua(ban_ghi.ngay):
-        raise ValidationError('Chỉ được sửa bảng công trong vòng 7 ngày gần nhất.')
-    if ky_cong_da_khoa(ky_cong, ban_ghi.nhan_vien_id, ban_ghi.ngay):
-        raise ValidationError('Bảng công đã duyệt, không được chỉnh sửa.')
-    du_lieu_cu = {}
     if ban_ghi.pk:
-        cu = ChamCong.objects.select_for_update().get(pk=ban_ghi.pk)
-        if cu.nhan_vien_id != ban_ghi.nhan_vien_id or cu.ngay != ban_ghi.ngay:
-            raise ValidationError('Không đổi nhân viên/ngày của bản ghi đã tạo.')
-        du_lieu_cu = du_lieu_cham_cong(cu)
+        raise ValidationError('Không hỗ trợ chỉnh sửa bản công đã ghi nhận.')
+    ky_cong = thang_lich(ban_ghi.ngay.year, ban_ghi.ngay.month)
+    if ky_cong_da_khoa(ky_cong, ban_ghi.nhan_vien_id, ban_ghi.ngay):
+        raise ValidationError('Bảng công đã duyệt, không thể ghi thêm.')
     tinh_cong_ngay(ban_ghi, ky_cong)
     ban_ghi.save()
-    du_lieu_moi = du_lieu_cham_cong(ban_ghi)
-    if du_lieu_cu != du_lieu_moi:
-        ghi_lich_su_dieu_chinh(ban_ghi, nguoi_thuc_hien, ly_do, du_lieu_cu, du_lieu_moi)
     cap_nhat_tong_hop(ban_ghi.nhan_vien, ky_cong)
     return ban_ghi
-
 
 @transaction.atomic
 def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
@@ -160,6 +144,7 @@ def du_lieu_tong_hop(nhan_vien, ky_cong):
         'cong_chuan': dong['standard'] or 0, 'cong_thuc_te': dong['actual'],
         'cong_nghi_co_luong': dong['leave'], 'so_ngay_khong_phep': dong['absent'],
         'tong_cong': dong['paid'],
+        'tong_gio_tang_ca': dong['overtime'],
         'so_lan_tre': dong['late_count'],
         'so_phut_tre': dong['late'], 'trang_thai': dong['state'],
     }
@@ -190,18 +175,3 @@ def cap_nhat_tong_hop_ca_ky(ky_cong):
         cap_nhat_tong_hop(nhan_vien, ky_cong)
 
 
-def ghi_lich_su_dieu_chinh(ban_ghi, nguoi_sua, ly_do, cu, moi):
-    """Chỉ ghi những trường thay đổi của bản chấm công đã tồn tại."""
-    from bang_cong.forms import CAC_TRUONG_DIEU_CHINH
-
-    if not cu:
-        return
-    luc_sua = timezone.now()
-    LichSuDieuChinhCong.objects.bulk_create([
-        LichSuDieuChinhCong(
-            cham_cong=ban_ghi,
-            nguoi_thuc_hien=nguoi_sua, ngay_dieu_chinh=luc_sua, ly_do=ly_do,
-            truong_dieu_chinh=truong, gia_tri_cu=str(cu.get(truong, '')),
-            gia_tri_moi=str(moi.get(truong, '')),
-        ) for truong in CAC_TRUONG_DIEU_CHINH if cu.get(truong, '') != moi.get(truong, '')
-    ])

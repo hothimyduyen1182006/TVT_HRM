@@ -8,8 +8,8 @@ from urllib.parse import urlencode
 from django.db.models import Count, Exists, F, OuterRef, Q, Sum
 from django.utils import timezone
 
-from bang_cong.forms import CAC_TRUONG_DIEU_CHINH, BoLocBangCong, BoLocLichSuCong
-from bang_cong.models import ChamCong, ChotBangCong, LichSuDieuChinhCong
+from bang_cong.forms import BoLocBangCong
+from bang_cong.models import ChamCong, ChotBangCong
 from bang_cong.thang_lich import thang_lich
 from nhan_vien.models import NhanVien
 
@@ -33,7 +33,7 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
     if ds_ban_ghi is None:
         ds_ban_ghi = _lay_cong_thang(nam, thang, nhan_vien_id__in=ds_nhan_vien.values('pk'))
     nhom_cong = ds_ban_ghi.values('nhan_vien_id').annotate(
-        hours=Sum('so_gio_lam'), late=Sum('so_phut_tre'),
+        hours=Sum('so_gio_lam'), overtime=Sum('so_gio_tang_ca'), late=Sum('so_phut_tre'),
         late_count=Count('pk', filter=Q(so_phut_tre__gt=0)),
         incomplete=Count('pk', filter=Q(trang_thai='incomplete')),
         absent=Count('pk', filter=Q(trang_thai='absent')),
@@ -63,7 +63,8 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
                 trang_thai = 'approved'
         ket_qua.append({'employee': nhan_vien, 'standard': cong_chuan, 'paid': du_lieu.get('paid', KHONG),
             'actual': du_lieu.get('actual', KHONG), 'leave': du_lieu.get('leave', KHONG),
-            'hours': du_lieu.get('hours', KHONG), 'late': du_lieu.get('late', 0), 'late_count': du_lieu.get('late_count', 0),
+            'hours': du_lieu.get('hours', KHONG), 'overtime': du_lieu.get('overtime', KHONG),
+            'late': du_lieu.get('late', 0), 'late_count': du_lieu.get('late_count', 0),
             'absent': du_lieu.get('absent', 0), 'state': trang_thai,
             'state_label': NHAN_TONG_HOP[trang_thai], 'has_records': bool(du_lieu)})
     return ket_qua
@@ -106,26 +107,6 @@ def danh_sach_cong_ngay(nhan_vien, nam, thang, *, ds_ban_ghi=None, lich_thang=No
     return ket_qua
 
 
-def lay_lich_su_cong(nhan_vien, nam, thang):
-    return LichSuDieuChinhCong.objects.filter(
-        cham_cong__nhan_vien=nhan_vien, cham_cong__ngay__year=nam, cham_cong__ngay__month=thang,
-    ).select_related('nguoi_thuc_hien', 'cham_cong__nhan_vien').order_by('-ngay_dieu_chinh', '-pk')
-
-
-def danh_sach_dieu_chinh(ds_dieu_chinh, truong=''):
-    if truong:
-        ds_dieu_chinh = ds_dieu_chinh.filter(truong_dieu_chinh=truong)
-    nhan = dict(ChamCong._meta.get_field('trang_thai').choices)
-    return [{
-        'time': dong.ngay_dieu_chinh, 'date': dong.ngay_cong,
-        'field': CAC_TRUONG_DIEU_CHINH.get(dong.truong_dieu_chinh, dong.truong_dieu_chinh),
-        'old': nhan.get(dong.gia_tri_cu, dong.gia_tri_cu) if dong.truong_dieu_chinh == 'status' else dong.gia_tri_cu,
-        'new': nhan.get(dong.gia_tri_moi, dong.gia_tri_moi) if dong.truong_dieu_chinh == 'status' else dong.gia_tri_moi,
-        'actor': dong.nguoi_thuc_hien.get_full_name() or dong.nguoi_thuc_hien.username,
-        'reason': dong.ly_do,
-    } for dong in ds_dieu_chinh]
-
-
 def du_lieu_cong_thang(request, nhan_vien):
     """Tổng hợp toàn bộ ngày công của tháng được chọn từ bảng tổng hợp."""
     hom_nay = timezone.localdate()
@@ -162,26 +143,3 @@ def du_lieu_cong_thang(request, nhan_vien):
             'month_query': tham_so_thang}
 
 
-def du_lieu_lich_su_cong(request, nhan_vien):
-    """Lọc lịch sử theo kỳ công và điều kiện người dùng đã chọn."""
-    bo_loc_ky = BoLocBangCong(request.user, request.GET)
-    ds_nhat_ky = LichSuDieuChinhCong.objects.none()
-    tham_so_thang = ''
-    ky_hop_le = bo_loc_ky.is_valid()
-    if ky_hop_le:
-        du_lieu = bo_loc_ky.cleaned_data
-        tham_so_thang = urlencode({'month': du_lieu['month'], 'year': du_lieu['year']})
-        ds_nhat_ky = lay_lich_su_cong(nhan_vien, du_lieu['year'], du_lieu['month'])
-    bieu_mau = BoLocLichSuCong(request.GET, ds_nhat_ky)
-    ds_dong = []
-    if bieu_mau.is_valid() and ky_hop_le:
-        du_lieu = bieu_mau.cleaned_data
-        dieu_kien = {
-            truong: du_lieu[khoa] for truong, khoa in (
-                ('ngay_dieu_chinh__date__gte', 'start'), ('ngay_dieu_chinh__date__lte', 'end'),
-                ('nguoi_thuc_hien', 'actor'),
-            ) if du_lieu[khoa]
-        }
-        ds_nhat_ky = ds_nhat_ky.filter(**dieu_kien)
-        ds_dong = danh_sach_dieu_chinh(ds_nhat_ky, du_lieu['field'])
-    return {'form': bieu_mau, 'period_form': bo_loc_ky, 'rows': ds_dong, 'month_query': tham_so_thang}

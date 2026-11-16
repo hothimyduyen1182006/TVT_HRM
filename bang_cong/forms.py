@@ -1,7 +1,6 @@
 """Form lọc bảng công, xem lịch sử và nhập/chỉnh sửa chấm công."""
 
 from django import forms  # Các trường nhập, widget và kiểm tra dữ liệu form.
-from django.contrib.auth import get_user_model  # Lấy model tài khoản đang cấu hình.
 
 from nhan_vien.access import nhan_vien_duoc_hien_thi  # Phạm vi nhân viên được phép xem.
 from nhan_vien.filters import BoLocKy  # Bộ lọc kỳ/phòng ban dùng chung.
@@ -62,71 +61,18 @@ class BoLocBangCong(BoLocKy):
 
 # Ánh xạ khóa dữ liệu lịch sử sang tên dễ đọc trên giao diện.
 # Giữ các khóa cũ để đọc được lịch sử đã lưu, kể cả trường ghi chú đã bỏ khỏi form.
-CAC_TRUONG_DIEU_CHINH = {'overtime_hours': 'Giờ OT tự động', 'check_in': 'Giờ vào ca', 'check_out': 'Giờ ra ca', 'status': 'Tình trạng',
-    'work_hours': 'Tổng giờ làm', 'late_minutes': 'Đi trễ (phút)', 'actual_units': 'Công thực tế',
-    'paid_leave_units': 'Nghỉ hưởng lương', 'paid_units': 'Công hưởng lương', 'note': 'Ghi chú'}
-
-
-class BoLocLichSuCong(forms.Form):
-    """Lọc lịch sử theo ngày sửa, trường thay đổi và người thực hiện."""
-    # Đây là ngày điều chỉnh, khác với ngày nhân viên chấm công.
-    start = _truong_ngay('Từ ngày điều chỉnh')
-    end = _truong_ngay('Đến ngày điều chỉnh')
-    # Dấu * đưa các cặp mã/nhãn trong từ điển vào danh sách lựa chọn.
-    field = forms.ChoiceField(label='Trường điều chỉnh', choices=[('', 'Tất cả'), *CAC_TRUONG_DIEU_CHINH.items()], required=False)
-    # ModelChoiceField chọn một tài khoản; ban đầu chưa nạp tài khoản nào.
-    actor = forms.ModelChoiceField(label='Người điều chỉnh', queryset=get_user_model().objects.none(), required=False,
-                                  empty_label='Tất cả')
-
-    def __init__(self, data, logs):
-        # data là dữ liệu lọc; logs là tập lịch sử đã giới hạn theo phạm vi được xem.
-        super().__init__(data)
-        # Chỉ hiện tài khoản xuất hiện trong lịch sử; sắp theo tên đăng nhập.
-        # values_list(..., flat=True) lấy danh sách mã người thực hiện.
-        self.fields['actor'].queryset = get_user_model().objects.filter(
-            pk__in=logs.values_list('nguoi_thuc_hien_id', flat=True),
-        ).order_by('username')
-
-    def clean(self):
-        # Không nhận khoảng thời gian có ngày bắt đầu sau ngày kết thúc.
-        return _kiem_tra_khoang_ngay(super().clean(), 'Khoảng ngày điều chỉnh không hợp lệ.')
-
-
 class ChamCongForm(forms.ModelForm):
-    """Form tạo/sửa bản công; ModelForm sử dụng kiểm tra dữ liệu của model."""
-    # Lý do là trường bắt buộc của form, service dùng ghi lịch sử; không là cột ChamCong.
-    reason = forms.CharField(label='Lý do tạo/chỉnh sửa', widget=forms.Textarea)
+    """Form ghi nhận một bản công mới."""
 
     class Meta:
-        # Model liên kết và những trường được phép nhập/sửa trên form.
         model = ChamCong
         fields = ['nhan_vien', 'ngay', 'gio_vao', 'gio_ra', 'trang_thai']
-        # Kiểu ô nhập và định dạng: năm-tháng-ngày, giờ:phút.
-        widgets = {'ngay': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-                   'gio_vao': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
-                   'gio_ra': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M')}
+        widgets = {
+            'ngay': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'gio_vao': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+            'gio_ra': forms.TimeInput(attrs={'type': 'time'}, format='%H:%M'),
+        }
 
     def __init__(self, user, *args, **kwargs):
-        # user dùng giới hạn nhân viên; *args/**kwargs nhận tham số khởi tạo của form.
-        # Nhận cả tên POST/initial cũ để các liên kết, biểu mẫu đang mở vẫn dùng được.
-        ten_truong_cu = {'employee': 'nhan_vien', 'date': 'ngay', 'check_in': 'gio_vao',
-                   'check_out': 'gio_ra', 'status': 'trang_thai', 'note': 'ghi_chu'}
-        # Sao chép dữ liệu gửi lên vì QueryDict ban đầu có thể không cho chỉnh sửa.
-        if args and args[0] is not None:
-            du_lieu = args[0].copy()
-            for cu, moi in ten_truong_cu.items():
-                # Chỉ bổ sung tên mới khi chưa có, không ghi đè dữ liệu tên mới.
-                if cu in du_lieu and moi not in du_lieu:
-                    du_lieu[moi] = du_lieu[cu]
-            args = (du_lieu, *args[1:])  # Thay dữ liệu đã đổi tên, giữ các tham số còn lại.
-        # initial là dữ liệu điền sẵn; đổi tên khóa cũ tương tự dữ liệu POST.
-        if kwargs.get('initial'):
-            kwargs['initial'] = {ten_truong_cu.get(khoa, khoa): gia_tri for khoa, gia_tri in kwargs['initial'].items()}
-        super().__init__(*args, **kwargs)  # Tạo các trường ModelForm trước khi cấu hình.
-        # Chỉ cho chọn nhân viên thuộc phạm vi quyền của tài khoản.
+        super().__init__(*args, **kwargs)
         self.fields['nhan_vien'].queryset = nhan_vien_duoc_hien_thi(user)
-        # Có khóa chính nghĩa là sửa bản ghi đã tồn tại: cố định nhân viên và ngày.
-        if self.instance.pk:
-            for truong in ('nhan_vien', 'ngay'):
-                # Django bỏ qua giá trị gửi lên cho trường disabled, dùng giá trị ban đầu.
-                self.fields[truong].disabled = True

@@ -425,8 +425,7 @@ class BangCongURLTests(SimpleTestCase):
     def test_all_attendance_routes_use_new_namespace_and_prefix(self):
         routes = {'danh-sach': [], 'ca-nhan': [], 'cham-cong': [], 'them': [],
                   'cong-nhan-vien': [1], 'duyet-cong': [1, 2],
-                  'lich-su': [1], 'xuat': [1], 'chi-tiet': [1],
-                  'sua': [1], 'doi-trang-thai': [2]}
+                  'xuat': [1], 'chi-tiet': [1], 'doi-trang-thai': [2]}
         for name, args in routes.items():
             with self.subTest(route=name):
                 url = reverse('bang_cong:' + name, args=args)
