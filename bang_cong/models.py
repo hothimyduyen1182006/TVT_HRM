@@ -1,4 +1,4 @@
-"""Dữ liệu công ngày, tổng hợp tháng, chốt công và lịch sử chỉnh sửa."""
+"""Dữ liệu công ngày, tổng hợp tháng và chốt công."""
 # Tính số thập phân chính xác và làm tròn kết quả công.
 from decimal import Decimal
 
@@ -72,30 +72,19 @@ class ChamCong(models.Model):
 
     def clean(self):
         # Được full_clean() hoặc ModelForm gọi; save() không tự gọi hàm này.
-        # Không cho ghi công trước ngày nhân viên vào làm.
-        if self.nhan_vien_id and self.ngay and self.ngay < self.nhan_vien.ngay_vao_lam:
-            raise ValidationError('Ngày công không được trước ngày vào làm.')
         # bool chuyển việc có/không có giờ thành True/False.
         co_gio_vao, co_gio_ra = bool(self.gio_vao), bool(self.gio_ra)
-        # Cho phép ca chưa kết thúc: đã vào nhưng chưa ra, trạng thái incomplete.
-        ca_dang_mo = self.trang_thai == 'incomplete' and co_gio_vao and not co_gio_ra
-        # Chỉ có một giờ thì phải là ca đang mở.
-        if co_gio_vao != co_gio_ra and not ca_dang_mo:
-            raise ValidationError('Cần nhập đủ check-in/check-out hoặc để trống cả hai.')
         # Không nhận giờ ra bằng hoặc trước giờ vào trong cùng ngày.
         if co_gio_vao and co_gio_ra and self.gio_ra <= self.gio_vao:
             raise ValidationError('Check-out phải sau check-in trong cùng ngày.')
-        # Có mặt phải có giờ; kiểm tra phía trên bảo đảm đủ cặp giờ.
-        if self.trang_thai == 'present' and not co_gio_vao:
+        # Có mặt phải có đủ cả giờ vào và giờ ra.
+        if self.trang_thai == 'present' and not (co_gio_vao and co_gio_ra):
             raise ValidationError('Có mặt cần đủ giờ vào và ra.')
         # Nghỉ cả ngày không được đồng thời ghi giờ làm.
-        if self.trang_thai in ('leave', 'absent') and co_gio_vao:
+        if self.trang_thai in ('leave', 'absent') and (co_gio_vao or co_gio_ra):
             raise ValidationError(
                 'Có giờ làm hãy chọn Có mặt; nghỉ một phần ngày lấy từ module nghỉ phép.'
             )
-        # Có đủ giờ thì phải đổi trạng thái sang Có mặt.
-        if self.trang_thai == 'incomplete' and co_gio_ra:
-            raise ValidationError('Có đủ giờ vào và ra hãy chọn Có mặt.')
 
     # Các @property cho phép đọc như thuộc tính, không tạo cột database.
     @property
@@ -155,6 +144,11 @@ class TongHopCong(models.Model):
     so_ngay_khong_phep = models.PositiveIntegerField(default=0, db_column='So_ngay_nghi_khong_phep')
     # Tổng công hưởng lương của nhân viên trong tháng.
     tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='Tong_cong')
+    # Tổng số giờ tăng ca trong tháng.
+    tong_gio_tang_ca = models.DecimalField(
+        'Tổng giờ tăng ca', max_digits=14, decimal_places=4, default=0,
+        db_column='Tong_gio_tang_ca',
+    )
     # Số lần đi trễ và tổng số phút đi trễ của tháng.
     so_lan_tre = models.PositiveIntegerField(default=0, db_column='So_lan_di_tre')
     so_phut_tre = models.PositiveIntegerField(default=0, db_column='Tong_phut_di_tre')
@@ -202,55 +196,4 @@ class ChotBangCong(models.Model):
         # Tên bảng chốt công trong database.
         db_table = 'Chot_bang_cong'
 
-    @property
-    def nhan_vien(self):
-        # Lấy nhân viên qua tổng hợp, không lưu thêm khóa ngoại trùng.
-        return self.tong_hop.nhan_vien
-
-    @property
-    def nam(self):
-        return self.tong_hop.nam
-
-    @property
-    def thang(self):
-        return self.tong_hop.thang
-
-
-class LichSuDieuChinhCong(models.Model):
-    """Một dòng cho một trường được sửa trước khi duyệt công."""
-    # Khóa chính tự tăng của dòng lịch sử.
-    id = models.BigAutoField(primary_key=True, db_column='Ma_dieu_chinh')
-    # Bản công đã sửa; bản_công.adjustments.all() lấy các dòng lịch sử.
-    cham_cong = models.ForeignKey(
-        ChamCong, on_delete=models.PROTECT,
-        related_name='adjustments',
-        db_column='Ma_cham_cong',
-    )
-    # Tài khoản thực hiện chỉnh sửa công.
-    nguoi_thuc_hien = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, db_column='Ma_nguoi_dieu_chinh')
-    # Mã trường được sửa; mỗi trường thay đổi được ghi thành một dòng lịch sử.
-    truong_dieu_chinh = models.CharField('Trường điều chỉnh', max_length=40, db_column='Truong_dieu_chinh')
-    # Giá trị trước khi sửa, cho phép chuỗi rỗng.
-    gia_tri_cu = models.TextField('Giá trị cũ', blank=True, db_column='Gia_tri_cu')
-    # Giá trị sau khi sửa, cho phép chuỗi rỗng.
-    gia_tri_moi = models.TextField('Giá trị mới', blank=True, db_column='Gia_tri_moi')
-    # Lý do chỉnh sửa do người thực hiện cung cấp.
-    ly_do = models.TextField('Lý do', db_column='Ly_do_dieu_chinh')
-    # Service truyền thời điểm sửa vào; trường này không tự ghi thời gian.
-    ngay_dieu_chinh = models.DateTimeField('Ngày điều chỉnh', db_column='Ngay_dieu_chinh')
-
-    class Meta:
-        # Tên bảng lịch sử và thứ tự mới nhất trước; cùng giờ thì mã lớn trước.
-        db_table = 'Lich_su_dieu_chinh_cong'
-        ordering = ['-ngay_dieu_chinh', '-pk']
-
-    @property
-    def nhan_vien(self):
-        # Lấy nhân viên từ bản công liên quan, không lưu lặp trong lịch sử.
-        return self.cham_cong.nhan_vien
-
-    @property
-    def ngay_cong(self):
-        # Lấy ngày công từ bản công đã sửa.
-        return self.cham_cong.ngay
 

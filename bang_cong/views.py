@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import Q
@@ -17,8 +17,8 @@ from nhan_vien.models import NhanVien
 from .forms import ChamCongForm, BoLocBangCong
 from .models import ChamCong
 from .thang_lich import thang_lich, thang_tu_ma
-from .services.quy_trinh import luu_cham_cong, xu_ly_trang_thai_ky_cong, duyet_cong_nhan_vien, cham_cong_da_khoa, nam_trong_han_sua
-from .services.hien_thi import tong_hop_cong_thang, du_lieu_cong_thang, du_lieu_lich_su_cong
+from .services.quy_trinh import ghi_nhan_cham_cong, xu_ly_trang_thai_ky_cong, duyet_cong_nhan_vien
+from .services.hien_thi import tong_hop_cong_thang, du_lieu_cong_thang
 
 
 @login_required
@@ -91,24 +91,17 @@ def bang_cong_nhan_vien(request, employee_id, chi_xem_ban_than=False):
     nhan_vien = get_object_or_404(pham_vi, pk=employee_id)
     ngu_canh = du_lieu_cong_thang(request, nhan_vien)
     la_ca_nhan = chi_xem_ban_than or not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
-    co_quyen_quan_ly = not la_ca_nhan and co_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    co_quyen_quan_ly = co_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     ky_cong = ngu_canh['period']
     tong_hop = ngu_canh['summary']
-    ky_da_duyet = ky_cong and ky_cong.trang_thai == 'approved'
-    nhan_vien_da_duyet = tong_hop and tong_hop['state'] == 'approved'
     ngu_canh.update({
         'employee': nhan_vien, 'personal': la_ca_nhan,
-        'can_edit': co_quyen_quan_ly and not ky_da_duyet and not nhan_vien_da_duyet,
         'can_approve': co_quyen_quan_ly,
         'page_obj': Paginator(ngu_canh['rows'], 6 if la_ca_nhan else 12).get_page(request.GET.get('page')),
         'page_query': ngu_canh['month_query'], 'director': co_vai_tro(request.user, GIAM_DOC),
         'initials': ''.join(tu[0] for tu in nhan_vien.ho_va_ten.split()[-2:]).upper(),
         'tabs': [('', 'Tất cả'), ('late', 'Đi trễ'), ('leave', 'Nghỉ phép'), ('absent', 'Nghỉ không phép')],
     })
-    for item in ngu_canh['rows']:
-        item['co_the_sua'] = bool(
-            ngu_canh['can_edit'] and item['record'] and nam_trong_han_sua(item['date'])
-        )
     return render(request, 'bang_cong/month.html', ngu_canh)
 
 
@@ -171,41 +164,21 @@ def duyet_cong_hang_loat(request, period_id):
 
 
 @login_required
-def lich_su_dieu_chinh(request, employee_id):
-    pham_vi = NhanVien.objects.filter(Q(pk__in=nhan_vien_duoc_hien_thi(request.user).values('pk')) | Q(nguoi_dung=request.user))
-    nhan_vien = get_object_or_404(pham_vi, pk=employee_id)
-    ngu_canh = du_lieu_lich_su_cong(request, nhan_vien)
-    ngu_canh.update({
-        'employee': nhan_vien,
-        'page_obj': Paginator(ngu_canh['rows'], 20).get_page(request.GET.get('page')),
-        'page_query': tham_so_phan_trang(request),
-    })
-    return render(request, 'bang_cong/history.html', ngu_canh)
-
-
-@login_required
-def sua_cham_cong(request, pk=None):
+def ghi_nhan_cham_cong(request):
     yeu_cau_vai_tro(request.user, NHAN_SU, GIAM_DOC)
-    dong = get_object_or_404(ChamCong, pk=pk, nhan_vien__in=nhan_vien_duoc_hien_thi(request.user)) if pk else None
-    if dong and cham_cong_da_khoa(dong):
-        raise PermissionDenied('Bảng công đã duyệt, không được chỉnh sửa.')
-    if dong and not nam_trong_han_sua(dong.ngay):
-        raise PermissionDenied('Chỉ được sửa bảng công trong vòng 7 ngày gần nhất.')
-    ban_dau = {'employee': request.GET.get('employee'), 'date': request.GET.get('date')} if not dong else None
-    form = ChamCongForm(request.user, request.POST or None, instance=dong, initial=ban_dau)
+    form = ChamCongForm(request.user, request.POST or None)
     if request.method == 'POST' and form.is_valid():
         try:
-            da_luu = luu_cham_cong(request.user, form.save(commit=False), form.cleaned_data['reason'])
+            da_luu = ghi_nhan_cham_cong(request.user, form.save(commit=False))
         except ValidationError as loi:
             form.add_error(None, '; '.join(loi.messages))
         except IntegrityError:
             form.add_error(None, 'Đã có bản ghi nhân viên/ngày này hoặc dữ liệu không hợp lệ.')
         else:
-            messages.success(request, 'Đã lưu và tính lại công.')
+            messages.success(request, 'Đã ghi nhận chấm công.')
             return redirect(reverse('bang_cong:cong-nhan-vien', args=[da_luu.nhan_vien_id]) + '?' +
                             urlencode({'month': da_luu.ngay.month, 'year': da_luu.ngay.year}))
-    return render(request, 'bang_cong/edit.html', {'form': form, 'title': 'Ghi nhận / chỉnh sửa chấm công', 'row': dong})
-
+    return render(request, 'bang_cong/create.html', {'form': form, 'title': 'Ghi nhận chấm công'})
 
 @login_required
 @require_POST

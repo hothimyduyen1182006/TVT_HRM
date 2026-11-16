@@ -51,7 +51,6 @@ class ManagementPersonalRecordsTests(TestCase):
                 self.assertFalse(response.context['can_approve'])
                 self.assertFalse(response.context['can_edit'])
                 self.assertEqual(response.context['summary']['paid'], Decimal(1))
-                self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{employee.pk}/lich-su/', params).status_code, 200)
                 response = self.client.get('/bang_luong/personal/', params)
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.context['row'].nhan_vien, employee)

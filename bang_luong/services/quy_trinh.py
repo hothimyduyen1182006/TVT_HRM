@@ -174,7 +174,7 @@ def can_cu_luong_nhan_vien(employee, period):
                 setattr(gia_tri, khoa, Decimal(str(raw)))
     except (InvalidOperation, ValueError, TypeError):
         raise ValidationError('Thiết lập tiền bảo hiểm, thuế hoặc OT không hợp lệ.')
-    gia_tri.tax_dependents = getattr(employee, '_snapshot_tax_dependents', 0)
+    gia_tri.tax_dependents = getattr(employee, '_snapshot_tax_dependents', settings.get('tax_dependents', 0))
     gia_tri.shared_settings = settings
     gia_tri.full_clean()
     return gia_tri
