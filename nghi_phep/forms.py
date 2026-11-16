@@ -101,5 +101,5 @@ class LocDonNghiPhepForm(forms.Form):
         # Đưa các phòng ban được phép xem vào danh sách lựa chọn.
         self.fields['department'].widget = forms.Select(choices=[
             ('', 'Tất cả phòng ban'),
-            *((phong_ban.pk, phong_ban.name) for phong_ban in cac_phong_ban),
+            *((phong_ban.pk, phong_ban.ten_phong_ban) for phong_ban in cac_phong_ban),
         ])
