@@ -91,6 +91,17 @@ hoặc mật khẩu mẫu trong database thật.
 
 ## Chạy trên PyCharm / Windows
 
+Máy đã có dự án: dừng server, lấy code mới và cập nhật database trước khi chạy lại:
+
+```powershell
+git pull origin main
+python manage.py migrate
+python manage.py runserver
+```
+
+Migration chấm công sẽ bổ sung cột `Tong_gio_tang_ca` nếu database cũ chưa có,
+để trang thưởng và bảng lương đọc được tổng hợp công. Dùng interpreter của dự án.
+
 Mở thư mục có manage.py. Repo dùng Django 4.2.8; máy mới nên dùng Python 3.12 và cài requirements.txt.
 
 ```powershell
