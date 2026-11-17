@@ -1,11 +1,19 @@
-from uuid import uuid4
-
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from bang_cong.thang_lich import thang_lich
 
 class Luong(models.Model):
+    CHO_DUYET = 'Cho_duyet'
+    CHO_GIAM_DOC_DUYET = 'Cho_giam_doc_duyet'
+    DA_DUYET = 'Da_duyet'
+    DA_CHI_TRA = 'Da_chi_tra'
+    TRANG_THAI = [
+        (CHO_DUYET, 'Chờ duyệt'),
+        (CHO_GIAM_DOC_DUYET, 'Chờ Giám đốc ký'),
+        (DA_DUYET, 'Đã duyệt'),
+        (DA_CHI_TRA, 'Đã chi trả'),
+    ]
+
     ma_luong = models.CharField(max_length=20, primary_key=True, editable=False, db_column='Ma_luong')
     tong_hop = models.OneToOneField(
         'attendance.TongHopCong', on_delete=models.PROTECT,
@@ -18,20 +26,23 @@ class Luong(models.Model):
     luong_co_ban = models.DecimalField(max_digits=12, decimal_places=0, db_column='Luong_co_ban')
     luong_theo_cong = models.DecimalField(max_digits=12, decimal_places=0, db_column='Luong_theo_cong')
     luong_tang_ca = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Luong_tang_ca')
+    phu_cap = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Phu_cap')
     tong_tien_thuong = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Tong_tien_thuong')
     khau_tru_di_tre = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_di_tre')
     khau_tru_bhxh = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_BHXH')
+    khau_tru_khac = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_khac')
     thue_tncn = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thue_TNCN')
     luong_thuc_linh = models.DecimalField(max_digits=12, decimal_places=0, db_column='Luong_thuc_linh')
-    trang_thai = models.CharField(max_length=20, default='pending', choices=[
-        ('pending', 'Chờ HR kiểm tra'), ('submitted', 'Chờ Giám đốc ký duyệt'),
-        ('approved', 'Đã duyệt'), ('paid', 'Đã chi trả'),
-    ], db_column='Trang_thai')
+    trang_thai = models.CharField(
+        max_length=20, default=CHO_DUYET, choices=TRANG_THAI, db_column='Trang_thai',
+    )
 
     class Meta:
         db_table = 'Luong'
         constraints = [models.CheckConstraint(
-            check=models.Q(trang_thai__in=['pending', 'submitted', 'approved', 'paid']),
+            check=models.Q(trang_thai__in=[
+                'Cho_duyet', 'Cho_giam_doc_duyet', 'Da_duyet', 'Da_chi_tra',
+            ]),
             name='valid_salary_status',
         )]
         ordering = ['tong_hop__nhan_vien__ma_ho_so']
@@ -61,10 +72,6 @@ class Luong(models.Model):
         return self.nhan_vien.phong_ban_id
 
     @property
-    def ngay_tinh(self):
-        return None
-
-    @property
     def cong_chuan(self):
         return self.tong_hop.cong_chuan
 
@@ -82,52 +89,21 @@ class Luong(models.Model):
 
     @property
     def so_gio_tang_ca(self):
-        from decimal import Decimal
-        breakdown = self.chi_tiet if isinstance(self.chi_tiet, dict) else {}
-        overtime = breakdown.get('ot')
-        if not isinstance(overtime, list):
-            overtime = breakdown.get('source_data', {}).get('overtime', [])
-        return sum((Decimal(str(item.get('hours', 0))) for item in overtime), Decimal(0))
-
-    @property
-    def phu_cap(self):
-        return 0
-
-    @property
-    def tong_bao_hiem(self):
-        return self.khau_tru_bhxh
+        return self.tong_hop.tong_gio_tang_ca
 
     @property
     def tong_khau_tru(self):
-        return self.khau_tru_di_tre + self.khau_tru_bhxh + self.thue_tncn
+        # Đi trễ đã làm giảm công hưởng lương; không tính thêm khoản trừ riêng.
+        return self.khau_tru_bhxh + self.thue_tncn + self.khau_tru_khac
 
     @property
-    def khau_tru_bhyt(self):
-        return 0
-
-    @property
-    def khau_tru_bhtn(self):
-        return 0
-
-    @property
-    def khau_tru_khac(self):
-        return 0
-
-    @property
-    def chi_tiet(self):
-        from thuong.services.tinh_toan import cac_khoan_thuong_tinh_luong
-        bonuses = (cac_khoan_thuong_tinh_luong(self.nhan_vien_id, self.tong_hop.nam, self.tong_hop.thang)
-                   if self.tong_thuong_id else [])
-        return {
-            'bonuses': bonuses,
-            'insurance': {'BHXH': str(self.khau_tru_bhxh)},
-            'ot': [],
-            'source_data': {'overtime_policy': 'automatic-checkout-1700-v1'},
-        }
+    def tong_thu_nhap(self):
+        return self.luong_theo_cong + self.luong_tang_ca + self.phu_cap + self.tong_tien_thuong
 
     def clean(self):
+        super().clean()
         if not self.tong_hop_id or not self.tong_thuong_id:
-            return
+            raise ValidationError('Phiếu lương cần liên kết tổng hợp công và bảng thưởng.')
         summary, bonus = self.tong_hop, self.tong_thuong
         if (summary.nhan_vien_id, summary.nam, summary.thang) != (bonus.nguoi_dung.employee.pk, bonus.nam, bonus.thang):
             raise ValidationError('Công và thưởng phải thuộc cùng nhân viên và tháng/năm.')
@@ -136,6 +112,8 @@ class Luong(models.Model):
         if not self.ma_luong:
             summary = self.tong_hop
             value = f'L{summary.nam}{summary.thang:02}-{summary.nhan_vien_id}'
-            self.ma_luong = value if len(value) <= 20 else 'L' + uuid4().hex[:19]
-        self.clean()
+            if len(value) > 20:
+                raise ValidationError('Không thể tạo mã lương trong giới hạn 20 ký tự.')
+            self.ma_luong = value
+        self.full_clean()
         return super().save(*args, **kwargs)

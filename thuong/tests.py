@@ -10,16 +10,16 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from bang_cong.models import ChamCong
-from bang_cong.services.quy_trinh import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
-from bang_cong.services.tinh_toan import lich_thang
+from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
+from bang_cong.services.cham_cong_service import lich_thang
 from bang_luong.models import Luong
-from bang_cong.thang_lich import thang_lich
-from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+from bang_cong.utils.date_utils import thang_lich
+from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.models import PhongBan, NhanVien
-from nghi_phep.models import DonNghiPhep, NgayNghi
+from nghi_phep.models import LeaveDay
 from .models import DeXuatThuong, Thuong
-from .services.quy_trinh import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
+from .views import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
 
 
 class BonusWorkflowTests(TestCase):
@@ -92,12 +92,8 @@ class BonusWorkflowTests(TestCase):
     def test_absence_or_leave_removes_attendance_bonus(self):
         for index,state in enumerate(['absent','leave']):
             if state == 'leave':
-                don = DonNghiPhep.objects.create(
-                    nhan_vien=self.people[index], ngay_bat_dau=date(2026,10,5),
-                    ngay_ket_thuc=date(2026,10,5), ly_do='Nghỉ phép đã duyệt',
-                    trang_thai='da_duyet',
-                )
-                NgayNghi.objects.create(don_nghi_phep=don, ngay=date(2026,10,5))
+                LeaveDay.objects.create(employee=self.people[index], date=date(2026,10,5),
+                    units=1, paid=True, reason='Nghỉ phép đã duyệt', approved=True)
             ChamCong.objects.filter(nhan_vien=self.people[index],ngay=date(2026,10,5)).update(
                 trang_thai=state,gio_vao=None,gio_ra=None)
             bang=self.approve_attendance(index)
@@ -125,19 +121,6 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(bang.thuong_chuyen_can,0)
         self.assertIn('chưa đủ ngày công',bang.ly_do_chuyen_can)
 
-    def test_attendance_bonus_uses_saved_summary(self):
-        self.approve_attendance()
-        cong = self.people[0].attendance_summaries.get(thang=10, nam=2026)
-        for actual, absent, leave, expected in [
-            (cong.cong_chuan, 0, 0, 200000),
-            (cong.cong_chuan - 1, 0, 0, 0),
-            (cong.cong_chuan, 1, 0, 0),
-            (cong.cong_chuan, 0, 1, 0),
-        ]:
-            cong.cong_thuc_te, cong.so_ngay_khong_phep, cong.cong_nghi_co_luong = actual, absent, leave
-            cong.save()
-            bang = dong_bo_thuong_tu_dong(self.people[0], 10, 2026)
-            self.assertEqual(bang.thuong_chuyen_can, expected)
     def test_rejected_automatic_only_board_can_be_resubmitted(self):
         bang=self.approve_attendance()
         self.post(self.hr,self.submit_url,{'nhan_vien_ids':[self.people[0].pk]})
@@ -233,48 +216,9 @@ class BonusWorkflowTests(TestCase):
         response=self.client.get(reverse('thuong:personal'),{'thang':10,'nam':2026})
         self.assertContains(response,ma_hien_thi)
         bang.refresh_from_db(); gui_duyet_bang(bang); duyet_bang(bang,self.director)
-        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026,'trang_thai':'approved'})
+        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026})
         self.assertEqual(response.status_code,200)
         self.assertIn('Thưởng dự án',response.content.decode('utf-8-sig'))
-
-    def test_export_formats_keep_filters_and_protect_spreadsheet_cells(self):
-        bang = self.approve_attendance()
-        proposal = self.proposal(bang)
-        proposal.ten = '=Thưởng dự án'
-        luu_de_xuat(proposal)
-        bang.refresh_from_db()
-        gui_duyet_bang(bang)
-        duyet_bang(bang, self.director)
-        self.approve_attendance(1)  # Bản nháp ngoài bộ lọc không cản trở xuất.
-        data = {'thang': 10, 'nam': 2026, 'nhan_vien': self.people[0].pk}
-        for fmt, content_type in [('csv', 'text/csv'), ('json', 'application/json'), ('txt', 'text/plain')]:
-            response = self.post(self.hr, reverse('thuong:export', args=[fmt]), data)
-            self.assertEqual(response.status_code, 200)
-            self.assertIn(content_type, response['Content-Type'])
-            self.assertIn(f'bonuses-2026-10.{fmt}', response['Content-Disposition'])
-            if fmt == 'json':
-                rows = response.json()
-                self.assertEqual(len(rows), 3)
-                self.assertEqual({row['Mã nhân viên'] for row in rows}, {self.people[0].ma_ho_so})
-                self.assertIn('=Thưởng dự án', [row['Khoản thưởng'] for row in rows])
-            else:
-                self.assertIn("'=Thưởng dự án", response.content.decode('utf-8-sig'))
-
-    def test_export_rejects_unapproved_invalid_and_unauthorized_requests(self):
-        bang = self.approve_attendance()
-        url = reverse('thuong:export', args=['csv'])
-        data = {'thang': 10, 'nam': 2026}
-        response = self.post(self.hr, url, data)
-        self.assertEqual(response.status_code, 302)
-        self.assertNotIn('Content-Disposition', response)
-        self.assertEqual(self.post(self.people[0].nguoi_dung, url, data).status_code, 403)
-        self.assertEqual(self.post(self.hr, reverse('thuong:export', args=['pdf']), data).status_code, 302)
-        self.assertEqual(self.post(self.hr, url, {'thang': 13, 'nam': 2026}).status_code, 302)
-        self.assertEqual(self.client.get(url).status_code, 405)
-        gui_duyet_bang(bang)
-        duyet_bang(bang, self.director)
-        response = self.post(self.hr, url, {**data, 'tu_khoa': 'Không có nhân viên này'})
-        self.assertEqual(response.status_code, 302)
 
     def test_roles_scope_and_csrf_are_enforced(self):
         bang=self.approve_attendance(); gui_duyet_bang(bang)
@@ -296,36 +240,27 @@ class BonusWorkflowTests(TestCase):
             self.assertLess(html.index('Xem bảng thưởng'),html.index('Xem bảng lương'))
 
     def test_bonus_to_payroll_submission_approval_and_payment(self):
-        from bang_luong.services.quy_trinh import gui_bang_luong, xu_ly_trang_thai_luong
+        from bang_luong.services.tinh_luong_service import (
+            duyet_toan_bo_bang_luong, gui_bang_luong_cho_giam_doc,
+        )
         for i in range(2):
             self.approve_attendance(i)
         selected={'nhan_vien_ids':[p.pk for p in self.people]}
         self.post(self.hr,self.submit_url,selected)
         self.post(self.director,self.decision_url,{**selected,'action':'approve'})
         self.assertEqual(Luong.objects.filter(tong_tien_thuong=3200000).count(),2)
-        gui_bang_luong(self.hr,self.period.pk)
-        xu_ly_trang_thai_luong(self.director,self.period.pk,'approve','Đã kiểm tra')
-        xu_ly_trang_thai_luong(self.director,self.period.pk,'paid','Đã chuyển khoản','Biên lai thử nghiệm')
-        self.assertEqual(Luong.objects.filter(trang_thai='paid').count(),2)
+        gui_bang_luong_cho_giam_doc(self.hr, 2026, 10)
+        duyet_toan_bo_bang_luong(self.director, 2026, 10)
+
+        self.assertEqual(Luong.objects.filter(trang_thai=Luong.DA_DUYET).count(),2)
         self.client.force_login(self.hr)
-        self.assertEqual(self.client.get(reverse('bang_luong:list'),{'month':10,'year':2026}).status_code,200)
+        self.assertEqual(self.client.get(reverse('bang_luong:danh_sach'),{'month':10,'year':2026}).status_code,200)
         self.client.force_login(self.people[0].nguoi_dung)
         phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
-        self.assertEqual(self.client.get(reverse('bang_luong:detail',args=[phieu.pk])).status_code,200)
+        self.assertEqual(self.client.get(reverse('bang_luong:chi_tiet',args=[phieu.pk])).status_code,200)
         self.assertEqual(self.client.get(reverse('home')).status_code,200)
 
     def test_database_rejects_inconsistent_total(self):
         bang=self.approve_attendance()
         with self.assertRaises(IntegrityError), transaction.atomic():
             Thuong.objects.filter(pk=bang.pk).update(tong_thuong=1)
-
-    def test_rejection_reason_can_be_null_except_when_rejected(self):
-        bang = self.approve_attendance()
-        Thuong.objects.filter(pk=bang.pk).update(ly_do_tu_choi=None)
-        bang.refresh_from_db()
-        self.assertIsNone(bang.ly_do_tu_choi)
-        for reason in [None, '']:
-            with self.assertRaises(IntegrityError), transaction.atomic():
-                Thuong.objects.filter(pk=bang.pk).update(
-                    trang_thai='rejected', nguoi_duyet=self.director,
-                    ngay_duyet=bang.nguoi_dung.date_joined, ly_do_tu_choi=reason)

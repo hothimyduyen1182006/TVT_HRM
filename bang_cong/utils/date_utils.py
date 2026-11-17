@@ -52,19 +52,16 @@ class ThangLich:
     @property
     def status(self):
         statuses = set(self.records.values_list('trang_thai', flat=True))
-        if statuses and statuses == {'paid'}:
+        if statuses and statuses == {'Da_chi_tra'}:
             return 'paid'
-        if statuses and statuses.issubset({'approved', 'paid'}):
+        if statuses and statuses.issubset({'Da_duyet', 'Da_chi_tra'}):
             return 'approved'
-        if statuses and statuses == {'submitted'}:
-            return 'submitted'
         return 'pending'
 
     @property
     def status_label(self):
         return {
-            'pending': 'Chờ HR kiểm tra',
-            'submitted': 'Chờ Giám đốc ký duyệt',
+            'pending': 'Chờ duyệt',
             'approved': 'Đã duyệt',
             'paid': 'Đã chi trả',
         }[self.status]

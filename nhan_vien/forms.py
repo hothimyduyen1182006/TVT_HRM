@@ -46,10 +46,24 @@ class BieuMauThietLapLuong(forms.Form):
     phu_cap_an_trua = forms.DecimalField(label='Phụ cấp ăn trưa (VNĐ/tháng)', min_value=0, max_digits=16, decimal_places=2, initial=450000)
     luong_gio_tang_ca = forms.DecimalField(label='Lương giờ căn cứ OT (VNĐ)', required=False, min_value=Decimal('.0001'), max_digits=18, decimal_places=4)
     can_cu_luong_gio_tang_ca = forms.CharField(label='Căn cứ lương giờ OT', required=False, widget=forms.Textarea(attrs={'rows': 2}))
-    da_kiem_tra = forms.BooleanField(label='Đã kiểm tra căn cứ tính lương', required=False)
 
     so_nguoi_phu_thuoc = forms.IntegerField(label='Số người phụ thuộc', min_value=0, initial=0, required=False)
 
+    KHOA_CAU_HINH = {
+        'so_nguoi_phu_thuoc': 'so_nguoi_phu_thuoc',
+        'ma_so_bhxh': 'ma_so_bhxh',
+        'ma_so_thue': 'ma_so_thue',
+        'ten_ngan_hang': 'ten_ngan_hang',
+        'so_tai_khoan': 'so_tai_khoan',
+        'luong_dong_bao_hiem': 'luong_dong_bao_hiem',
+        'can_cu_bao_hiem': 'can_cu_bao_hiem',
+        'doi_tuong_tinh_thue': 'doi_tuong_tinh_thue',
+        'giam_tru_ban_than': 'giam_tru_ban_than',
+        'can_cu_thue': 'can_cu_thue',
+        'phu_cap_an_trua': 'phu_cap_an_trua',
+        'luong_gio_tang_ca': 'luong_gio_tang_ca',
+        'can_cu_luong_gio_tang_ca': 'can_cu_luong_gio_tang_ca',
+    }
     KHOA_TY_LE = {'ty_le_bhxh': 'BHXH', 'ty_le_bhyt': 'BHYT', 'ty_le_bhtn': 'BHTN'}
 
     def __init__(self, ho_so=None, data=None):
@@ -70,7 +84,7 @@ class BieuMauThietLapLuong(forms.Form):
         return du_lieu
 
     def du_lieu_thiet_lap(self):
-        from bang_luong.services.tinh_toan import chuan_hoa_du_lieu
+        from bang_luong.services.can_cu_luong_service import chuan_hoa_du_lieu
         du_lieu = dict(self.cleaned_data)
         du_lieu['ty_le_bao_hiem'] = {
             ma_bao_hiem: format((du_lieu.pop(ten_truong) / 100).normalize(), 'f')

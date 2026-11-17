@@ -97,7 +97,7 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
     cap_nhat_tong_hop_ca_ky(ky_cong)
     if thao_tac == 'approve':
         from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
-        from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+        from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
         for ma_nhan_vien in ky_cong.ds_nhan_vien:
             dong_bo_thuong_tu_dong(NhanVien.objects.get(pk=ma_nhan_vien), ky_cong.thang, ky_cong.nam)
             cap_nhat_luong_nhan_vien(nguoi_thuc_hien, ma_nhan_vien, ky_cong.nam, ky_cong.thang)
@@ -127,7 +127,7 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
         ban_chot = ChotBangCong.objects.create(
             tong_hop=cap_nhat_tong_hop(nhan_vien, ky_cong), nguoi_duyet=nguoi_thuc_hien)
     cap_nhat_tong_hop(nhan_vien, ky_cong)
-    from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
+    from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
     dong_bo_thuong_tu_dong(nhan_vien, ky_cong.thang, ky_cong.nam)
     ban_chot.payroll_error = cap_nhat_luong_nhan_vien(nguoi_thuc_hien, nhan_vien.pk, ky_cong.nam, ky_cong.thang)

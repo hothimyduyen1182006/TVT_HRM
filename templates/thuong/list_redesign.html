@@ -126,7 +126,28 @@
 {% for row in rows %}<tr>{% if can_decide_period or can_send_period %}<td><input class="bm-select-row" form="{% if can_decide_period %}bm-bulk-form{% else %}bm-submit-form{% endif %}" type="checkbox" name="nhan_vien_ids" value="{{ row.nguoi_dung.employee.pk }}" aria-label="Chọn {{ row.nguoi_dung.employee.ho_va_ten }}"></td>{% endif %}<td class="bm-code">{{ row.ma_hien_thi }}</td><td class="bm-employee">{{ row.nguoi_dung.employee.ho_va_ten }}</td><td><span class="bm-dept">{{ row.nguoi_dung.employee.phong_ban.ten_phong_ban }}</span></td><td class="bm-money">{{ row.thuong_chuyen_can|money }}</td><td class="bm-money">{{ row.thuong_tham_nien|money }}</td><td class="bm-money">{{ row.thuong_khac|money }}</td><td class="bm-total">{{ row.tong_thuong|money }}</td><td><span class="bm-status {{ row.trang_thai }}">{% if row.trang_thai == 'draft' %}Bản nháp{% elif row.trang_thai == 'pending' %}Chờ duyệt{% elif row.trang_thai == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td><td>{% if row.ngay_duyet and row.trang_thai != 'pending' and row.trang_thai != 'draft' %}{{ row.ngay_duyet|date:'d/m/Y' }}{% else %}<span class="bm-no-date" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td><td><div class="bm-row-actions"><a class="bm-link" href="{% url 'thuong:detail' row.nguoi_dung.employee.pk row.nam row.thang %}">Xem chi tiết</a></div></td></tr>{% empty %}<tr><td colspan="11" class="bm-empty-cell"><div class="bm-empty-state"><div>{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU BẢNG THƯỞNG</h2><p>Chưa có bảng thưởng cho Tháng {{ form.thang.value }}/{{ form.nam.value }}.<br>Vui lòng chọn kỳ thưởng khác hoặc kiểm tra lại sau.</p><div class="bm-empty-info">Bảng thưởng sẽ hiển thị khi kỳ được chọn có dữ liệu thưởng phù hợp.</div></div></div></td></tr>{% endfor %}
 </tbody></table></div>
 {% if can_send_period %}<form id="bm-submit-form" method="post" action="{% url 'thuong:submit' selected_nam selected_thang %}" class="bm-bulk-actions">{% csrf_token %}<button class="bm-decision bm-approve" type="submit">Gửi duyệt</button></form><script>
-(() => { const rows = [...document.querySelectorAll('.bm-select-row')]; document.getElementById('bm-submit-form')?.addEventListener('submit', event => { const selected = rows.filter(row => row.checked); if (!selected.length) { event.preventDefault(); alert('Vui lòng chọn ít nhất một nhân viên.'); return; } if (!confirm(`Xác nhận gửi duyệt thưởng cho ${selected.length} nhân viên đã chọn?`)) event.preventDefault(); }); })();
+document.addEventListener('DOMContentLoaded', () => {
+ const form = document.getElementById('bm-submit-form');
+ const dialog = document.getElementById('bm-confirm-dialog');
+ const confirmButton = document.getElementById('bm-confirm-approve');
+ let confirmed = false;
+ form.addEventListener('submit', event => {
+   if (confirmed) return;
+   event.preventDefault();
+   const selected = [...document.querySelectorAll('.bm-select-row:checked')];
+   document.getElementById('bm-confirm-text').textContent = selected.length
+     ? `Bạn có chắc muốn gửi duyệt bảng thưởng của ${selected.length} nhân viên đã chọn không?`
+     : 'Vui lòng chọn ít nhất một nhân viên.';
+   confirmButton.hidden = !selected.length;
+   dialog.showModal();
+ });
+ confirmButton.addEventListener('click', () => {
+   confirmed = true;
+   confirmButton.disabled = true;
+   dialog.close();
+   form.requestSubmit();
+ });
+});
 </script>{% endif %}
 {% if can_decide_period %}
 <style>
@@ -148,7 +169,7 @@
  </form>
 </dialog>
 {% endif %}
-{% if can_decide_period %}
+{% if can_decide_period or can_send_period %}
 <style>
 #bm-confirm-dialog{padding:0;border:0;border-radius:8px;width:min(430px,calc(100% - 36px));background:transparent}
 #bm-confirm-dialog::backdrop{background:rgb(17 28 44 / 28%);backdrop-filter:blur(1.5px)}
@@ -164,7 +185,7 @@
   </div>
   <div class="bm-confirm-actions">
    <button class="btn btn-light" type="button" onclick="this.closest('dialog').close()">Hủy</button>
-   <button id="bm-confirm-approve" class="btn btn-success" type="button">Duyệt</button>
+   <button id="bm-confirm-approve" class="btn btn-success" type="button">{% if can_decide_period %}Duyệt{% else %}Gửi duyệt{% endif %}</button>
   </div>
  </section>
 </dialog>

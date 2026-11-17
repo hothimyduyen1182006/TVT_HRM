@@ -6,7 +6,7 @@ from django.utils import timezone
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
-from bang_cong.thang_lich import thang_lich
+from bang_cong.utils.date_utils import thang_lich
 from nghi_phep.models import NgayNghi
 
 

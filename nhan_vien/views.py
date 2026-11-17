@@ -160,7 +160,7 @@ def tao_nhan_vien(request):
     if request.method == 'POST' and bieu_mau.is_valid() and (not bieu_mau_luong.is_bound or bieu_mau_luong.is_valid()):
         nhan_vien = bieu_mau.save()
         if bieu_mau_luong.is_bound:
-            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong
             luu_thiet_lap_luong(request.user, nhan_vien, bieu_mau_luong.du_lieu_thiet_lap())
         messages.success(request, 'Thêm mới nhân viên thành công.')
         return redirect('employee_detail', ma_nhan_vien=nhan_vien.pk)
@@ -181,7 +181,7 @@ def sua_nhan_vien(request, ma_nhan_vien):
     bieu_mau_luong = BieuMauThietLapLuong(nhan_vien, request.POST if request.method == 'POST' and any(khoa.startswith('salary-') for khoa in request.POST) else None)
     if request.method=='POST' and request.POST.get('action')=='save_salary':
         if bieu_mau_luong.is_bound and bieu_mau_luong.is_valid():
-            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong
             nhan_vien = luu_thiet_lap_luong(request.user, nhan_vien, bieu_mau_luong.du_lieu_thiet_lap())
             messages.success(request,'Đã lưu thiết lập tính lương dùng chung của nhân viên.')
             for loi in nhan_vien.payroll_errors: messages.warning(request,loi)
@@ -189,12 +189,12 @@ def sua_nhan_vien(request, ma_nhan_vien):
     elif request.method == 'POST' and bieu_mau.is_valid() and (not bieu_mau_luong.is_bound or bieu_mau_luong.is_valid()):
         bieu_mau.save()
         if bieu_mau_luong.is_bound:
-            from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+            from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong
             nhan_vien = luu_thiet_lap_luong(request.user, nhan_vien, bieu_mau_luong.du_lieu_thiet_lap())
         if set(bieu_mau.changed_data) & {'luong_co_ban', 'ma_ho_so', 'ho_va_ten', 'phong_ban'}:
             from bang_luong.models import Luong
-            from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            months = Luong.objects.filter(trang_thai='pending').values_list(
+            from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
+            months = Luong.objects.filter(trang_thai=Luong.CHO_DUYET).values_list(
                 'tong_hop__nam', 'tong_hop__thang',
             ).distinct()
             for year, month in months:
