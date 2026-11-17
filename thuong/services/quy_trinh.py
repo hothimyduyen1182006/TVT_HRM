@@ -46,7 +46,7 @@ def luu_bang_thuong(bang):
 
 def gui_duyet_bang(bang):
     if bang.trang_thai not in ['draft', 'rejected'] or not bang.ly_do_chuyen_can or not bang.ly_do_tham_nien:
-        raise ValidationError('Chỉ gửi bảng thưởng Bản nháp hoặc Từ chối đã đủ căn cứ chuyên cần và thâm niên.')
+        raise ValidationError('Chỉ gửi duyệt bảng thưởng khi có đủ căn cứ chuyên cần và thâm niên.')
     bang.trang_thai = 'pending'
     bang.nguoi_duyet = bang.ngay_duyet = None
     bang.ly_do_tu_choi = ''
