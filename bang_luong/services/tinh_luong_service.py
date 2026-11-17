@@ -23,11 +23,12 @@ def _lam_tron(value):
 def tinh_khau_tru_bao_hiem(nhan_vien):
     """Tính BHXH, BHYT, BHTN từ thiết lập lương trên hồ sơ nhân viên."""
     cai_dat = nhan_vien.thiet_lap_luong or {}
-    if 'insurance_base' not in cai_dat:
+    luong_dong_bh = cai_dat.get('luong_dong_bao_hiem', cai_dat.get('insurance_base'))
+    if luong_dong_bh is None:
         raise ValidationError(f'{nhan_vien}: chưa có mức lương đóng bảo hiểm.')
 
-    luong_dong = _so_tien(cai_dat['insurance_base'])
-    ty_le = cai_dat.get('insurance_rates') or {}
+    luong_dong = _so_tien(luong_dong_bh)
+    ty_le = cai_dat.get('ty_le_bao_hiem') or cai_dat.get('insurance_rates') or {}
     if luong_dong < 0:
         raise ValidationError(f'{nhan_vien}: mức lương đóng bảo hiểm không được âm.')
     for ten in ('BHXH', 'BHYT', 'BHTN'):
@@ -112,16 +113,16 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
 
             nhan_vien = cong.nhan_vien
             cai_dat = nhan_vien.thiet_lap_luong or {}
-            if cai_dat.get('tax_method') != 'resident_2026':
+            if cai_dat.get('doi_tuong_tinh_thue', cai_dat.get('tax_method')) != 'resident_2026':
                 raise ValidationError(f'{nhan_vien}: chỉ tự tính thuế cho cấu hình cá nhân cư trú 2026.')
             if _so_tien(nhan_vien.luong_co_ban) <= 0:
                 raise ValidationError(f'{nhan_vien}: lương cơ bản phải lớn hơn 0.')
-            if not str(cai_dat.get('insurance_basis', '')).strip():
+            if not str(cai_dat.get('can_cu_bao_hiem', cai_dat.get('insurance_basis', ''))).strip():
                 raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ lương đóng bảo hiểm.')
-            if not str(cai_dat.get('tax_basis', '')).strip():
+            if not str(cai_dat.get('can_cu_thue', cai_dat.get('tax_basis', ''))).strip():
                 raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ tính thuế.')
             try:
-                so_nguoi_phu_thuoc = int(cai_dat.get('tax_dependents', 0))
+                so_nguoi_phu_thuoc = int(cai_dat.get('so_nguoi_phu_thuoc', cai_dat.get('tax_dependents', 0)))
             except (TypeError, ValueError):
                 raise ValidationError(f'{nhan_vien}: số người phụ thuộc không hợp lệ.')
             if so_nguoi_phu_thuoc < 0:
@@ -145,14 +146,14 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
                 luong_co_ban * _so_tien(cong.tong_cong) / _so_tien(cong.cong_chuan)
             )
             gio_ot = _so_tien(cong.tong_gio_tang_ca)
-            don_gia_ot = _so_tien(cai_dat.get('overtime_hourly_rate'))
+            don_gia_ot = _so_tien(cai_dat.get('luong_gio_tang_ca', cai_dat.get('overtime_hourly_rate')))
             if gio_ot and don_gia_ot <= 0:
                 raise ValidationError(f'{nhan_vien}: thiếu đơn giá giờ tăng ca.')
-            if gio_ot and not str(cai_dat.get('overtime_basis', '')).strip():
+            if gio_ot and not str(cai_dat.get('can_cu_luong_gio_tang_ca', cai_dat.get('overtime_basis', ''))).strip():
                 raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ đơn giá tăng ca.')
 
             luong_tang_ca = gio_ot * don_gia_ot
-            phu_cap = _so_tien(cai_dat.get('lunch_allowance'))
+            phu_cap = _so_tien(cai_dat.get('phu_cap_an_trua', cai_dat.get('lunch_allowance')))
             if phu_cap < 0:
                 raise ValidationError(f'{nhan_vien}: phụ cấp không được âm.')
             tong_thuong = _so_tien(thuong.tong_thuong)

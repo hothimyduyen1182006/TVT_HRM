@@ -31,7 +31,8 @@ def luu_thiet_lap_luong(actor, nhan_vien, settings):
         if key in settings
     }
     for field, key in BieuMauThietLapLuong.KHOA_TY_LE.items():
-        payload[f'salary-{field}'] = Decimal(str(settings.get('insurance_rates', {}).get(key, 0))) * 100
+        rates = settings.get('ty_le_bao_hiem') or settings.get('insurance_rates') or {}
+        payload[f'salary-{field}'] = Decimal(str(rates.get(key, 0))) * 100
     form = BieuMauThietLapLuong(nhan_vien, data=payload)
     if not form.is_valid():
         raise ValidationError(form.errors.as_text())
