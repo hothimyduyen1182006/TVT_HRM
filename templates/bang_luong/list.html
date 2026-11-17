@@ -57,7 +57,7 @@
 <td class="pr-status">{{ row.get_trang_thai_display }}</td>
 </tr>{% empty %}<tr><td colspan="10" class="pr-empty-table"><div class="pr-empty-content">{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU LƯƠNG</h2><p>Chưa có dữ liệu lương cho kỳ đã chọn.</p></div></td></tr>{% endfor %}
 </tbody></table></div>
-{% if co_quyen_xuat %}<dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Chỉ phiếu lương đã duyệt mới được xuất.</p><div class="pr-actions">
+{% if co_quyen_xuat %}<dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Phiếu lương chờ Giám đốc ký hoặc đã duyệt mới được xuất.</p><div class="pr-actions">
 <form method="get" action="{% url 'bang_luong:xuat' 'csv' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button">CSV</button></form>
 <form method="get" action="{% url 'bang_luong:xuat' 'json' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button pr-secondary">JSON</button></form>
 <form method="get" action="{% url 'bang_luong:xuat' 'txt' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button pr-secondary">TXT</button></form></div></dialog>{% endif %}

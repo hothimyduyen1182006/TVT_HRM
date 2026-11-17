@@ -50,7 +50,8 @@ def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope=None):
     if fmt not in ('csv', 'json', 'txt'):
         raise ValidationError('Định dạng tệp không được hỗ trợ.')
     phieu_luong = list(queryset.filter(
-        tong_hop__thang=month, tong_hop__nam=year, trang_thai=Luong.DA_DUYET,
+        tong_hop__thang=month, tong_hop__nam=year,
+        trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET],
         tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(actor),
     ).select_related('tong_hop__nhan_vien__phong_ban').order_by(
         'tong_hop__nhan_vien__ma_ho_so',

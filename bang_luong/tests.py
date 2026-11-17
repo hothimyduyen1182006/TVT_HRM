@@ -131,21 +131,26 @@ class BangLuongTests(TestCase):
         response = self.client.get('/bang_luong/?thang=11&nam=2026')
         self.assertEqual(set(response.context['bang_luong']), {first, second})
 
-    def test_export_is_limited_to_approved_rows_and_writes_export_log(self):
+    def test_export_only_allows_payroll_waiting_for_director_signature(self):
         phieu = self.tao_phieu()
         self.client.force_login(self.director)
         self.assertEqual(self.client.post(f'/bang_luong/{phieu.pk}/approve/').status_code, 404)
 
         self.client.force_login(self.hr)
         params = {'thang': 11, 'nam': 2026}
-        pending = self.client.get('/bang_luong/export/csv/', params)
+        pending = self.client.get('/bang_luong/xuat/csv/', params)
         self.assertEqual(pending.status_code, 302)
 
-        Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.DA_DUYET)
-        response = self.client.get('/bang_luong/export/csv/', params)
+        Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.CHO_GIAM_DOC_DUYET)
+        response = self.client.get('/bang_luong/xuat/csv/', params)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Mã nhân viên'.encode(), response.content)
         self.assertTrue(LogEntry.objects.filter(change_message__contains='csv').exists())
+
+        Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.DA_DUYET)
+        self.assertEqual(self.client.get('/bang_luong/xuat/csv/', params).status_code, 200)
+        Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.DA_CHI_TRA)
+        self.assertEqual(self.client.get('/bang_luong/xuat/csv/', params).status_code, 302)
 
     def test_auto_calculation_waits_for_documented_payroll_rules(self):
         self.client.force_login(self.hr)
