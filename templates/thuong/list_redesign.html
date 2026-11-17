@@ -120,7 +120,7 @@
 {% if form.errors %}<div class="alert alert-danger" role="alert">{{ form.errors }}</div>{% endif %}
 <div class="bm-actions">
    {% if can_propose %}<a class="btn bm-create" href="{% url 'thuong:propose' %}">Lập/Đề xuất bảng thưởng</a>{% endif %}
-  {% if can_export %}<button class="btn" type="button" onclick="document.getElementById('bm-export').showModal()">Xuất bảng thưởng</button>{% endif %}
+  {% if can_export %}<button class="btn" type="submit" form="bm-export-form">Xuất bảng thưởng</button>{% endif %}
 </div>
 <div class="bm-table-wrap"><table class="table table-sm bm-table"><thead><tr>{% if can_decide_period or can_send_period %}<th scope="col" class="bm-check-column"><input id="bm-select-all" type="checkbox" aria-label="Chọn tất cả nhân viên trên trang này" title="Chọn tất cả nhân viên trên trang này"></th>{% endif %}<th>Mã thưởng</th><th>Họ và tên</th><th>Phòng ban</th><th>Thưởng chuyên cần</th><th>Thưởng thâm niên</th><th>Thưởng khác</th><th>Tổng thưởng</th><th>Trạng thái</th><th>Ngày duyệt</th><th>Tác vụ</th></tr></thead><tbody>
 {% for row in rows %}<tr>{% if can_decide_period or can_send_period %}<td><input class="bm-select-row" form="{% if can_decide_period %}bm-bulk-form{% else %}bm-submit-form{% endif %}" type="checkbox" name="nhan_vien_ids" value="{{ row.nguoi_dung.employee.pk }}" aria-label="Chọn {{ row.nguoi_dung.employee.ho_va_ten }}"></td>{% endif %}<td class="bm-code">{{ row.ma_hien_thi }}</td><td class="bm-employee">{{ row.nguoi_dung.employee.ho_va_ten }}</td><td><span class="bm-dept">{{ row.nguoi_dung.employee.phong_ban.ten_phong_ban }}</span></td><td class="bm-money">{{ row.thuong_chuyen_can|money }}</td><td class="bm-money">{{ row.thuong_tham_nien|money }}</td><td class="bm-money">{{ row.thuong_khac|money }}</td><td class="bm-total">{{ row.tong_thuong|money }}</td><td><span class="bm-status {{ row.trang_thai }}">{% if row.trang_thai == 'draft' %}Bản nháp{% elif row.trang_thai == 'pending' %}Chờ duyệt{% elif row.trang_thai == 'approved' %}Đã duyệt{% else %}Từ chối{% endif %}</span></td><td>{% if row.ngay_duyet and row.trang_thai != 'pending' and row.trang_thai != 'draft' %}{{ row.ngay_duyet|date:'d/m/Y' }}{% else %}<span class="bm-no-date" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td><td><div class="bm-row-actions"><a class="bm-link" href="{% url 'thuong:detail' row.nguoi_dung.employee.pk row.nam row.thang %}">Xem chi tiết</a></div></td></tr>{% empty %}<tr><td colspan="11" class="bm-empty-cell"><div class="bm-empty-state"><div>{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU BẢNG THƯỞNG</h2><p>Chưa có bảng thưởng cho Tháng {{ form.thang.value }}/{{ form.nam.value }}.<br>Vui lòng chọn kỳ thưởng khác hoặc kiểm tra lại sau.</p><div class="bm-empty-info">Bảng thưởng sẽ hiển thị khi kỳ được chọn có dữ liệu thưởng phù hợp.</div></div></div></td></tr>{% endfor %}
@@ -259,40 +259,9 @@ cacOChon.forEach(o => o.addEventListener('change', () => {
 </script>
 {% endif %}
 {% if can_export %}
-<style>
-#bm-export{width:min(520px,calc(100% - 32px));padding:24px;border:1px solid #e1e7ee;border-radius:12px;color:#17385e}
-#bm-export::backdrop{background:rgb(17 28 44 / 35%)}
-.bm-export-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
-.bm-export-heading h2{margin:0;font-size:20px}
-.bm-export-heading button{border:0;background:transparent;font-size:26px;color:inherit}
-.bm-export-actions{display:flex;gap:10px;margin-top:20px}
-.bm-export-actions .btn{border:1px solid #17385e;color:#17385e}
-.bm-export-actions .btn[aria-pressed="true"]{background:#17385e;color:#fff}
-.bm-export-actions .btn:hover{background:#e8eef7}
-.bm-export-actions .btn[aria-pressed="true"]:hover{background:#102c4b}
-.bm-export-actions .btn:focus-visible{outline:3px solid #e5ad3880;outline-offset:2px}
-</style>
-<dialog id="bm-export" aria-labelledby="bm-export-title">
- <div class="bm-export-heading"><h2 id="bm-export-title">Xuất bảng thưởng</h2><button type="button" aria-label="Đóng" onclick="this.closest('dialog').close()">×</button></div>
- <p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng thưởng đã duyệt.</p>
- <form method="post" action="{% url 'thuong:export' 'csv' %}">
-  {% csrf_token %}
-  {% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}
-  <div class="bm-export-actions">
-   <button class="btn" type="submit" aria-pressed="true">CSV</button>
-   <button class="btn" type="submit" aria-pressed="false" formaction="{% url 'thuong:export' 'json' %}">JSON</button>
-   <button class="btn" type="submit" aria-pressed="false" formaction="{% url 'thuong:export' 'txt' %}">TXT</button>
-  </div>
- </form>
-</dialog>
-<script>
-document.querySelector('.bm-export-actions').addEventListener('click', event => {
- const selected = event.target.closest('button');
- if (!selected) return;
- for (const button of event.currentTarget.querySelectorAll('button')) {
-  button.setAttribute('aria-pressed', String(button === selected));
- }
-});
-</script>
+<form id="bm-export-form" method="post" action="{% url 'thuong:export' %}">
+ {% csrf_token %}
+ {% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}
+</form>
 {% endif %}
 </main>{% endblock %}

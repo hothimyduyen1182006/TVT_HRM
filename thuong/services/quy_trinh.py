@@ -74,6 +74,8 @@ def luu_de_xuat(de_xuat):
     bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
     if bang.trang_thai not in ['draft', 'rejected']:
         raise ValidationError('Chỉ sửa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
+    if bang.de_xuat.filter(ten__iexact=de_xuat.ten.strip()).exclude(pk=de_xuat.pk).exists():
+        raise ValidationError('Tên khoản thưởng đã tồn tại trong bảng thưởng. Vui lòng đổi tên hoặc dùng chức năng Sửa.')
     de_xuat.full_clean()
     de_xuat.save()
     cap_nhat_thuong_khac(bang)
@@ -126,6 +128,6 @@ def duyet_cac_bang(nguoi_dung, ds, nam, thang, thao_tac, ly_do, gui_duyet=False)
 @transaction.atomic
 def tao_de_xuat_thuong(nguoi_dung, du_lieu):
     bang, _ = Thuong.objects.get_or_create(nguoi_dung=du_lieu['nhan_vien'].nguoi_dung, thang=du_lieu['thang'], nam=du_lieu['nam'])
-    de_xuat = bang.de_xuat.filter(ten=du_lieu['ten']).first() or DeXuatThuong(bang_thuong=bang)
+    de_xuat = DeXuatThuong(bang_thuong=bang)
     cap_nhat_de_xuat_tu_form(de_xuat, du_lieu, nguoi_dung)
     return bang
