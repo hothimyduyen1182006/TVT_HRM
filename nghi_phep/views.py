@@ -13,8 +13,8 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
-from bang_cong.services.quy_trinh import cap_nhat_tong_hop
-from bang_cong.thang_lich import thang_lich
+from bang_cong.services.tong_hop_service import cap_nhat_tong_hop
+from bang_cong.utils.date_utils import thang_lich
 from nhan_vien.access import (
     GIAM_DOC,
     NHAN_SU,

@@ -910,10 +910,10 @@ from thuong.models import Bonus, payroll_bonus_records
 from nhan_vien.models import NhanVien, PhongBan, HocVan, HopDongLaoDong, ChucVu
 from nghi_phep.models import LeaveRequest, LeaveDay
 from bang_luong.models import PayrollPeriod, Luong, PayrollInput, PayrollAdjustment
-from bang_luong.services.tinh_toan import tinh_bang_luong
-from bang_luong.services.quy_trinh import duyet_phieu_luong, xu_ly_trang_thai_luong, loi_duyet_luong
-from bang_luong.services.quy_trinh import save_input
-from bang_luong.services.hien_thi import xuat_du_lieu_luong
+from bang_luong.services.tinh_luong_service import tinh_bang_luong
+from bang_luong.services.duyet_luong_service import duyet_phieu_luong, xu_ly_trang_thai_luong, loi_duyet_luong
+from bang_luong.services.duyet_luong_service import save_input
+from bang_luong.services.xuat_luong_service import xuat_du_lieu_luong
 
 
 class OctoberTrainingTests(TestCase):

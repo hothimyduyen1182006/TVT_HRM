@@ -1,1 +1,1 @@
-"""Logic tính lương, duyệt lương và xuất dữ liệu theo hợp đồng tích hợp."""
+"""Các hàm nghiệp vụ nhỏ dùng chung với app bảng lương."""

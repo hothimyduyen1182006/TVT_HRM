@@ -1,50 +1,65 @@
 {% extends 'bang_luong/base.html' %}{% load payroll_display %}
-{% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' %}{% endblock %}
-{% block title %}Bảng lương chính · TVT{% endblock %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' personal=ca_nhan %}{% endblock %}
+{% block title %}{% if ca_nhan %}Phiếu lương cá nhân{% else %}Bảng lương chính{% endif %} · TVT{% endblock %}
 {% block payroll_content %}
-
+{% if ca_nhan %}
+<div class="pr-personal-heading pr-no-print">
+ <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
+ <form class="pr-period-form" method="get" action="{% url 'bang_luong:ca_nhan' %}">
+  {{ form.thang }}{{ form.nam }}<button class="pr-button">Lọc</button>
+ </form>
+</div>
+{% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}
+{% for row in bang_luong %}
+<article class="pr-slip">
+ <header class="pr-slip-header"><div class="pr-slip-period"><p>PHIẾU THANH TOÁN LƯƠNG</p><h2>THÁNG {{ row.tong_hop.thang|stringformat:'02d' }}/{{ row.tong_hop.nam }}</h2></div>
+ <div class="pr-slip-employee"><h3>{{ row.ten_nhan_vien }}</h3><p>Mã NV: {{ row.ma_nhan_vien }} <span>|</span> {{ row.ten_phong_ban }}</p>
+ <p class="pr-attendance-meta">Công chuẩn: {{ row.cong_chuan|units }} <span>|</span> Tổng công: {{ row.cong_huong_luong|units }} <span>|</span> Phép: {{ row.cong_nghi_phep|units }}</p></div></header>
+ {% if row.trang_thai == 'Cho_duyet' %}<p class="pr-draft">Bảng lương đang chờ duyệt.</p>{% endif %}
+ <div class="pr-slip-columns"><section class="pr-income"><h3>KHOẢN THU NHẬP</h3>
+ <dl class="pr-line"><dt>Lương cơ bản</dt><dd>{{ row.luong_co_ban|money }}</dd></dl><dl class="pr-line"><dt>Lương theo công</dt><dd>{{ row.luong_theo_cong|money }}</dd></dl>
+ <dl class="pr-line"><dt>Lương tăng ca</dt><dd>{{ row.luong_tang_ca|money }}</dd></dl><dl class="pr-line"><dt>Phụ cấp</dt><dd>{{ row.phu_cap|money }}</dd></dl><dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.tong_tien_thuong|money }}</dd></dl>
+ <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ row.tong_thu_nhap|money }} đ</dd></dl></section>
+ <section class="pr-deductions"><h3>KHOẢN KHẤU TRỪ</h3>
+ <dl class="pr-line"><dt>Khấu trừ BHXH</dt><dd>{{ row.khau_tru_bhxh|money }}</dd></dl><dl class="pr-line"><dt>BHYT</dt><dd>{{ row.khau_tru_bhyt|money }}</dd></dl><dl class="pr-line"><dt>BHTN</dt><dd>{{ row.khau_tru_bhtn|money }}</dd></dl><dl class="pr-line"><dt>Thuế TNCN</dt><dd>{{ row.thue_tncn|money }}</dd></dl><dl class="pr-line"><dt>Khấu trừ khác</dt><dd>{{ row.khau_tru_khac|money }}</dd></dl>
+ <dl class="pr-total"><dt>TỔNG KHẤU TRỪ</dt><dd>{{ row.tong_khau_tru|money }} đ</dd></dl></section></div>
+ <div class="pr-net"><div><h3>THỰC LĨNH</h3><p>{{ row.get_trang_thai_display }}</p></div><strong>{{ row.luong_thuc_linh|money }} VNĐ</strong></div>
+ <div class="pr-print-control pr-no-print"><button class="pr-print-button" type="button" onclick="window.print()">In phiếu lương</button></div>
+</article>
+{% empty %}<article class="pr-slip pr-empty-slip"><div class="pr-empty-content">{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU PHIẾU LƯƠNG</h2><p>Chưa có phiếu lương cho kỳ đã chọn.</p></div></article>{% endfor %}
+{% else %}
 <h1 class="pr-title pr-main-title">BẢNG LƯƠNG CHÍNH</h1>
 <form class="pr-filter" method="get">
- <div class="pr-field pr-keyword">{{ form.q.label_tag }}{{ form.q }}</div>
- <div class="pr-field">{{ form.phong_ban.label_tag }}{{ form.phong_ban }}</div>
- <div class="pr-field">{{ form.status.label_tag }}{{ form.status }}</div>
- <div class="pr-field pr-short">{{ form.thang.label_tag }}{{ form.thang }}</div>
- <div class="pr-field pr-short">{{ form.nam.label_tag }}{{ form.nam }}</div>
- <button class="pr-button" type="submit">Lọc</button>
- {% if form.nhan_vien.value %}<input type="hidden" name="employee" value="{{ form.nhan_vien.value }}">{% endif %}
+ <div class="pr-field pr-keyword">{{ form.tu_khoa.label_tag }}{{ form.tu_khoa }}</div><div class="pr-field">{{ form.phong_ban.label_tag }}{{ form.phong_ban }}</div>
+ <div class="pr-field">{{ form.trang_thai.label_tag }}{{ form.trang_thai }}</div><div class="pr-field pr-short">{{ form.thang.label_tag }}{{ form.thang }}</div>
+ <div class="pr-field pr-short">{{ form.nam.label_tag }}{{ form.nam }}</div><button class="pr-button" type="submit">Lọc</button>
  {% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}
 </form>
-{% if can_manage %}<div class="pr-actions">
- <button class="pr-button pr-secondary" type="button" data-open-dialog="pr-export">Xuất bảng lương</button>
-</div>{% endif %}
+<div class="pr-actions">
+ {% if co_quyen_xuat %}<button class="pr-button pr-secondary" type="button" data-open-dialog="pr-export">Xuất bảng lương</button>{% endif %}
+ {% if co_quyen_tinh %}<form method="post" action="{% url 'bang_luong:tinh_luong' %}">{% csrf_token %}<input type="hidden" name="thang" value="{{ form.thang.value }}"><input type="hidden" name="nam" value="{{ form.nam.value }}"><button class="pr-button" type="submit">Tính lương kỳ này</button></form>{% endif %}
+ {% if co_quyen_gui %}<form method="post" action="{% url 'bang_luong:gui_giam_doc' %}">{% csrf_token %}<input type="hidden" name="thang" value="{{ form.thang.value }}"><input type="hidden" name="nam" value="{{ form.nam.value }}"><button class="pr-button" type="submit">Gửi toàn bộ bảng lương cho Giám đốc ký</button></form>{% endif %}
+ {% if co_quyen_ky %}<form method="post" action="{% url 'bang_luong:ky_duyet' %}">{% csrf_token %}<input type="hidden" name="thang" value="{{ form.thang.value }}"><input type="hidden" name="nam" value="{{ form.nam.value }}"><button class="pr-button" type="submit">Ký duyệt toàn bộ bảng lương kỳ này</button></form>{% endif %}
+</div>
 <div class="pr-table-scroll"><table class="pr-table"><thead><tr>
- <th>Họ tên</th><th>Phòng ban</th><th>Lương cơ<br>bản</th><th>Lương<br>theo công</th><th>Lương<br>tăng ca</th><th>Tổng tiền<br>thưởng</th><th>Khấu trừ<br>đi trễ</th><th>Khấu trừ<br>BHXH</th><th>Thuế<br>TNCN</th><th>Lương thực<br>lĩnh</th><th>Trạng thái</th>
+<th>Họ tên</th><th>Phòng ban</th><th>Lương cơ bản</th><th>Lương theo công</th><th>Lương tăng ca</th><th>Tổng tiền thưởng</th><th>Khấu trừ BHXH</th><th>Thuế TNCN</th><th>Lương thực lĩnh</th><th>Trạng thái</th>
 </tr></thead><tbody>
-{% for row in rows %}<tr>
- <td class="pr-name"><a href="{% url 'bang_luong:detail' row.pk %}">{{ row.ten_nhan_vien }}</a><small>{{ row.ma_nhan_vien }}</small></td>
- <td class="pr-department pr-tone-{{ row.ten_phong_ban|department_tone }}">{{ row.ten_phong_ban }}</td>
- <td class="pr-muted pr-money">{{ row.luong_co_ban|money }}</td><td class="pr-money">{{ row.luong_theo_cong|money }}</td>
- <td class="pr-bonus pr-money">{{ row.luong_tang_ca|money }}</td>
- <td class="pr-bonus pr-money">{{ row.tong_tien_thuong|money }}</td>
- <td class="{% if row.khau_tru_di_tre %}pr-deduct{% else %}pr-muted{% endif %} pr-money" title="Khoản phạt đã lưu trên phiếu lương.">{% if row.khau_tru_di_tre %}− {% endif %}{{ row.khau_tru_di_tre|money }}</td>
- <td class="pr-deduct pr-money">{% with bhxh_amount=row|bhxh %}{% if bhxh_amount != None %}− {{ bhxh_amount|money }}{% else %}—{% endif %}{% endwith %}<small class="pr-muted">Tổng BH: {{ row.tong_bao_hiem|money }}</small></td>
- <td class="{% if row.thue_tncn %}pr-deduct{% else %}pr-muted{% endif %} pr-money">{% if row.thue_tncn %}− {% endif %}{{ row.thue_tncn|money }}</td>
- <td class="pr-net-cell pr-money">{{ row.luong_thuc_linh|money }}</td><td class="pr-status pr-status-{{ row.trang_thai }}">{{ row.get_trang_thai_display }}</td>
-</tr>{% empty %}<tr><td colspan="11" class="pr-empty-table"><div class="pr-empty-content">{% include 'bang_luong/empty_icon.html' %}
- <h2>CHƯA CÓ DỮ LIỆU BẢNG LƯƠNG</h2>
- {% if form.is_valid %}<p>Chưa có bảng lương cho Tháng {{ month_label }}/{{ year_label }}.<br>Chọn kỳ lương khác hoặc hoàn thiện công đã duyệt và căn cứ tính lương để hệ thống tự cập nhật.</p>{% if form.q.value or form.phong_ban.value or form.status.value or form.nhan_vien.value %}<small>Không có bản ghi khớp bộ lọc hiện tại; bạn có thể bỏ bớt điều kiện lọc.</small>{% endif %}{% else %}<p>Vui lòng kiểm tra lại bộ lọc tháng, năm và phạm vi dữ liệu.</p>{% endif %}
-</div></td></tr>{% endfor %}
+{% for row in bang_luong %}<tr>
+<td class="pr-name"><a href="{% url 'bang_luong:chi_tiet' row.pk %}">{{ row.ten_nhan_vien }}</a></td>
+<td class="pr-department pr-tone-{{ row.ten_phong_ban|department_tone }}">{{ row.ten_phong_ban }}</td>
+<td class="pr-muted pr-money">{{ row.luong_co_ban|money }}</td>
+<td class="pr-money">{{ row.luong_theo_cong|money }}</td>
+<td class="pr-bonus pr-money">{{ row.luong_tang_ca|money }}</td>
+<td class="pr-bonus pr-money">{{ row.tong_tien_thuong|money }}</td>
+<td class="pr-deduct pr-money">− {{ row.khau_tru_bhxh|money }}</td>
+<td class="pr-deduct pr-money">{{ row.thue_tncn|money }}</td>
+<td class="pr-net-cell pr-money">{{ row.luong_thuc_linh|money }}</td>
+<td class="pr-status">{{ row.get_trang_thai_display }}</td>
+</tr>{% empty %}<tr><td colspan="10" class="pr-empty-table"><div class="pr-empty-content">{% include 'bang_luong/empty_icon.html' %}<h2>CHƯA CÓ DỮ LIỆU LƯƠNG</h2><p>Chưa có dữ liệu lương cho kỳ đã chọn.</p></div></td></tr>{% endfor %}
 </tbody></table></div>
-{% if hr and period and period.status == 'pending' and attendance_approved and period.records.exists %}<form class="pr-submit-payroll" method="post" action="{% url 'bang_luong:transition' period.pk %}" onsubmit="return confirm('Gửi toàn bộ phiếu lương của tháng {{ period.thang }}/{{ period.nam }} cho Giám đốc phê duyệt?');">{% csrf_token %}<input type="hidden" name="action" value="submit"><button class="pr-button" type="submit">Gửi toàn bộ bảng lương cho Giám đốc phê duyệt</button></form>{% endif %}
-{% if can_manage %}
-<dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Xuất theo đúng bộ lọc hiện tại. Chỉ chấp nhận bảng lương đã duyệt hoặc đã chi trả.</p>
- <form method="post" action="{% url 'bang_luong:export' 'csv' %}">{% csrf_token %}{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<div class="pr-actions"><button class="pr-button">CSV</button><button class="pr-button pr-secondary" formaction="{% url 'bang_luong:export' 'json' %}">JSON</button><button class="pr-button pr-secondary" formaction="{% url 'bang_luong:export' 'txt' %}">TXT</button></div></form>
-</dialog>
+{% if co_quyen_xuat %}<dialog id="pr-export" class="pr-dialog"><div class="pr-dialog-heading"><h2>Xuất bảng lương</h2><button type="button" data-close-dialog aria-label="Đóng">×</button></div><p>Chỉ phiếu lương đã duyệt mới được xuất.</p><div class="pr-actions">
+<form method="get" action="{% url 'bang_luong:xuat' 'csv' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button">CSV</button></form>
+<form method="get" action="{% url 'bang_luong:xuat' 'json' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button pr-secondary">JSON</button></form>
+<form method="get" action="{% url 'bang_luong:xuat' 'txt' %}">{% for field in form %}<input type="hidden" name="{{ field.name }}" value="{{ field.value|default_if_none:'' }}">{% endfor %}<button class="pr-button pr-secondary">TXT</button></form></div></dialog>{% endif %}
 {% endif %}
-{% if can_manage and period and period.status != 'pending' %}<details class="pr-workflow"><summary>Quản lý kỳ {{ period }} · {{ period.status_label }}</summary>
- <form method="post" action="{% url 'bang_luong:transition' period.pk %}">{% csrf_token %}<label for="pr-workflow-reason">Lý do thao tác</label><textarea id="pr-workflow-reason" name="reason" required></textarea>
- {% if period.status == 'submitted' and hr %}<button class="pr-button pr-secondary" name="action" value="reopen">Thu hồi để HR kiểm tra lại</button>{% endif %}
- {% if period.status == 'approved' %}<label for="pr-evidence">Bằng chứng thanh toán (mã giao dịch / đường dẫn chứng từ)</label><textarea id="pr-evidence" name="evidence"></textarea><div class="pr-actions"><button class="pr-button pr-secondary" name="action" value="reopen">Mở lại để điều chỉnh</button><button class="pr-button" name="action" value="paid">Xác nhận đã chi trả</button></div>{% endif %}
- {% if period.status == 'paid' %}<p>Kỳ đã chi trả được khóa. Không mở lại trực tiếp.</p>{% endif %}</form>
-</details>{% endif %}
 {% endblock %}

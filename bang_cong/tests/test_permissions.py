@@ -87,7 +87,7 @@ class BulkApprovalTests(TestCase):
         self.client.force_login(self.manager)
         self.assertNotContains(self.client.get(url), 'id="bulk-approval"')
 
-    @patch('bang_luong.services.tinh_toan.cap_nhat_luong_nhan_vien', return_value='')
+    @patch('bang_luong.services.tinh_luong_service.cap_nhat_luong_nhan_vien', return_value='')
     def test_real_approval_keeps_success_and_closes_period_after_last_employee(self, salary):
         from ..models import ChamCong, ChotBangCong
         from ..services.cham_cong_service import lich_thang

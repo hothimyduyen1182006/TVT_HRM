@@ -13,8 +13,8 @@ class NhanVienAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if change and set(form.changed_data) & {'luong_co_ban', 'ma_ho_so', 'ho_va_ten', 'phong_ban'}:
             from bang_luong.models import Luong
-            from bang_luong.services.tinh_toan import cap_nhat_luong_nhan_vien
-            months = Luong.objects.filter(trang_thai='pending').values_list(
+            from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
+            months = Luong.objects.filter(trang_thai=Luong.CHO_DUYET).values_list(
                 'tong_hop__nam', 'tong_hop__thang',
             ).distinct()
             for year, month in months:

@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 from urllib.parse import urlencode
 from bang_luong.models import Luong
-from bang_luong.services.hien_thi import phieu_luong_ca_nhan
+from bang_luong.services.xuat_luong_service import phieu_luong_ca_nhan
 
 
 @login_required
@@ -28,16 +28,16 @@ def home(request):
     latest=phieu_luong_ca_nhan(request.user).order_by(
         '-tong_hop__nam','-tong_hop__thang','-pk').first()
     today=timezone.localdate()
-    from bang_cong.thang_lich import thang_lich
+    from bang_cong.utils.date_utils import thang_lich
     period=thang_lich(latest.tong_hop.nam, latest.tong_hop.thang) if latest else None
-    payroll_url=reverse('bang_luong:personal')+'?'+urlencode({'month':period.thang if period else today.month,
+    payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'month':period.thang if period else today.month,
         'year':period.nam if period else today.year})
     bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
     return render(request,'home.html',{
         'display_name':name,
         'attendance_url':reverse('bang_cong:ca-nhan') if employee else (reverse('bang_cong:danh-sach') if can_manage else ''),
         'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
-        'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:list'),
+        'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:danh_sach'),
         'bonus_url':bonus_url,
         'bonus_description':'Xem các khoản thưởng của bạn' if employee or not can_manage else 'Xem bảng thưởng theo quyền',
         'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (

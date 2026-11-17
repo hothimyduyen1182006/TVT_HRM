@@ -46,7 +46,6 @@ class BieuMauThietLapLuong(forms.Form):
     phu_cap_an_trua = forms.DecimalField(label='Phụ cấp ăn trưa (VNĐ/tháng)', min_value=0, max_digits=16, decimal_places=2, initial=450000)
     luong_gio_tang_ca = forms.DecimalField(label='Lương giờ căn cứ OT (VNĐ)', required=False, min_value=Decimal('.0001'), max_digits=18, decimal_places=4)
     can_cu_luong_gio_tang_ca = forms.CharField(label='Căn cứ lương giờ OT', required=False, widget=forms.Textarea(attrs={'rows': 2}))
-    da_kiem_tra = forms.BooleanField(label='Đã kiểm tra căn cứ tính lương', required=False)
 
     so_nguoi_phu_thuoc = forms.IntegerField(label='Số người phụ thuộc', min_value=0, initial=0, required=False)
 
@@ -64,7 +63,6 @@ class BieuMauThietLapLuong(forms.Form):
         'phu_cap_an_trua': 'lunch_allowance',
         'luong_gio_tang_ca': 'overtime_hourly_rate',
         'can_cu_luong_gio_tang_ca': 'overtime_basis',
-        'da_kiem_tra': 'verified',
     }
     KHOA_TY_LE = {'ty_le_bhxh': 'BHXH', 'ty_le_bhyt': 'BHYT', 'ty_le_bhtn': 'BHTN'}
 
@@ -89,7 +87,7 @@ class BieuMauThietLapLuong(forms.Form):
         return du_lieu
 
     def du_lieu_thiet_lap(self):
-        from bang_luong.services.tinh_toan import chuan_hoa_du_lieu
+        from bang_luong.services.can_cu_luong_service import chuan_hoa_du_lieu
         du_lieu = dict(self.cleaned_data)
         for ten_truong, khoa_cu in self.KHOA_CAU_HINH.items():
             du_lieu[khoa_cu] = du_lieu.pop(ten_truong)

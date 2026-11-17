@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from bang_luong.services.quy_trinh import luu_thiet_lap_luong
+from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong
 from .forms import BieuMauThietLapLuong
 from .models import ChucVu, NhanVien, PhongBan
 
@@ -30,7 +30,7 @@ class SalarySettingsSaveTests(TestCase):
             'salary-giam_tru_ban_than': 'True', 'salary-can_cu_thue': 'Căn cứ kiểm thử',
             'salary-phu_cap_an_trua': '450000', 'salary-luong_gio_tang_ca': '56818.1818',
             'salary-can_cu_luong_gio_tang_ca': 'Căn cứ giờ kiểm thử',
-            'salary-da_kiem_tra': 'True', 'salary-ma_so_bhxh': '4826001234',
+            'salary-ma_so_bhxh': '4826001234',
         }
 
     def settings(self):
@@ -46,7 +46,7 @@ class SalarySettingsSaveTests(TestCase):
         self.assertEqual(saved['insurance_base'], '10000000')
         self.assertEqual(saved['insurance_rates'], {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'})
         self.assertEqual(saved['insurance_number'], '4826001234')
-        self.assertTrue(saved['verified'])
+        self.assertNotIn('verified', saved)
         luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.thiet_lap_luong, saved)

@@ -99,7 +99,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(self.client.get('/nghi_phep/?month=9&year=2026').status_code, 200)
         self.assertEqual(self.client.get('/admin/').status_code, 302)
         salary = Luong.objects.filter(ky_luong__attendance_period__thang=11).first()
-        self.assertEqual(self.client.post(f'/bang_luong/{salary.pk}/approve/').status_code, 403)
+        self.assertEqual(self.client.post(f'/bang_luong/{salary.pk}/approve/').status_code, 404)
         hr.refresh_from_db()
         self.assertFalse(hr.is_staff)
         self.assertFalse(hr.is_superuser)
