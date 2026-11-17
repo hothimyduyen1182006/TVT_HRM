@@ -34,7 +34,7 @@ def tinh_thuong_tham_nien(nhan_vien, thang, nam):
 
 def tinh_thuong_chuyen_can(nhan_vien, thang, nam):
     cong = TongHopCong.objects.filter(
-        nhan_vien=nhan_vien, thang=thang, nam=nam, approval__isnull=False,
+        nhan_vien=nhan_vien, thang=thang, nam=nam, chotbangcong__isnull=False,
     ).first()
     if not cong:
         raise ValidationError(f'Bảng công của {nhan_vien} chưa được duyệt.')
