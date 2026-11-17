@@ -2,6 +2,10 @@
 {% if not salary_readonly %}{{ salary_form.non_field_errors }}{% endif %}
 <div class="form-grid salary-settings-grid">
   {% for field in salary_form %}
+    {% if field.name == 'can_cu_bao_hiem' or field.name == 'doi_tuong_tinh_thue' or field.name == 'can_cu_thue' or field.name == 'can_cu_luong_gio_tang_ca' or field.name == 'luong_gio_tang_ca' or field.name == 'giam_tru_ban_than' %}
+      {% if not salary_readonly %}{{ field.as_hidden }}{{ field.errors }}{% endif %}
+    {% else %}
       <div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{% if salary_readonly %}<input id="{{ field.id_for_label }}" type="text" value="{% if field.name == 'luong_dong_bao_hiem' or field.name == 'phu_cap_an_trua' %}{{ field.value|money }}{% else %}{{ field.value|default_if_none:'' }}{% endif %}" placeholder="Chưa cập nhật" readonly aria-readonly="true" disabled>{% else %}{{ field }}{{ field.errors }}{% endif %}</div>
+    {% endif %}
   {% endfor %}
 </div>
