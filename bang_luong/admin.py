@@ -1,5 +1,5 @@
 from django.contrib import admin
-from nhan_vien.admin_utils import QuanTriChiDoc
+from config.admin_utils import QuanTriChiDoc
 from .models import Luong
 
 
