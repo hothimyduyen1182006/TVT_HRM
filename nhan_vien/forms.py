@@ -8,25 +8,6 @@ from decimal import Decimal
 from .models import HocVan, NhanVien, HopDongLaoDong
 
 
-class BoLocNhanVien(forms.Form):
-    hoat_dong_den_ngay = forms.DateField(label='Nhân viên đang hoạt động đến ngày', required=False,
-                                        widget=forms.DateInput(attrs={'type': 'date'}))
-    gioi_tinh = forms.ChoiceField(label='Giới tính', required=False,
-        choices=[('', 'Tất cả'), ('Nam', 'Nam'), ('Nữ', 'Nữ'), ('unknown', 'Chưa cập nhật')])
-
-    def __init__(self, *args, **kwargs):
-        tham_so = list(args)
-        du_lieu_gui = tham_so[0] if tham_so else kwargs.get('data')
-        if du_lieu_gui is not None and 'active_as_of' in du_lieu_gui and 'hoat_dong_den_ngay' not in du_lieu_gui:
-            du_lieu_gui = du_lieu_gui.copy()
-            du_lieu_gui['hoat_dong_den_ngay'] = du_lieu_gui.get('active_as_of')
-            if tham_so:
-                tham_so[0] = du_lieu_gui
-            else:
-                kwargs['data'] = du_lieu_gui
-        super().__init__(*tham_so, **kwargs)
-
-
 NguoiDung = get_user_model()
 
 

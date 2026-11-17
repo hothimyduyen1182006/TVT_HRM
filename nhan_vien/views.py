@@ -14,7 +14,6 @@ from .access import (
     nhan_vien_duoc_hien_thi as nhan_vien_trong_pham_vi,
 )
 from .forms import (
-    BoLocNhanVien,
     BieuMauHocVan,
     BieuMauNhanVien,
     BieuMauHopDong,
@@ -59,18 +58,6 @@ def danh_sach_nhan_vien(request):
     if not co_vai_tro(request.user, *VAI_TRO_DANH_SACH):
         return tu_choi_truy_cap(request)
     danh_sach = nhan_vien_trong_pham_vi(request.user)
-    bo_loc = BoLocNhanVien(request.GET)
-    if bo_loc.is_valid():
-        ngay_chon = bo_loc.cleaned_data['hoat_dong_den_ngay']
-        if ngay_chon:
-            danh_sach = danh_sach.filter(dang_hoat_dong=True, ngay_vao_lam__lte=ngay_chon)
-        gioi_tinh = bo_loc.cleaned_data['gioi_tinh']
-        if gioi_tinh == 'unknown':
-            danh_sach = danh_sach.exclude(gioi_tinh__in=['Nam', 'Nữ'])
-        elif gioi_tinh:
-            danh_sach = danh_sach.filter(gioi_tinh=gioi_tinh)
-    else:
-        danh_sach = danh_sach.none()
     bo_loc_du_lieu = {
         'q': request.GET.get('q', '').strip()[:100],
         'department': request.GET.get('department', '').strip(),
@@ -104,7 +91,6 @@ def danh_sach_nhan_vien(request):
     chuc_vu = danh_sach.model.chuc_vu.field.remote_field.model.objects.select_related('phong_ban')
     chuc_vu = chuc_vu.filter(phong_ban__in=phong_ban)
     return render(request, 'nhan_vien/list.html', {
-        'dashboard_filter': bo_loc,
         'rows': danh_sach.select_related('phong_ban', 'chuc_vu', 'nguoi_dung'),
         'filters': bo_loc_du_lieu,
         'departments': phong_ban.distinct(),

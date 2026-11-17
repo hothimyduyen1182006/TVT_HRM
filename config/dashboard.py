@@ -24,7 +24,8 @@ class DashboardFilter(forms.Form):
 
 def dashboard_context(user, form):
     day = form.cleaned_data['date']
-    employees = nhan_vien_duoc_hien_thi(user).filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
+    all_employees = nhan_vien_duoc_hien_thi(user)
+    employees = all_employees.filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
     period = thang_lich(day.year, day.month)
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
     leaves = set(NgayNghi.objects.filter(
@@ -51,12 +52,12 @@ def dashboard_context(user, form):
             else:
                 state, label = 'unchecked', 'Chưa chấm công'
         rows.append({'employee': employee, 'state': state, 'label': label})
-    departments = list(employees.values('phong_ban_id', ten_phong_ban=F('phong_ban__ten_phong_ban')).annotate(total=Count('pk')).order_by('-total', 'ten_phong_ban'))
+    departments = list(all_employees.values('phong_ban_id', ten_phong_ban=F('phong_ban__ten_phong_ban')).annotate(total=Count('pk')).order_by('-total', 'ten_phong_ban'))
     highest = max((item['total'] for item in departments), default=1)
     for item in departments:
         item['height'] = int(Decimal(item['total']) / highest * 100)
-    genders = Counter(employees.values_list('gioi_tinh', flat=True))
-    total = employees.count()
+    genders = Counter(all_employees.values_list('gioi_tinh', flat=True))
+    total = all_employees.count()
     gender_rows, cumulative = [], Decimal(0)
     for value, label, color in [('Nam', 'Nam', '#14385e'), ('Nữ', 'Nữ', '#287af0'), ('', 'Chưa cập nhật', '#cbd5e1')]:
         count = genders.get(value, 0) if value else total - genders.get('Nam', 0) - genders.get('Nữ', 0)
