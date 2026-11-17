@@ -240,17 +240,19 @@ class BonusWorkflowTests(TestCase):
             self.assertLess(html.index('Xem bảng thưởng'),html.index('Xem bảng lương'))
 
     def test_bonus_to_payroll_submission_approval_and_payment(self):
-        from bang_luong.services.duyet_luong_service import gui_bang_luong, xu_ly_trang_thai_luong
+        from bang_luong.services.tinh_luong_service import (
+            duyet_toan_bo_bang_luong, gui_bang_luong_cho_giam_doc,
+        )
         for i in range(2):
             self.approve_attendance(i)
         selected={'nhan_vien_ids':[p.pk for p in self.people]}
         self.post(self.hr,self.submit_url,selected)
         self.post(self.director,self.decision_url,{**selected,'action':'approve'})
         self.assertEqual(Luong.objects.filter(tong_tien_thuong=3200000).count(),2)
-        gui_bang_luong(self.hr,self.period.pk)
-        xu_ly_trang_thai_luong(self.director,self.period.pk,'approve','Đã kiểm tra')
-        xu_ly_trang_thai_luong(self.director,self.period.pk,'paid','Đã chuyển khoản','Biên lai thử nghiệm')
-        self.assertEqual(Luong.objects.filter(trang_thai='paid').count(),2)
+        gui_bang_luong_cho_giam_doc(self.hr, 2026, 10)
+        duyet_toan_bo_bang_luong(self.director, 2026, 10)
+
+        self.assertEqual(Luong.objects.filter(trang_thai=Luong.DA_DUYET).count(),2)
         self.client.force_login(self.hr)
         self.assertEqual(self.client.get(reverse('bang_luong:danh_sach'),{'month':10,'year':2026}).status_code,200)
         self.client.force_login(self.people[0].nguoi_dung)

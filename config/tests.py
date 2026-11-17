@@ -10,11 +10,13 @@ from django.contrib.auth import SESSION_KEY, get_user_model
 from django.contrib.sessions.models import Session
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import NoReverseMatch, Resolver404, resolve, reverse
+from django.utils import timezone
 
 from nhan_vien.models import PhongBan, NhanVien
 from nhan_vien import test_personal_records as personal_fixtures
-from bang_cong.models import KyCong
-from bang_luong.models import Luong, PayrollPeriod
+from bang_cong.models import TongHopCong
+from bang_luong.models import Luong
+from thuong.models import Thuong
 
 
 class HomePageTests(TestCase):
@@ -44,12 +46,18 @@ class HomePageTests(TestCase):
     def test_latest_salary_is_selected_only_for_current_user(self):
         employee=self.people[3]
         for owner,year in [(employee,2027),(self.people[0],2028)]:
-            attendance=KyCong.objects.create(nam=year,thang=2,trang_thai='approved',gio_bat_dau=time(8),bat_dau_nghi_trua=time(12),
-                ket_thuc_nghi_trua=time(13),gio_ket_thuc=time(17),gio_chuan=8)
-            period=PayrollPeriod.objects.create(attendance_period=attendance)
-            record=Luong.objects.get(nhan_vien=owner)
-            record.ky_luong=period
-            record.save(update_fields=['ky_luong'])
+            summary = TongHopCong.objects.create(
+                nhan_vien=owner, nam=year, thang=2, cong_chuan=20, tong_cong=20,
+            )
+            bonus = Thuong.objects.create(
+                nguoi_dung=owner.nguoi_dung, nam=year, thang=2,
+                trang_thai='approved', nguoi_duyet=self.people[1].nguoi_dung,
+                ngay_duyet=timezone.now(),
+            )
+            Luong.objects.create(
+                tong_hop=summary, tong_thuong=bonus, luong_co_ban=10000000,
+                luong_theo_cong=10000000, luong_thuc_linh=10000000,
+            )
         self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
         self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=2&year=2027')
@@ -58,7 +66,7 @@ class HomePageTests(TestCase):
 
     def test_employee_without_salary_has_working_empty_payslip_link(self):
         employee=self.people[3]
-        Luong.objects.filter(nhan_vien=employee).delete()
+        Luong.objects.filter(tong_hop__nhan_vien=employee).delete()
         self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)

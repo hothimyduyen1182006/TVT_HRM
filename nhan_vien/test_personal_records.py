@@ -3,8 +3,10 @@ from decimal import Decimal
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 from nhan_vien.models import NhanVien, PhongBan
-from bang_cong.models import KyCong, ChamCong, LichLamViec
-from bang_luong.models import PayrollPeriod, Luong
+from bang_cong.models import ChamCong, TongHopCong
+from bang_luong.models import Luong
+from thuong.models import Thuong
+from django.utils import timezone
 
 
 class ManagementPersonalRecordsTests(TestCase):
@@ -20,20 +22,22 @@ class ManagementPersonalRecordsTests(TestCase):
             self.people.append(employee)
         self.team.truong_phong = self.people[2]
         self.team.save()
-        self.period = KyCong.objects.create(nam=2026, thang=1, trang_thai='approved', gio_bat_dau=time(8),
-            bat_dau_nghi_trua=time(12), ket_thuc_nghi_trua=time(13), gio_ket_thuc=time(17), gio_chuan=8)
-        LichLamViec.objects.create(ngay=date(2026, 1, 5), loai_ngay='work', cong_chuan=1)
-        payroll = PayrollPeriod.objects.create(attendance_period=self.period)
         for employee in self.people:
             ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
-                trang_thai='present', gio_vao=time(8), gio_ra=time(17), tong_cong=1, cong_thuc_te=1, so_gio_lam=8)
-            values = dict(nhan_vien=employee, ky_luong=payroll, ma_nhan_vien=employee.ma_ho_so,
-                ten_nhan_vien=employee.ho_va_ten, ma_phong_ban_luu=self.department.pk,
-                ten_phong_ban=self.department.ten_phong_ban, luong_co_ban=10000000, cong_chuan=1,
-                cong_huong_luong=1, cong_nghi_phep=0, so_phut_tre=0, so_gio_tang_ca=0, luong_theo_cong=10000000,
-                luong_tang_ca=0, tong_tien_thuong=0, phu_cap=0, tong_bao_hiem=0, thue_tncn=0, tong_khau_tru=0,
-                luong_thuc_linh=10000000, chi_tiet={})
-            Luong.objects.create(**values)
+                trang_thai='present', gio_vao=time(8), gio_ra=time(17), so_gio_lam=8)
+            summary = TongHopCong.objects.create(
+                nhan_vien=employee, nam=2026, thang=1, cong_chuan=1,
+                cong_thuc_te=1, tong_cong=1,
+            )
+            bonus = Thuong.objects.create(
+                nguoi_dung=employee.nguoi_dung, nam=2026, thang=1,
+                trang_thai='approved', nguoi_duyet=self.people[1].nguoi_dung,
+                ngay_duyet=timezone.now(),
+            )
+            Luong.objects.create(
+                tong_hop=summary, tong_thuong=bonus, luong_co_ban=10000000,
+                luong_theo_cong=10000000, luong_thuc_linh=10000000,
+            )
 
     def test_management_roles_can_switch_to_own_records(self):
         for employee in self.people[:3]:
@@ -51,9 +55,9 @@ class ManagementPersonalRecordsTests(TestCase):
                 self.assertFalse(response.context['can_approve'])
                 self.assertFalse(response.context['can_edit'])
                 self.assertEqual(response.context['summary']['paid'], Decimal(1))
-                response = self.client.get('/bang_luong/personal/', params)
+                response = self.client.get('/bang_luong/ca-nhan/', params)
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.context['row'].nhan_vien, employee)
+                self.assertIn(employee, [row.nhan_vien for row in response.context['bang_luong']])
                 self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
 
     def test_personal_attendance_ignores_other_employee_query(self):
@@ -77,25 +81,25 @@ class ManagementPersonalRecordsTests(TestCase):
         self.client.force_login(employee.nguoi_dung)
         response = self.client.get('/bang_luong/', {'month': 1, 'year': 2026,
             'employee': self.people[0].pk, 'department': self.team.pk, 'q': 'Người 0'}, follow=True)
-        self.assertEqual(response.redirect_chain, [('/bang_luong/personal/?month=1&year=2026', 302)])
+        self.assertEqual(response.redirect_chain, [('/bang_luong/ca-nhan/', 302)])
         self.assertContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
-        self.assertEqual(response.context['row'].nhan_vien, employee)
+        self.assertIn(employee, [row.nhan_vien for row in response.context['bang_luong']])
         self.assertTrue(response.context['personal'])
         self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
 
     def test_direct_personal_payroll_does_not_show_denied_message(self):
         self.client.force_login(self.people[3].nguoi_dung)
-        response = self.client.get('/bang_luong/personal/', {'month': 1, 'year': 2026})
+        response = self.client.get('/bang_luong/ca-nhan/', {'month': 1, 'year': 2026})
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
-        self.assertEqual(response.context['row'].nhan_vien, self.people[3])
+        self.assertIn(self.people[3], [row.nhan_vien for row in response.context['bang_luong']])
 
     def test_payroll_navigation_points_to_allowed_page_for_each_role(self):
         for employee in self.people:
             with self.subTest(user=employee.nguoi_dung.username):
                 self.client.force_login(employee.nguoi_dung)
                 response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026})
-                path = '/bang_luong/personal/' if employee == self.people[3] else '/bang_luong/'
+                path = '/bang_luong/ca-nhan/' if employee == self.people[3] else '/bang_luong/'
                 self.assertContains(response, f'<a href="{path}" >BẢNG LƯƠNG</a>', html=True)
                 destination = self.client.get(path, {'month': 1, 'year': 2026})
                 self.assertEqual(destination.status_code, 200)
@@ -103,7 +107,7 @@ class ManagementPersonalRecordsTests(TestCase):
 
     def test_employee_redirect_without_period_and_anonymous_login_redirect(self):
         self.client.force_login(self.people[3].nguoi_dung)
-        self.assertRedirects(self.client.get('/bang_luong/'), '/bang_luong/personal/', fetch_redirect_response=False)
+        self.assertRedirects(self.client.get('/bang_luong/'), '/bang_luong/ca-nhan/', fetch_redirect_response=False)
         self.client.logout()
         self.assertRedirects(self.client.get('/bang_luong/'), '/accounts/login/?next=/bang_luong/',
                              fetch_redirect_response=False)
