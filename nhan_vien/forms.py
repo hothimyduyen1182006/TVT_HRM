@@ -4,8 +4,60 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from decimal import Decimal
+from django.db.models import Q
+from .access import NHAN_SU, GIAM_DOC, TRUONG_PHONG, co_vai_tro
 
-from .models import HocVan, NhanVien, HopDongLaoDong
+from .models import HocVan, NhanVien, HopDongLaoDong, PhongBan, ChucVu
+
+
+class BoLocNhanVien(forms.Form):
+    """Các ô lọc, kiểm tra dữ liệu và thu hẹp danh sách nhân viên đã được cấp quyền."""
+
+    q = forms.CharField(label='Họ tên / Mã NV', required=False, max_length=100)
+    department = forms.ModelChoiceField(label='Phòng ban', queryset=PhongBan.objects.none(), required=False)
+    position = forms.ModelChoiceField(label='Chức vụ', queryset=ChucVu.objects.none(), required=False)
+    status = forms.ChoiceField(label='Tình trạng làm việc', required=False,
+                              choices=[('', 'Tất cả trạng thái'), *NhanVien.EMPLOYMENT_STATUS_CHOICES])
+    hire_from = forms.DateField(label='Vào làm từ ngày', required=False,
+                               widget=forms.DateInput(attrs={'type': 'date'}))
+    hire_to = forms.DateField(label='Vào làm đến ngày', required=False,
+                             widget=forms.DateInput(attrs={'type': 'date'}))
+
+    def __init__(self, nguoi_dung, data=None):
+        du_lieu = data.copy() if data is not None else {}
+        for ten in self.base_fields:
+            du_lieu[ten] = du_lieu.get(ten, '').strip()
+        du_lieu['q'] = du_lieu['q'][:100]
+        super().__init__(data=du_lieu)
+        # Giữ cùng phạm vi lựa chọn phòng ban/chức vụ như trang nhân viên.
+        phong_ban = PhongBan.objects.all()
+        if co_vai_tro(nguoi_dung, TRUONG_PHONG) and not co_vai_tro(nguoi_dung, NHAN_SU, GIAM_DOC):
+            phong_ban = phong_ban.filter(truong_phong__nguoi_dung=nguoi_dung)
+        self.fields['department'].queryset = phong_ban.distinct()
+        self.fields['position'].queryset = ChucVu.objects.select_related('phong_ban').filter(phong_ban__in=phong_ban)
+
+    def loc_danh_sach(self, danh_sach):
+        # Danh sách đầu vào đã được view giới hạn theo quyền; form chỉ thu hẹp thêm.
+        if not self.is_valid():
+            return danh_sach.none()
+        du_lieu = self.cleaned_data
+        if du_lieu['q']:
+            danh_sach = danh_sach.filter(
+                Q(ma_ho_so__icontains=du_lieu['q'])
+                | Q(ho_va_ten__icontains=du_lieu['q'])
+                | Q(nguoi_dung__username__icontains=du_lieu['q'])
+            )
+        if du_lieu['department']:
+            danh_sach = danh_sach.filter(phong_ban=du_lieu['department'])
+        if du_lieu['position']:
+            danh_sach = danh_sach.filter(chuc_vu=du_lieu['position'])
+        if du_lieu['status']:
+            danh_sach = danh_sach.filter(trang_thai_nv=du_lieu['status'])
+        if du_lieu['hire_from']:
+            danh_sach = danh_sach.filter(ngay_vao_lam__gte=du_lieu['hire_from'])
+        if du_lieu['hire_to']:
+            danh_sach = danh_sach.filter(ngay_vao_lam__lte=du_lieu['hire_to'])
+        return danh_sach
 
 
 NguoiDung = get_user_model()

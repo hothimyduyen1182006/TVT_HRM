@@ -14,6 +14,7 @@
     <label>Ngày kết thúc<input type="date" name="hire_to" value="{{ filters.hire_to }}"></label>
     <div class="filter-actions"><button class="employee-button" type="submit">⌕ Lọc</button><a class="employee-button secondary" href="{% url 'employees' %}">Đặt lại</a></div>
   </form>
+  {% if filter_form.errors %}<div class="alert alert-danger" role="alert">{{ filter_form.errors }}</div>{% endif %}
   <div class="employee-list-meta"><span>Tổng cộng: <strong>{{ rows|length }}</strong> nhân viên</span>{% if filters.q or filters.department or filters.position or filters.status or filters.hire_from or filters.hire_to %}<span class="filter-note">Kết quả theo điều kiện lọc</span>{% endif %}</div>
   {% if rows %}
   <div class="employee-table-wrap"><table class="employee-table"><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Phòng ban</th><th>Chức vụ</th><th>Ngày bắt đầu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>

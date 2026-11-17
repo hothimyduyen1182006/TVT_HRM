@@ -1,10 +1,12 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
 
 from nhan_vien.models import NhanVien, PhongBan
+from nhan_vien.access import TRUONG_PHONG
 
 
 class EmployeeDirectoryFiltersTests(TestCase):
@@ -55,3 +57,27 @@ class EmployeeDirectoryFiltersTests(TestCase):
         self.assertEqual(response.context['total_employees'], 3)
         self.assertContains(response, f'href="{reverse("employees")}?department={self.department.pk}"')
         self.assertNotContains(response, 'active_as_of=')
+
+    def test_invalid_filter_values_show_errors_and_do_not_return_all_employees(self):
+        for data in [{'hire_from': '2026-02-30'}, {'department': 'invalid'}, {'status': 'unknown'}]:
+            response = self.client.get(reverse('employees'), data)
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.context['filter_form'].errors)
+            self.assertFalse(response.context['rows'].exists())
+
+    def test_manager_cannot_expand_scope_with_department_filter(self):
+        manager = self.people[0].nguoi_dung
+        manager.groups.add(Group.objects.get_or_create(name=TRUONG_PHONG)[0])
+        self.department.truong_phong = self.people[0]
+        self.department.save()
+        self.client.force_login(manager)
+        response = self.client.get(reverse('employees'))
+        self.assertCountEqual(response.context['rows'], self.people[:2])
+        self.assertCountEqual(response.context['departments'], [self.department])
+        response = self.client.get(reverse('employees'), {'department': self.other_department.pk})
+        self.assertTrue(response.context['filter_form'].errors)
+        self.assertFalse(response.context['rows'].exists())
+
+    def test_ordinary_employee_cannot_open_management_directory(self):
+        self.client.force_login(self.people[1].nguoi_dung)
+        self.assertEqual(self.client.get(reverse('employees')).status_code, 403)
