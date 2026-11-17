@@ -6,12 +6,10 @@ class Luong(models.Model):
     CHO_DUYET = 'Cho_duyet'
     CHO_GIAM_DOC_DUYET = 'Cho_giam_doc_duyet'
     DA_DUYET = 'Da_duyet'
-    DA_CHI_TRA = 'Da_chi_tra'
     TRANG_THAI = [
         (CHO_DUYET, 'Chờ duyệt'),
         (CHO_GIAM_DOC_DUYET, 'Chờ Giám đốc ký'),
         (DA_DUYET, 'Đã duyệt'),
-        (DA_CHI_TRA, 'Đã chi trả'),
     ]
 
     ma_luong = models.CharField(max_length=20, primary_key=True, editable=False, db_column='Ma_luong')
@@ -41,7 +39,7 @@ class Luong(models.Model):
         db_table = 'Luong'
         constraints = [models.CheckConstraint(
             check=models.Q(trang_thai__in=[
-                'Cho_duyet', 'Cho_giam_doc_duyet', 'Da_duyet', 'Da_chi_tra',
+                'Cho_duyet', 'Cho_giam_doc_duyet', 'Da_duyet',
             ]),
             name='valid_salary_status',
         )]

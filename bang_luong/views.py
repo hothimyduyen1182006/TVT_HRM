@@ -71,7 +71,7 @@ def danh_sach_bang_luong(request):
     la_nhan_su = co_vai_tro(request.user, NHAN_SU)
     la_giam_doc = co_vai_tro(request.user, GIAM_DOC)
     co_phieu_khoa = phieu_trong_ky.filter(
-        trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET, Luong.DA_CHI_TRA],
+        trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET],
     ).exists()
     return render(request, 'bang_luong/list.html', {
         'form': form,

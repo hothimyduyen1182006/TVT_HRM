@@ -101,7 +101,7 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
         da_khoa = set(Luong.objects.filter(
             tong_hop__in=bang_cong,
             trang_thai__in=[
-                Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET, Luong.DA_CHI_TRA,
+                Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET,
             ],
         ).values_list('tong_hop_id', flat=True))
 
