@@ -64,7 +64,7 @@ class BangLuongTests(TestCase):
         columns = {field.column for field in Luong._meta.concrete_fields}
         self.assertEqual(columns, {
             'Ma_luong', 'Ma_tong_hop', 'Ma_thuong', 'Luong_co_ban',
-            'Luong_theo_cong', 'Luong_tang_ca', 'Tong_tien_thuong',
+            'Luong_theo_cong', 'Luong_tang_ca', 'Phu_cap', 'Tong_tien_thuong', 'Khau_tru_khac',
             'Khau_tru_di_tre', 'Khau_tru_BHXH', 'Thue_TNCN',
             'Luong_thuc_linh', 'Trang_thai',
         })
@@ -85,11 +85,11 @@ class BangLuongTests(TestCase):
         other = self.tao_phieu(other_summary, other_bonus)
 
         self.client.force_login(self.employee_user)
-        response = self.client.get('/bang_luong/personal/?thang=11&nam=2026')
+        response = self.client.get('/bang_luong/ca-nhan/?thang=11&nam=2026')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context['bang_luong']), [own])
-        self.assertEqual(self.client.get(f'/bang_luong/{own.pk}/').status_code, 200)
-        self.assertEqual(self.client.get(f'/bang_luong/{other.pk}/').status_code, 403)
+        self.assertEqual(self.client.get(f'/bang_luong/chi-tiet/{own.pk}/').status_code, 200)
+        self.assertEqual(self.client.get(f'/bang_luong/chi-tiet/{other.pk}/').status_code, 403)
 
     def test_manager_filters_by_period_employee_and_status(self):
         phieu = self.tao_phieu()
@@ -156,3 +156,85 @@ class BangLuongTests(TestCase):
         self.client.force_login(self.hr)
         self.client.post('/bang_luong/calculate/')
         self.assertFalse(Luong.objects.exists())
+    def test_calculation_uses_only_approved_bonus_total(self):
+        from django.core.exceptions import ValidationError
+        from bang_cong.models import ChotBangCong
+        from bang_luong.services.tinh_luong_service import tinh_bang_luong
+        from thuong.services.quy_trinh import duyet_bang
+
+        ChotBangCong.objects.create(tong_hop=self.summary, nguoi_duyet=self.hr)
+        self.employee.thiet_lap_luong = {
+            'doi_tuong_tinh_thue': 'resident_2026',
+            'luong_dong_bao_hiem': '8000000',
+            'ty_le_bao_hiem': {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'},
+            'can_cu_bao_hiem': 'Thiet lap kiem thu',
+            'can_cu_thue': 'Thiet lap kiem thu',
+        }
+        self.employee.save(update_fields=['thiet_lap_luong'])
+        self.bonus.thuong_chuyen_can = 200000
+        self.bonus.thuong_tham_nien = 3000000
+        self.bonus.thuong_khac = 750000
+        self.bonus.tong_thuong = 3950000
+        for status in ['draft', 'pending', 'rejected']:
+            with self.subTest(status=status):
+                self.bonus.trang_thai = status
+                self.bonus.ly_do_tu_choi = 'Kiem tra lai' if status == 'rejected' else ''
+                self.bonus.save()
+                with self.assertRaisesMessage(ValidationError, 'chưa có bảng thưởng đã duyệt'):
+                    tinh_bang_luong(self.hr, 2026, 11)
+                self.assertFalse(Luong.objects.exists())
+
+        self.bonus.trang_thai = 'pending'
+        self.bonus.save()
+        duyet_bang(self.bonus, self.director)
+        self.assertEqual(tinh_bang_luong(self.hr, 2026, 11), 1)
+        slip = Luong.objects.get(tong_hop=self.summary)
+        self.assertEqual(slip.tong_thuong_id, self.bonus.pk)
+        self.assertEqual(slip.tong_tien_thuong, Decimal('3950000'))
+        self.assertEqual(slip.tong_thu_nhap, slip.luong_theo_cong + slip.luong_tang_ca + slip.phu_cap + Decimal('3950000'))
+        self.assertEqual(tinh_bang_luong(self.hr, 2026, 11), 1)
+        slip.refresh_from_db()
+        self.assertEqual(slip.tong_tien_thuong, Decimal('3950000'))
+        self.assertEqual(Luong.objects.filter(tong_hop=self.summary).count(), 1)
+    def test_bonus_approval_rolls_back_when_payroll_returns_error(self):
+        from django.core.exceptions import ValidationError
+        from thuong.services.quy_trinh import duyet_cac_bang
+
+        self.bonus.trang_thai = 'pending'
+        self.bonus.nguoi_duyet = None
+        self.bonus.ngay_duyet = None
+        self.bonus.save()
+        slip = self.tao_phieu()
+        with self.assertRaisesMessage(ValidationError, 'chưa cập nhật được lương'):
+            duyet_cac_bang(self.director, [self.employee.pk], 2026, 11, 'approve', '')
+        self.bonus.refresh_from_db()
+        slip.refresh_from_db()
+        self.assertEqual(self.bonus.trang_thai, 'pending')
+        self.assertIsNone(self.bonus.nguoi_duyet)
+        self.assertIsNone(self.bonus.ngay_duyet)
+        self.assertEqual(slip.tong_tien_thuong, 0)
+        self.assertFalse(LogEntry.objects.filter(object_id=self.bonus.pk).exists())
+
+    def test_bonus_and_payroll_writes_roll_back_on_update_failure(self):
+        from unittest.mock import patch
+        from thuong.services.quy_trinh import duyet_cac_bang
+
+        self.bonus.trang_thai = 'pending'
+        self.bonus.nguoi_duyet = None
+        self.bonus.ngay_duyet = None
+        self.bonus.save()
+
+        def failed_update(*args):
+            self.tao_phieu()
+            raise RuntimeError('payroll update failed')
+
+        with patch('bang_luong.services.tinh_luong_service.cap_nhat_luong_nhan_vien',
+                   side_effect=failed_update):
+            with self.assertRaisesMessage(RuntimeError, 'payroll update failed'):
+                duyet_cac_bang(self.director, [self.employee.pk], 2026, 11, 'approve', '')
+        self.bonus.refresh_from_db()
+        self.assertEqual(self.bonus.trang_thai, 'pending')
+        self.assertIsNone(self.bonus.nguoi_duyet)
+        self.assertIsNone(self.bonus.ngay_duyet)
+        self.assertFalse(Luong.objects.exists())
+        self.assertFalse(LogEntry.objects.filter(object_id=self.bonus.pk).exists())

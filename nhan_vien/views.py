@@ -1,9 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from .access import (
@@ -55,60 +53,23 @@ def tu_choi_truy_cap(request):
 
 
 @login_required
-def danh_sach_nhan_vien(request):
+def danh_sach_nhan_vien(request):# Mục đích chính vẫn là: lấy danh sách nhân viên phù hợp rồi hiển thị lên trang.
+    # Đã login chưa đủ: cần role được vào danh sách. * bung tuple vai trò thành các đối số.
+    #1 kiểm tra quyền
     if not co_vai_tro(request.user, *VAI_TRO_DANH_SACH):
         return tu_choi_truy_cap(request)
+    # Giới hạn quyền trước rồi mới lọc; bộ lọc không thể mở rộng dữ liệu ngoài phạm vi này.
     danh_sach = nhan_vien_trong_pham_vi(request.user)
-    bo_loc = BoLocNhanVien(request.GET)
-    if bo_loc.is_valid():
-        ngay_chon = bo_loc.cleaned_data['hoat_dong_den_ngay']
-        if ngay_chon:
-            danh_sach = danh_sach.filter(dang_hoat_dong=True, ngay_vao_lam__lte=ngay_chon)
-        gioi_tinh = bo_loc.cleaned_data['gioi_tinh']
-        if gioi_tinh == 'unknown':
-            danh_sach = danh_sach.exclude(gioi_tinh__in=['Nam', 'Nữ'])
-        elif gioi_tinh:
-            danh_sach = danh_sach.filter(gioi_tinh=gioi_tinh)
-    else:
-        danh_sach = danh_sach.none()
-    bo_loc_du_lieu = {
-        'q': request.GET.get('q', '').strip()[:100],
-        'department': request.GET.get('department', '').strip(),
-        'position': request.GET.get('position', '').strip(),
-        'status': request.GET.get('status', '').strip(),
-        'hire_from': request.GET.get('hire_from', '').strip(),
-        'hire_to': request.GET.get('hire_to', '').strip(),
-    }
-    if bo_loc_du_lieu['q']:
-        danh_sach = danh_sach.filter(
-            Q(ma_ho_so__icontains=bo_loc_du_lieu['q'])
-            | Q(ho_va_ten__icontains=bo_loc_du_lieu['q'])
-            | Q(nguoi_dung__username__icontains=bo_loc_du_lieu['q'])
-        )
-    if bo_loc_du_lieu['department'].isdigit():
-        danh_sach = danh_sach.filter(phong_ban_id=bo_loc_du_lieu['department'])
-    if bo_loc_du_lieu['position'].isdigit():
-        danh_sach = danh_sach.filter(chuc_vu_id=bo_loc_du_lieu['position'])
-    if bo_loc_du_lieu['status'] in dict(NhanVien.EMPLOYMENT_STATUS_CHOICES):
-        danh_sach = danh_sach.filter(trang_thai_nv=bo_loc_du_lieu['status'])
-    ngay_vao_tu = parse_date(bo_loc_du_lieu['hire_from']) if bo_loc_du_lieu['hire_from'] else None
-    ngay_vao_den = parse_date(bo_loc_du_lieu['hire_to']) if bo_loc_du_lieu['hire_to'] else None
-    if ngay_vao_tu:
-        danh_sach = danh_sach.filter(ngay_vao_lam__gte=ngay_vao_tu)
-    if ngay_vao_den:
-        danh_sach = danh_sach.filter(ngay_vao_lam__lte=ngay_vao_den)
 
-    phong_ban = danh_sach.model.phong_ban.field.remote_field.model.objects.all()
-    if co_vai_tro(request.user, TRUONG_PHONG) and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
-        phong_ban = phong_ban.filter(truong_phong__nguoi_dung=request.user)
-    chuc_vu = danh_sach.model.chuc_vu.field.remote_field.model.objects.select_related('phong_ban')
-    chuc_vu = chuc_vu.filter(phong_ban__in=phong_ban)
+    # Form chịu trách nhiệm nhận lựa chọn, kiểm tra dữ liệu và áp dụng bộ lọc.
+    bo_loc = BoLocNhanVien(request.user, request.GET)
+    danh_sach = bo_loc.loc_danh_sach(danh_sach)
     return render(request, 'nhan_vien/list.html', {
-        'dashboard_filter': bo_loc,
         'rows': danh_sach.select_related('phong_ban', 'chuc_vu', 'nguoi_dung'),
-        'filters': bo_loc_du_lieu,
-        'departments': phong_ban.distinct(),
-        'positions': chuc_vu,
+        'filter_form': bo_loc,
+        'filters': bo_loc.data,
+        'departments': bo_loc.fields['department'].queryset,
+        'positions': bo_loc.fields['position'].queryset,
         'status_choices': NhanVien.EMPLOYMENT_STATUS_CHOICES,
         'can_manage': co_vai_tro(request.user, *VAI_TRO_QUAN_LY),
     })

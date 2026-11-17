@@ -10,16 +10,16 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from bang_cong.models import ChamCong
-from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
+from bang_cong.services.quy_trinh import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
 from bang_cong.services.cham_cong_service import lich_thang
 from bang_luong.models import Luong
 from bang_cong.utils.date_utils import thang_lich
 from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.models import PhongBan, NhanVien
-from nghi_phep.models import LeaveDay
+from nghi_phep.models import DonNghiPhep, NgayNghi
 from .models import DeXuatThuong, Thuong
-from .views import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
+from .services.quy_trinh import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
 
 
 class BonusWorkflowTests(TestCase):
@@ -35,7 +35,7 @@ class BonusWorkflowTests(TestCase):
             user = get_user_model().objects.create_user(f'employee{i}')
             cls.people.append(NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'NV{i}', ho_va_ten=f'Nhân viên {i}',
                 phong_ban=phong, ngay_vao_lam=date(2020,1,1), luong_co_ban=10000000,
-                thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{},
+                thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{'BHXH':'0', 'BHYT':'0', 'BHTN':'0'},
                     'can_cu_bao_hiem':'Căn cứ kiểm thử', 'doi_tuong_tinh_thue':'resident_2026', 'can_cu_thue':'Căn cứ kiểm thử'}))
         cls.period = thang_lich(2026,10)
         for lich in lich_thang(2026,10,cls.period).values():
@@ -74,8 +74,7 @@ class BonusWorkflowTests(TestCase):
         self.assertTrue(bang.ly_do_tham_nien)
         self.assertEqual(bang.trang_thai,'draft')
         self.assertFalse(DeXuatThuong.objects.exists())
-        phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
-        self.assertEqual(phieu.tong_tien_thuong,0)
+        self.assertFalse(Luong.objects.exists())
 
     def test_whole_period_approval_updates_all_employees(self):
         xu_ly_trang_thai_ky_cong(self.director,self.period.pk,'approve','Đã đối chiếu công')
@@ -92,8 +91,8 @@ class BonusWorkflowTests(TestCase):
     def test_absence_or_leave_removes_attendance_bonus(self):
         for index,state in enumerate(['absent','leave']):
             if state == 'leave':
-                LeaveDay.objects.create(employee=self.people[index], date=date(2026,10,5),
-                    units=1, paid=True, reason='Nghỉ phép đã duyệt', approved=True)
+                don = DonNghiPhep.objects.create(nhan_vien=self.people[index], ngay_bat_dau=date(2026,10,5), ngay_ket_thuc=date(2026,10,5), ly_do='Nghỉ phép đã duyệt', trang_thai='da_duyet')
+                NgayNghi.objects.create(don_nghi_phep=don, ngay=date(2026,10,5))
             ChamCong.objects.filter(nhan_vien=self.people[index],ngay=date(2026,10,5)).update(
                 trang_thai=state,gio_vao=None,gio_ra=None)
             bang=self.approve_attendance(index)
@@ -136,7 +135,7 @@ class BonusWorkflowTests(TestCase):
         self.assertIsNone(bang.ngay_duyet)
         self.assertFalse(bang.ly_do_tu_choi)
         self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),3)
-        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,0)
+        self.assertFalse(Luong.objects.exists())
 
     def test_approval_ignores_drafts_and_does_not_approve_twice(self):
         bang=self.approve_attendance()
@@ -149,7 +148,8 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(bang.trang_thai,'approved')
         self.assertEqual(Thuong.objects.get(nguoi_dung=self.people[1].nguoi_dung).trang_thai,'draft')
         self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),1)
-        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,3200000)
+        self.assertEqual(bang.tong_thuong,3200000)
+        self.assertFalse(Luong.objects.exists())
 
     def test_submission_and_selected_approval_flow_updates_payroll_once(self):
         bang=self.approve_attendance()
@@ -162,15 +162,12 @@ class BonusWorkflowTests(TestCase):
         bang.refresh_from_db(); other.refresh_from_db()
         self.assertEqual(bang.trang_thai,'approved')
         self.assertEqual(other.trang_thai,'pending')
-        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[1]).tong_tien_thuong,0)
+        self.assertFalse(Luong.objects.filter(tong_hop__nhan_vien=self.people[1]).exists())
         self.assertEqual(bang.nguoi_duyet,self.director)
-        phieu=Luong.objects.get(tong_hop__nhan_vien=self.people[0])
-        self.assertEqual(phieu.tong_tien_thuong,3950000)
-        self.assertEqual(phieu.tong_thuong_id,bang.pk)
-        cap_nhat_luong_nhan_vien(self.hr,self.people[0].pk,2026,10)
-        phieu.refresh_from_db()
-        self.assertEqual(phieu.tong_tien_thuong,3950000)
-        self.assertEqual(Luong.objects.filter(tong_hop__nhan_vien=self.people[0]).count(),1)
+        self.assertEqual(bang.tong_thuong,3950000)
+        self.assertFalse(Luong.objects.exists())
+        self.assertEqual(cap_nhat_luong_nhan_vien(self.hr,self.people[0].pk,2026,10), '')
+        self.assertFalse(Luong.objects.exists())
         self.assertTrue(LogEntry.objects.filter(user=self.director,object_id=bang.pk).exists())
 
     def test_rejection_requires_reason_and_rejects_only_one_employee(self):
@@ -184,7 +181,7 @@ class BonusWorkflowTests(TestCase):
         bang=Thuong.objects.get(nguoi_dung=self.people[0].nguoi_dung)
         self.assertEqual(bang.trang_thai,'rejected')
         self.assertEqual(bang.ly_do_tu_choi,'Đối chiếu dự án')
-        self.assertEqual(Luong.objects.get(tong_hop__nhan_vien=self.people[0]).tong_tien_thuong,0)
+        self.assertFalse(Luong.objects.exists())
         response=self.client.get(reverse('thuong:detail',args=[self.people[0].pk,2026,10]))
         self.assertContains(response,'Đối chiếu dự án')
 
@@ -205,7 +202,7 @@ class BonusWorkflowTests(TestCase):
         bang=self.approve_attendance(); proposal=self.proposal(bang)
         self.client.force_login(self.hr)
         response=self.client.get(self.list_url,{'thang':10,'nam':2026})
-        ma_hien_thi = f'MT_202610_{bang.nguoi_dung_id}'
+        ma_hien_thi = f'MT202610_{bang.nguoi_dung_id:03d}'
         self.assertContains(response,ma_hien_thi)
         self.assertNotContains(response,bang.ma_thuong)
         self.assertTrue(Thuong.objects.filter(pk=bang.pk).exists())
@@ -216,7 +213,7 @@ class BonusWorkflowTests(TestCase):
         response=self.client.get(reverse('thuong:personal'),{'thang':10,'nam':2026})
         self.assertContains(response,ma_hien_thi)
         bang.refresh_from_db(); gui_duyet_bang(bang); duyet_bang(bang,self.director)
-        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026})
+        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026,'trang_thai':'approved'})
         self.assertEqual(response.status_code,200)
         self.assertIn('Thưởng dự án',response.content.decode('utf-8-sig'))
 
@@ -241,13 +238,15 @@ class BonusWorkflowTests(TestCase):
 
     def test_bonus_to_payroll_submission_approval_and_payment(self):
         from bang_luong.services.tinh_luong_service import (
-            duyet_toan_bo_bang_luong, gui_bang_luong_cho_giam_doc,
+            duyet_toan_bo_bang_luong, gui_bang_luong_cho_giam_doc, tinh_bang_luong,
         )
         for i in range(2):
             self.approve_attendance(i)
         selected={'nhan_vien_ids':[p.pk for p in self.people]}
         self.post(self.hr,self.submit_url,selected)
         self.post(self.director,self.decision_url,{**selected,'action':'approve'})
+        self.assertFalse(Luong.objects.exists())
+        self.assertEqual(tinh_bang_luong(self.hr, 2026, 10), 2)
         self.assertEqual(Luong.objects.filter(tong_tien_thuong=3200000).count(),2)
         gui_bang_luong_cho_giam_doc(self.hr, 2026, 10)
         duyet_toan_bo_bang_luong(self.director, 2026, 10)

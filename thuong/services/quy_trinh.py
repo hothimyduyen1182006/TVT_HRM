@@ -46,13 +46,14 @@ def luu_bang_thuong(bang):
 
 def gui_duyet_bang(bang):
     if bang.trang_thai not in ['draft', 'rejected'] or not bang.ly_do_chuyen_can or not bang.ly_do_tham_nien:
-        raise ValidationError('Chỉ gửi duyệt bảng thưởng khi có đủ căn cứ chuyên cần và thâm niên.')
+        raise ValidationError('Chỉ gửi bảng thưởng khi có đủ căn cứ thâm niên và chuyên cần.')
     bang.trang_thai = 'pending'
     bang.nguoi_duyet = bang.ngay_duyet = None
     bang.ly_do_tu_choi = ''
     luu_bang_thuong(bang)
 
 
+@transaction.atomic
 def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
     if bang.trang_thai != 'pending':
         raise ValidationError('Chỉ xử lý bảng thưởng đang Chờ duyệt.')
@@ -60,6 +61,12 @@ def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
     bang.nguoi_duyet, bang.ngay_duyet = nguoi_dung, timezone.now()
     bang.ly_do_tu_choi = ly_do.strip() if tu_choi else ''
     luu_bang_thuong(bang)
+    if not tu_choi:
+        from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
+        loi_luong = cap_nhat_luong_nhan_vien(
+            nguoi_dung, bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
+        if loi_luong:
+            raise ValidationError('Không thể duyệt thưởng vì chưa cập nhật được lương: ' + loi_luong)
 
 
 def cap_nhat_thuong_khac(bang):
@@ -74,6 +81,8 @@ def luu_de_xuat(de_xuat):
     bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
     if bang.trang_thai not in ['draft', 'rejected']:
         raise ValidationError('Chỉ sửa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
+    if bang.de_xuat.filter(ten__iexact=de_xuat.ten.strip()).exclude(pk=de_xuat.pk).exists():
+        raise ValidationError('Tên khoản thưởng đã tồn tại trong bảng thưởng. Vui lòng đổi tên hoặc dùng chức năng Sửa.')
     de_xuat.full_clean()
     de_xuat.save()
     cap_nhat_thuong_khac(bang)
@@ -126,6 +135,6 @@ def duyet_cac_bang(nguoi_dung, ds, nam, thang, thao_tac, ly_do, gui_duyet=False)
 @transaction.atomic
 def tao_de_xuat_thuong(nguoi_dung, du_lieu):
     bang, _ = Thuong.objects.get_or_create(nguoi_dung=du_lieu['nhan_vien'].nguoi_dung, thang=du_lieu['thang'], nam=du_lieu['nam'])
-    de_xuat = bang.de_xuat.filter(ten=du_lieu['ten']).first() or DeXuatThuong(bang_thuong=bang)
+    de_xuat = DeXuatThuong(bang_thuong=bang)
     cap_nhat_de_xuat_tu_form(de_xuat, du_lieu, nguoi_dung)
     return bang

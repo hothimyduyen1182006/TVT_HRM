@@ -1,7 +1,6 @@
 from urllib.parse import urlencode
 from decimal import Decimal
 
-from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -19,7 +18,7 @@ from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, yeu_cau_vai_tro,
     NHAN_SU, GIAM_DOC, TRUONG_PHONG,
 )
-from nhan_vien.filters import BoLocKy
+from bang_cong.filters import BoLocBangCong
 
 from .chi_tiet import bang_cong_nhan_vien
 
@@ -150,46 +149,3 @@ def danh_sach_bang_cong(request):
         'can_chot': co_vai_tro(request.user, NHAN_SU) and bool(period),
         'director': co_vai_tro(request.user, GIAM_DOC),
     })
-
-
-def _truong_ngay(label):
-    return forms.DateField(
-        label=label, required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
-    )
-
-
-class BoLocBangCong(BoLocKy):
-    day = _truong_ngay('Ngày chấm công')
-    day_state = forms.ChoiceField(
-        label='Chấm công trong ngày', required=False,
-        choices=[('', 'Tất cả'), ('ontime', 'Đúng giờ'), ('late', 'Đi trễ'), ('unchecked', 'Chưa check-in')],
-    )
-    q = forms.CharField(
-        label='Từ khóa (Họ tên)', required=False, max_length=150,
-        widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ hoặc tên...'}),
-    )
-    review = forms.ChoiceField(
-        label='Trạng thái', required=False,
-        choices=[('', 'Tất cả'), ('approved', 'Đã duyệt'), ('pending', 'Chờ duyệt'),
-                 ('incomplete', 'Cần kiểm tra'), ('empty', 'Chưa có dữ liệu')],
-    )
-
-    def __init__(self, user, data=None):
-        super().__init__(user, data)
-        self.fields['thang'].widget = forms.Select(choices=[
-            (month, f'Tháng {month:02}') for month in range(1, 13)
-        ])
-        self.fields['nam'].widget = forms.Select(choices=[
-            (year, f'Năm {year}') for year in range(2000, 2101)
-        ])
-        self.fields['phong_ban'].empty_label = 'Tất cả'
-
-    def clean(self):
-        data = super().clean()
-        day = data.get('day')
-        if data.get('day_state') and not day:
-            raise forms.ValidationError('Cần chọn ngày chấm công.')
-        if day and (day.month, day.year) != (data.get('month'), data.get('year')):
-            raise forms.ValidationError('Ngày chấm công phải thuộc tháng/năm đã chọn.')
-        return data
