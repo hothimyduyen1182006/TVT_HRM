@@ -1,55 +1,27 @@
 """Lọc và chuẩn bị dữ liệu hiển thị thưởng."""
-from decimal import Decimal
-
-from django.db import connection
 from django.db.models import Q
-from django.utils.dateparse import parse_datetime
 
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from ..models import DeXuatThuong, Thuong
 
 
-def nguon_thuong_truoc_chuyen_doi(bang):
-    """Chỉ đọc dữ liệu lưu trữ để giữ nguyên mã nguồn của phiếu lương cũ."""
-    with connection.cursor() as cursor:
-        cursor.execute('SELECT id, loai_thuong, ten, so_tien, thoi_gian_de_xuat '
-                       'FROM Khoan_thuong_luu_tru WHERE nhan_vien_id=%s AND nam=%s AND thang=%s',
-                       [bang.nguoi_dung.employee.pk, bang.nam, bang.thang])
-        return [{'id': ma, 'ma_moi': ('D' + str(ma).zfill(24) if loai == 'other' else f'{bang.pk}:{loai}'),
-                 'name': ten, 'amount': format(Decimal(str(tien)), '.2f'),
-                 'ngay': parse_datetime(ngay) if isinstance(ngay, str) else ngay}
-                for ma, loai, ten, tien, ngay in cursor.fetchall()]
-
-
 def gan_ma_hien_thi(cac_bang):
-    """Giữ mã MT cũ trên giao diện, không đổi khóa liên kết với lương."""
+    """Tạo mã hiển thị theo năm, tháng và người dùng, giữ nguyên khóa liên kết với lương."""
     for bang in cac_bang:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT id FROM Khoan_thuong_luu_tru "
-                "WHERE nhan_vien_id=%s AND nam=%s AND thang=%s "
-                "ORDER BY CASE loai_thuong WHEN 'seniority' THEN 0 "
-                "WHEN 'attendance' THEN 1 ELSE 2 END, ten, id LIMIT 1",
-                [bang.nguoi_dung.employee.pk, bang.nam, bang.thang])
-            cu = cursor.fetchone()
-        bang.ma_hien_thi = (f'MT_{cu[0]:03d}' if cu else
-                            f'MT_{bang.nam}{bang.thang:02d}_{bang.nguoi_dung_id}')
+        bang.ma_hien_thi = f'MT{bang.nam}{bang.thang:02d}_{bang.nguoi_dung_id:03d}'
     return cac_bang
 
 
-def cac_khoan_hien_thi(bang, nguon_cu=None):
+def cac_khoan_hien_thi(bang):
     ket_qua = []
-    if nguon_cu is None:
-        nguon_cu = nguon_thuong_truoc_chuyen_doi(bang)
     for loai, ten, tien, ly_do in [
         ('seniority', 'Thưởng thâm niên', bang.thuong_tham_nien, bang.ly_do_tham_nien),
         ('attendance', 'Thưởng chuyên cần', bang.thuong_chuyen_can, bang.ly_do_chuyen_can),
     ]:
         if ly_do is not None:
             ma = f'{bang.pk}:{loai}'
-            ngay = next((r['ngay'] for r in nguon_cu if r['ma_moi'] == ma), None)
             ket_qua.append({'id': ma, 'ten': ten, 'nhan_de_loai': ten, 'so_tien': tien,
-                           'ly_do': ly_do, 'tu_dong': True, 'thoi_gian_de_xuat': ngay})
+                           'ly_do': ly_do, 'tu_dong': True, 'thoi_gian_de_xuat': None})
     for de_xuat in bang.de_xuat.order_by('ten', 'pk'):
         ket_qua.append({'id': de_xuat.pk, 'ten': de_xuat.ten, 'nhan_de_loai': de_xuat.ten,
                        'so_tien': de_xuat.so_tien, 'ly_do': de_xuat.ly_do, 'tu_dong': False,

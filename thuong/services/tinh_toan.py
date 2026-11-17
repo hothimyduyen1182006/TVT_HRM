@@ -1,4 +1,4 @@
-"""Tính thưởng chuyên cần, thâm niên và các khoản thưởng dùng tính lương."""
+"""Tính thưởng chuyên cần và thâm niên tự động."""
 import calendar
 from datetime import date
 from decimal import Decimal
@@ -6,8 +6,6 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 
 from bang_cong.models import TongHopCong
-from ..models import Thuong
-from .hien_thi import cac_khoan_hien_thi, nguon_thuong_truoc_chuyen_doi
 
 
 def tinh_thuong_tham_nien(nhan_vien, thang, nam):
@@ -53,21 +51,3 @@ def tinh_thuong_tu_dong(nhan_vien, thang, nam):
     except ValidationError as exc:
         return cac_khoan, exc
     return cac_khoan, None
-
-
-def cac_khoan_thuong_tinh_luong(nhan_vien_id, nam, thang):
-    bang = Thuong.objects.select_related('nguoi_dung__employee').filter(
-        nguoi_dung__employee__pk=nhan_vien_id, nam=nam, thang=thang).first()
-    if not bang or bang.trang_thai != 'approved':
-        return []
-    bang.full_clean()
-    cu = nguon_thuong_truoc_chuyen_doi(bang)
-    ket_qua = []
-    for khoan in cac_khoan_hien_thi(bang, nguon_cu=cu):
-        nguon = [r for r in cu if r['ma_moi'] == khoan['id']]
-        if nguon and sum((Decimal(r['amount']) for r in nguon), Decimal(0)) == khoan['so_tien']:
-            ket_qua.extend({'id': r['id'], 'name': r['name'], 'amount': r['amount']} for r in nguon)
-        else:
-            ket_qua.append({'id': nguon[0]['id'] if len(nguon) == 1 else khoan['id'],
-                           'name': khoan['ten'], 'amount': format(khoan['so_tien'], '.2f')})
-    return ket_qua
