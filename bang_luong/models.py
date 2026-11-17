@@ -30,8 +30,6 @@ class Luong(models.Model):
     tong_tien_thuong = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Tong_tien_thuong')
     khau_tru_di_tre = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_di_tre')
     khau_tru_bhxh = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_BHXH')
-    khau_tru_bhyt = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_BHYT')
-    khau_tru_bhtn = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_BHTN')
     khau_tru_khac = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Khau_tru_khac')
     thue_tncn = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thue_TNCN')
     luong_thuc_linh = models.DecimalField(max_digits=12, decimal_places=0, db_column='Luong_thuc_linh')
@@ -96,8 +94,7 @@ class Luong(models.Model):
     @property
     def tong_khau_tru(self):
         # Đi trễ đã làm giảm công hưởng lương; không tính thêm khoản trừ riêng.
-        return (self.khau_tru_bhxh + self.khau_tru_bhyt + self.khau_tru_bhtn
-                + self.thue_tncn + self.khau_tru_khac)
+        return self.khau_tru_bhxh + self.thue_tncn + self.khau_tru_khac
 
     @property
     def tong_thu_nhap(self):

@@ -21,7 +21,7 @@
  <dl class="pr-line"><dt>Lương tăng ca</dt><dd>{{ row.luong_tang_ca|money }}</dd></dl><dl class="pr-line"><dt>Phụ cấp</dt><dd>{{ row.phu_cap|money }}</dd></dl><dl class="pr-line"><dt>Tổng thưởng</dt><dd>{{ row.tong_tien_thuong|money }}</dd></dl>
  <dl class="pr-total"><dt>TỔNG THU NHẬP</dt><dd>{{ row.tong_thu_nhap|money }} đ</dd></dl></section>
  <section class="pr-deductions"><h3>KHOẢN KHẤU TRỪ</h3>
- <dl class="pr-line"><dt>Khấu trừ BHXH</dt><dd>{{ row.khau_tru_bhxh|money }}</dd></dl><dl class="pr-line"><dt>BHYT</dt><dd>{{ row.khau_tru_bhyt|money }}</dd></dl><dl class="pr-line"><dt>BHTN</dt><dd>{{ row.khau_tru_bhtn|money }}</dd></dl><dl class="pr-line"><dt>Thuế TNCN</dt><dd>{{ row.thue_tncn|money }}</dd></dl><dl class="pr-line"><dt>Khấu trừ khác</dt><dd>{{ row.khau_tru_khac|money }}</dd></dl>
+ <dl class="pr-line"><dt>Khấu trừ bảo hiểm (BHXH, BHYT, BHTN)</dt><dd>{{ row.khau_tru_bhxh|money }}</dd></dl><dl class="pr-line"><dt>Thuế TNCN</dt><dd>{{ row.thue_tncn|money }}</dd></dl><dl class="pr-line"><dt>Khấu trừ khác</dt><dd>{{ row.khau_tru_khac|money }}</dd></dl>
  <dl class="pr-total"><dt>TỔNG KHẤU TRỪ</dt><dd>{{ row.tong_khau_tru|money }} đ</dd></dl></section></div>
  <div class="pr-net"><div><h3>THỰC LĨNH</h3><p>{{ row.get_trang_thai_display }}</p></div><strong>{{ row.luong_thuc_linh|money }} VNĐ</strong></div>
  <div class="pr-print-control pr-no-print"><button class="pr-print-button" type="button" onclick="window.print()">In phiếu lương</button></div>
@@ -42,7 +42,7 @@
  {% if co_quyen_ky %}<form method="post" action="{% url 'bang_luong:ky_duyet' %}">{% csrf_token %}<input type="hidden" name="thang" value="{{ form.thang.value }}"><input type="hidden" name="nam" value="{{ form.nam.value }}"><button class="pr-button" type="submit">Ký duyệt toàn bộ bảng lương kỳ này</button></form>{% endif %}
 </div>
 <div class="pr-table-scroll"><table class="pr-table"><thead><tr>
-<th>Họ tên</th><th>Phòng ban</th><th>Lương cơ bản</th><th>Lương theo công</th><th>Lương tăng ca</th><th>Tổng tiền thưởng</th><th>Khấu trừ BHXH</th><th>Thuế TNCN</th><th>Lương thực lĩnh</th><th>Trạng thái</th>
+<th>Họ tên</th><th>Phòng ban</th><th>Lương cơ bản</th><th>Lương theo công</th><th>Lương tăng ca</th><th>Tổng tiền thưởng</th><th>Khấu trừ bảo hiểm</th><th>Thuế TNCN</th><th>Lương thực lĩnh</th><th>Trạng thái</th>
 </tr></thead><tbody>
 {% for row in bang_luong %}<tr>
 <td class="pr-name"><a href="{% url 'bang_luong:chi_tiet' row.pk %}">{{ row.ten_nhan_vien }}</a></td>
