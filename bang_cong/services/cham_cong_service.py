@@ -31,6 +31,24 @@ NGAY_LE_2026 = {
 NGHI_BU_2026 = {date(2026, 4, 27): 'Nghỉ bù ngày nghỉ tuần trùng Giỗ Tổ'}
 
 
+def cham_cong_da_khoa(ban_ghi):
+    """Kiểm tra bản ghi công có thuộc kỳ đã được duyệt hay không."""
+    ky_cong = thang_lich(ban_ghi.ngay.year, ban_ghi.ngay.month)
+    return ky_cong_da_khoa(ky_cong, ban_ghi.nhan_vien_id, ban_ghi.ngay)
+
+
+def du_lieu_cham_cong(ban_ghi):
+    """Chuyển bản ghi công thành dữ liệu dạng chuỗi dùng cho lịch sử."""
+    cac_truong = {
+        'pk': 'pk', 'employee_id': 'nhan_vien_id', 'date': 'ngay',
+        'check_in': 'gio_vao', 'check_out': 'gio_ra', 'status': 'trang_thai',
+        'work_hours': 'so_gio_lam', 'late_minutes': 'so_phut_tre',
+        'actual_units': 'cong_thuc_te', 'paid_leave_units': 'cong_nghi_co_luong',
+        'paid_units': 'tong_cong', 'overtime_hours': 'gio_tang_ca',
+    }
+    return {khoa: str(getattr(ban_ghi, truong)) for khoa, truong in cac_truong.items()}
+
+
 def lich_du_kien(ngay):
     """Lịch TVT 2026; năm khác phải được cấu hình riêng."""
     if ngay.year != 2026:

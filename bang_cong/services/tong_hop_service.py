@@ -1,11 +1,14 @@
 """Tạo và đọc tổng hợp công tháng làm dữ liệu đầu vào cho bảng lương."""
 
+import calendar
+from datetime import date
 from decimal import Decimal
 
 from django.db import transaction
 
 from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
 from bang_cong.services.cham_cong_service import lich_thang, nap_cong_ngay
+from nhan_vien.models import NhanVien
 
 
 def du_lieu_tong_hop(nhan_vien, ky_cong):
@@ -75,3 +78,14 @@ def cap_nhat_tong_hop(nhan_vien, ky_cong):
         defaults=data,
     )
     return summary
+
+
+def cap_nhat_tong_hop_ca_ky(ky_cong):
+    """Cập nhật tổng hợp công của nhân viên đã vào làm trước cuối kỳ."""
+    ngay_cuoi_ky = date(
+        ky_cong.nam,
+        ky_cong.thang,
+        calendar.monthrange(ky_cong.nam, ky_cong.thang)[1],
+    )
+    for nhan_vien in NhanVien.objects.filter(ngay_vao_lam__lte=ngay_cuoi_ky):
+        cap_nhat_tong_hop(nhan_vien, ky_cong)

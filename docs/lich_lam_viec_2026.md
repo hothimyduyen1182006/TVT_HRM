@@ -14,7 +14,7 @@ Ngày lễ được lưu `holiday`, công chuẩn 0. Nghỉ bù ngày nghỉ tu�
 
 ## Cập nhật và bảo toàn dữ liệu
 
-Quy tắc dùng chung nằm trong `bang_cong/services/tinh_toan.py`: `lich_du_kien()` xác định loại ngày, `lich_thang()` trả lịch cả tháng. Không có model lịch hoặc kỳ tháng riêng; lịch được tính trực tiếp từ quy tắc trong code. GET chỉ xem trước; POST chấm công mới tạo dữ liệu công.
+Quy tắc dùng chung nằm trong `bang_cong/services/cham_cong_service.py`: `lich_du_kien()` xác định loại ngày, `lich_thang()` trả lịch cả tháng. Không có model lịch hoặc kỳ tháng riêng; lịch được tính trực tiếp từ quy tắc trong code. GET chỉ xem trước; POST chấm công mới tạo dữ liệu công.
 
 Việc gộp không ghi lại database hoặc sửa các ngày/kỳ đã có. Không tự duyệt hay chi trả lương. Lịch đã lưu được ưu tiên, gồm cả các ngoại lệ đã chốt. Lịch năm khác không lấy ngày lễ năm 2026 làm ngày lễ của năm đó.
 

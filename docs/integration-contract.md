@@ -26,7 +26,7 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 
 ## Phạm vi phần bảng công
 
-- Lịch làm việc: hàm `bang_cong.services.tinh_toan.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; không có model lịch hoặc kỳ tháng riêng.
+- Lịch làm việc: hàm `bang_cong.services.cham_cong_service.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; không có model lịch hoặc kỳ tháng riêng.
 - Tháng lương được lấy từ tháng/năm trên tổng hợp công; trạng thái duyệt công nằm trong `ChotBangCong`, trạng thái duyệt/chi trả lương nằm trên từng phiếu lương.
 - ChamCong: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
   công thực tế, công nghỉ hưởng lương, công hưởng lương và ghi chú.

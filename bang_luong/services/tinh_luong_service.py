@@ -91,7 +91,7 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
         raise ValidationError('Kỳ lương đã gửi Giám đốc; không thể tính lại khi đang chờ ký.')
 
     bang_cong = TongHopCong.objects.filter(
-        nam=nam, thang=thang, approval__isnull=False,
+        nam=nam, thang=thang, chotbangcong__isnull=False,
     ).select_related('nhan_vien__nguoi_dung')
     if not bang_cong.exists():
         raise ValidationError('Kỳ này chưa có bảng công nào được chốt.')
@@ -101,7 +101,7 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
         da_khoa = set(Luong.objects.filter(
             tong_hop__in=bang_cong,
             trang_thai__in=[
-                Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET, Luong.DA_CHI_TRA,
+                Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET,
             ],
         ).values_list('tong_hop_id', flat=True))
 
@@ -200,7 +200,7 @@ def gui_bang_luong_cho_giam_doc(actor, nam, thang):
     if not phieu_luong.exists():
         raise ValidationError('Kỳ này chưa có phiếu lương để gửi duyệt.')
     so_bang_cong = TongHopCong.objects.filter(
-        nam=nam, thang=thang, approval__isnull=False,
+        nam=nam, thang=thang, chotbangcong__isnull=False,
     ).count()
     if phieu_luong.count() != so_bang_cong:
         raise ValidationError('Hãy tính đủ phiếu cho tất cả bảng công đã chốt trước khi gửi.')
@@ -222,7 +222,7 @@ def duyet_toan_bo_bang_luong(actor, nam, thang):
     if not phieu_luong.exists():
         raise ValidationError('Kỳ này chưa có phiếu lương để duyệt.')
     so_bang_cong = TongHopCong.objects.filter(
-        nam=nam, thang=thang, approval__isnull=False,
+        nam=nam, thang=thang, chotbangcong__isnull=False,
     ).count()
     if phieu_luong.count() != so_bang_cong:
         raise ValidationError('Số phiếu lương không khớp với các bảng công đã chốt.')
