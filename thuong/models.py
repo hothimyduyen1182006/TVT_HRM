@@ -22,7 +22,7 @@ class Thuong(models.Model):
     ma_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_tong_thuong,
                                  editable=False)
     nguoi_dung = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-                                   related_name='bang_thuong')
+                                   related_name='bang_thuong', db_column='nguoi_dung')
     thang = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
     nam = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
     thuong_chuyen_can = models.DecimalField(max_digits=12, decimal_places=0, default=0)
@@ -33,7 +33,7 @@ class Thuong(models.Model):
     ly_do_tham_nien = models.TextField(null=True, blank=True)
     trang_thai = models.CharField(max_length=30, choices=STATUSES, default='draft')
     nguoi_duyet = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.PROTECT, related_name='bang_thuong_da_duyet')
+                                    on_delete=models.PROTECT, related_name='bang_thuong_da_duyet', db_column='nguoi_duyet')
     ngay_duyet = models.DateTimeField(null=True, blank=True)
     ly_do_tu_choi = models.TextField(null=True, blank=True)
 
@@ -57,11 +57,11 @@ class Thuong(models.Model):
 class DeXuatThuong(models.Model):
     ma_de_xuat_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_de_xuat,
                                         editable=False)
-    bang_thuong = models.ForeignKey(Thuong, on_delete=models.PROTECT, related_name='de_xuat')
+    bang_thuong = models.ForeignKey(Thuong, on_delete=models.PROTECT, related_name='de_xuat', db_column='bang_thuong')
     ten = models.CharField('Tên thưởng khác', max_length=100)
     so_tien = models.DecimalField('Số tiền', max_digits=12, decimal_places=0, validators=[MinValueValidator(0)])
     ly_do = models.TextField('Lý do')
-    nguoi_de_xuat = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    nguoi_de_xuat = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, db_column='nguoi_de_xuat')
     thoi_gian_de_xuat = models.DateTimeField(default=timezone.now)
 
     class Meta:
