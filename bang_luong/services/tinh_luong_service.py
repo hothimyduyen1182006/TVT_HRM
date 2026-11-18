@@ -81,6 +81,86 @@ def tinh_thue_tncn(thu_nhap_chiu_thue, tong_bao_hiem, so_nguoi_phu_thuoc,
     }
 
 
+def _tinh_phieu_luong(cong):
+    if cong.cong_chuan <= 0:
+        raise ValidationError(f'{cong.nhan_vien}: công chuẩn phải lớn hơn 0.')
+
+    nhan_vien = cong.nhan_vien
+    cai_dat = nhan_vien.thiet_lap_luong or {}
+    if cai_dat.get('doi_tuong_tinh_thue', cai_dat.get('tax_method')) != 'resident_2026':
+        raise ValidationError(f'{nhan_vien}: chỉ tự tính thuế cho cấu hình cá nhân cư trú 2026.')
+    if _so_tien(nhan_vien.luong_co_ban) <= 0:
+        raise ValidationError(f'{nhan_vien}: lương cơ bản phải lớn hơn 0.')
+    if not str(cai_dat.get('can_cu_bao_hiem', cai_dat.get('insurance_basis', ''))).strip():
+        raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ lương đóng bảo hiểm.')
+    if not str(cai_dat.get('can_cu_thue', cai_dat.get('tax_basis', ''))).strip():
+        raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ tính thuế.')
+    try:
+        so_nguoi_phu_thuoc = int(cai_dat.get('so_nguoi_phu_thuoc', cai_dat.get('tax_dependents', 0)))
+    except (TypeError, ValueError):
+        raise ValidationError(f'{nhan_vien}: số người phụ thuộc không hợp lệ.')
+    if so_nguoi_phu_thuoc < 0:
+        raise ValidationError(f'{nhan_vien}: số người phụ thuộc không được âm.')
+
+    try:
+        thuong = Thuong.objects.get(
+            nguoi_dung=nhan_vien.nguoi_dung,
+            nam=cong.nam,
+            thang=cong.thang,
+            trang_thai='approved',
+        )
+    except Thuong.DoesNotExist:
+        raise ValidationError(f'{nhan_vien}: chưa có bảng thưởng đã duyệt cho kỳ này.')
+    if (thuong.nguoi_dung_id != nhan_vien.nguoi_dung_id
+            or thuong.nam != cong.nam or thuong.thang != cong.thang):
+        raise ValidationError(f'{nhan_vien}: bảng thưởng không khớp nhân viên hoặc kỳ lương.')
+
+    luong_co_ban = _so_tien(nhan_vien.luong_co_ban)
+    luong_theo_cong = (
+        luong_co_ban * _so_tien(cong.tong_cong) / _so_tien(cong.cong_chuan)
+    )
+    gio_ot = _so_tien(cong.tong_gio_tang_ca)
+    don_gia_ot = _so_tien(cai_dat.get('luong_gio_tang_ca', cai_dat.get('overtime_hourly_rate')))
+    if gio_ot and don_gia_ot <= 0:
+        raise ValidationError(f'{nhan_vien}: thiếu đơn giá giờ tăng ca.')
+    if gio_ot and not str(cai_dat.get('can_cu_luong_gio_tang_ca', cai_dat.get('overtime_basis', ''))).strip():
+        raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ đơn giá tăng ca.')
+
+    luong_tang_ca = gio_ot * don_gia_ot
+    phu_cap = _so_tien(cai_dat.get('phu_cap_an_trua', cai_dat.get('lunch_allowance')))
+    if phu_cap < 0:
+        raise ValidationError(f'{nhan_vien}: phụ cấp không được âm.')
+    tong_thuong = _so_tien(thuong.tong_thuong)
+    bao_hiem = tinh_khau_tru_bao_hiem(nhan_vien)
+    tong_thu_nhap = luong_theo_cong + luong_tang_ca + phu_cap + tong_thuong
+    thue = tinh_thue_tncn(
+        tong_thu_nhap,
+        bao_hiem['tong_bao_hiem'],
+        so_nguoi_phu_thuoc,
+    )
+    thuc_linh = (
+        tong_thu_nhap - bao_hiem['tong_bao_hiem'] - thue['thue_tncn']
+    )
+
+    Luong.objects.update_or_create(
+        tong_hop=cong,
+        defaults={
+            'tong_thuong': thuong,
+            'luong_co_ban': _lam_tron(luong_co_ban),
+            'luong_theo_cong': _lam_tron(luong_theo_cong),
+            'luong_tang_ca': _lam_tron(luong_tang_ca),
+            'phu_cap': _lam_tron(phu_cap),
+            'tong_tien_thuong': _lam_tron(tong_thuong),
+            'khau_tru_di_tre': 0,
+            'khau_tru_bhxh': bao_hiem['tong_bao_hiem'],
+            'khau_tru_khac': 0,
+            'thue_tncn': thue['thue_tncn'],
+            'luong_thuc_linh': _lam_tron(thuc_linh),
+            'trang_thai': Luong.CHO_DUYET,
+        },
+    )
+
+
 def tinh_bang_luong(actor, nam, thang, reason=''):
     if not co_vai_tro(actor, NHAN_SU):
         raise PermissionDenied('Chỉ Quản lý nhân sự được tính lương.')
@@ -108,83 +188,7 @@ def tinh_bang_luong(actor, nam, thang, reason=''):
         for cong in bang_cong:
             if cong.pk in da_khoa:
                 continue
-            if cong.cong_chuan <= 0:
-                raise ValidationError(f'{cong.nhan_vien}: công chuẩn phải lớn hơn 0.')
-
-            nhan_vien = cong.nhan_vien
-            cai_dat = nhan_vien.thiet_lap_luong or {}
-            if cai_dat.get('doi_tuong_tinh_thue', cai_dat.get('tax_method')) != 'resident_2026':
-                raise ValidationError(f'{nhan_vien}: chỉ tự tính thuế cho cấu hình cá nhân cư trú 2026.')
-            if _so_tien(nhan_vien.luong_co_ban) <= 0:
-                raise ValidationError(f'{nhan_vien}: lương cơ bản phải lớn hơn 0.')
-            if not str(cai_dat.get('can_cu_bao_hiem', cai_dat.get('insurance_basis', ''))).strip():
-                raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ lương đóng bảo hiểm.')
-            if not str(cai_dat.get('can_cu_thue', cai_dat.get('tax_basis', ''))).strip():
-                raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ tính thuế.')
-            try:
-                so_nguoi_phu_thuoc = int(cai_dat.get('so_nguoi_phu_thuoc', cai_dat.get('tax_dependents', 0)))
-            except (TypeError, ValueError):
-                raise ValidationError(f'{nhan_vien}: số người phụ thuộc không hợp lệ.')
-            if so_nguoi_phu_thuoc < 0:
-                raise ValidationError(f'{nhan_vien}: số người phụ thuộc không được âm.')
-
-            try:
-                thuong = Thuong.objects.get(
-                    nguoi_dung=nhan_vien.nguoi_dung,
-                    nam=nam,
-                    thang=thang,
-                    trang_thai='approved',
-                )
-            except Thuong.DoesNotExist:
-                raise ValidationError(f'{nhan_vien}: chưa có bảng thưởng đã duyệt cho kỳ này.')
-            if (thuong.nguoi_dung_id != nhan_vien.nguoi_dung_id
-                    or thuong.nam != nam or thuong.thang != thang):
-                raise ValidationError(f'{nhan_vien}: bảng thưởng không khớp nhân viên hoặc kỳ lương.')
-
-            luong_co_ban = _so_tien(nhan_vien.luong_co_ban)
-            luong_theo_cong = (
-                luong_co_ban * _so_tien(cong.tong_cong) / _so_tien(cong.cong_chuan)
-            )
-            gio_ot = _so_tien(cong.tong_gio_tang_ca)
-            don_gia_ot = _so_tien(cai_dat.get('luong_gio_tang_ca', cai_dat.get('overtime_hourly_rate')))
-            if gio_ot and don_gia_ot <= 0:
-                raise ValidationError(f'{nhan_vien}: thiếu đơn giá giờ tăng ca.')
-            if gio_ot and not str(cai_dat.get('can_cu_luong_gio_tang_ca', cai_dat.get('overtime_basis', ''))).strip():
-                raise ValidationError(f'{nhan_vien}: chưa ghi căn cứ đơn giá tăng ca.')
-
-            luong_tang_ca = gio_ot * don_gia_ot
-            phu_cap = _so_tien(cai_dat.get('phu_cap_an_trua', cai_dat.get('lunch_allowance')))
-            if phu_cap < 0:
-                raise ValidationError(f'{nhan_vien}: phụ cấp không được âm.')
-            tong_thuong = _so_tien(thuong.tong_thuong)
-            bao_hiem = tinh_khau_tru_bao_hiem(nhan_vien)
-            tong_thu_nhap = luong_theo_cong + luong_tang_ca + phu_cap + tong_thuong
-            thue = tinh_thue_tncn(
-                tong_thu_nhap,
-                bao_hiem['tong_bao_hiem'],
-                so_nguoi_phu_thuoc,
-            )
-            thuc_linh = (
-                tong_thu_nhap - bao_hiem['tong_bao_hiem'] - thue['thue_tncn']
-            )
-
-            Luong.objects.update_or_create(
-                tong_hop=cong,
-                defaults={
-                    'tong_thuong': thuong,
-                    'luong_co_ban': _lam_tron(luong_co_ban),
-                    'luong_theo_cong': _lam_tron(luong_theo_cong),
-                    'luong_tang_ca': _lam_tron(luong_tang_ca),
-                    'phu_cap': _lam_tron(phu_cap),
-                    'tong_tien_thuong': _lam_tron(tong_thuong),
-                    'khau_tru_di_tre': 0,
-                    'khau_tru_bhxh': bao_hiem['tong_bao_hiem'],
-                    'khau_tru_khac': 0,
-                    'thue_tncn': thue['thue_tncn'],
-                    'luong_thuc_linh': _lam_tron(thuc_linh),
-                    'trang_thai': Luong.CHO_DUYET,
-                },
-            )
+            _tinh_phieu_luong(cong)
             so_phieu_da_tinh += 1
     return so_phieu_da_tinh
 
@@ -199,6 +203,8 @@ def gui_bang_luong_cho_giam_doc(actor, nam, thang):
     ).order_by('pk')
     if not phieu_luong.exists():
         raise ValidationError('Kỳ này chưa có phiếu lương để gửi duyệt.')
+    if phieu_luong.exclude(tong_thuong__trang_thai='approved').exists():
+        raise ValidationError('Kỳ lương có phiếu liên kết với bảng thưởng chưa được duyệt.')
     so_bang_cong = TongHopCong.objects.filter(
         nam=nam, thang=thang, chotbangcong__isnull=False,
     ).count()
@@ -221,6 +227,8 @@ def duyet_toan_bo_bang_luong(actor, nam, thang):
     ).order_by('pk')
     if not phieu_luong.exists():
         raise ValidationError('Kỳ này chưa có phiếu lương để duyệt.')
+    if phieu_luong.exclude(tong_thuong__trang_thai='approved').exists():
+        raise ValidationError('Kỳ lương có phiếu liên kết với bảng thưởng chưa được duyệt.')
     so_bang_cong = TongHopCong.objects.filter(
         nam=nam, thang=thang, chotbangcong__isnull=False,
     ).count()
@@ -233,16 +241,24 @@ def duyet_toan_bo_bang_luong(actor, nam, thang):
     return so_phieu
 
 
+@transaction.atomic
 def cap_nhat_luong_nhan_vien(actor, employee_id, year, month):
-    """Bảo vệ phiếu đã duyệt khi app nguồn thay đổi dữ liệu."""
+    """Tính lại phiếu đang chờ duyệt khi công đã chốt và thưởng đã duyệt."""
     if not co_vai_tro(actor, NHAN_SU, GIAM_DOC):
         raise PermissionDenied('Chỉ Quản lý nhân sự hoặc Giám đốc được cập nhật bảng lương.')
-    phieu = Luong.objects.filter(
+    phieu = Luong.objects.select_for_update().filter(
         tong_hop__nhan_vien_id=employee_id,
         tong_hop__nam=year,
         tong_hop__thang=month,
         trang_thai=Luong.CHO_DUYET,
+        tong_thuong__trang_thai='approved',
     ).first()
-    if phieu:
-        return 'Phiếu lương đang chờ duyệt cần được kiểm tra và tính lại theo quy tắc lương đã được xác nhận.'
+    if phieu is None:
+        return ''
+    if not ChotBangCong.objects.filter(tong_hop_id=phieu.tong_hop_id).exists():
+        return 'Bảng công của phiếu lương chưa được chốt.'
+    try:
+        _tinh_phieu_luong(phieu.tong_hop)
+    except ValidationError as error:
+        return '; '.join(error.messages)
     return ''

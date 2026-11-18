@@ -1,7 +1,7 @@
 {% extends 'base.html' %}{% load payroll_display static %}
 {% block title %}Quản lý thưởng · TVT{% endblock %}
 {% block record_scope %}{% include 'includes/record_scope.html' with module='bonuses' %}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/thuong.css' %}"><script src="{% static 'js/thuong.js' %}" defer></script>{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/thuong.css' %}"><script src="{% static 'js/thuong.js' %}?v=confirm-dialog" defer></script>{% endblock %}
 {% block content %}<main class="bm-page"><h1 class="bm-title"><span class="bm-title-text">QUẢN LÝ THƯỞNG</span></h1>
 <form method="get" class="bm-filter">
   <div class="bm-field bm-field-search">{{ form.tu_khoa.label_tag }}{{ form.tu_khoa }}</div>
@@ -37,19 +37,7 @@
 {% endif %}
 {% if can_decide_period or can_send_period %}
 
-<dialog id="bm-confirm-dialog" aria-labelledby="bm-confirm-text">
- <section class="app-message-popup">
-  <button class="app-message-close" type="button" aria-label="Đóng thông báo" data-bm-close-dialog>×</button>
-  <div class="app-message-row app-message-info">
-   <span class="app-message-icon" aria-hidden="true">?</span>
-   <span id="bm-confirm-text"></span>
-  </div>
-  <div class="bm-confirm-actions">
-   <button class="btn btn-light" type="button" data-bm-close-dialog>Hủy</button>
-   <button id="bm-confirm-approve" class="btn btn-success" type="button">{% if can_decide_period %}Duyệt{% else %}Gửi duyệt{% endif %}</button>
-  </div>
- </section>
-</dialog>
+{% include 'thuong/confirm_dialog.html' %}
 {% endif %}
 {% if can_decide_period %}<form id="bm-bulk-form" method="post" action="{% url 'thuong:decision' selected_nam selected_thang %}" class="bm-bulk-actions">{% csrf_token %}<button class="bm-decision bm-approve" name="action" value="approve" type="submit">Duyệt nhân viên đã chọn</button><button class="bm-decision bm-reject" name="action" value="reject" type="submit">Từ chối nhân viên đã chọn</button></form>{% endif %}
 {% if page_obj.has_other_pages %}<nav class="bm-pagination" aria-label="Phân trang thưởng">
