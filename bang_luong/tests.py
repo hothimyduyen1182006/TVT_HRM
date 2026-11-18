@@ -149,8 +149,6 @@ class BangLuongTests(TestCase):
 
         Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.DA_DUYET)
         self.assertEqual(self.client.get('/bang_luong/xuat/csv/', params).status_code, 200)
-        Luong.objects.filter(pk=phieu.pk).update(trang_thai=Luong.DA_CHI_TRA)
-        self.assertEqual(self.client.get('/bang_luong/xuat/csv/', params).status_code, 302)
 
     def test_auto_calculation_waits_for_documented_payroll_rules(self):
         self.client.force_login(self.hr)

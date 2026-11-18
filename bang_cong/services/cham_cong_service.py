@@ -206,7 +206,7 @@ def ket_qua_cong_ngay(ban_ghi, ky_cong=None, lich_ngay=None, nghi_phep=None):
             ngay=ban_ghi.ngay,
         ).select_related('don_nghi_phep').first()
     so_cong_nghi = Decimal('1.0000') if nghi_phep else KHONG
-    ket_qua['leave'] = so_cong_nghi if nghi_phep and nghi_phep.huong_luong else KHONG
+    ket_qua['leave'] = so_cong_nghi if nghi_phep and nghi_phep.don_nghi_phep.huong_luong else KHONG
     if nghi_phep and ket_qua['actual'] + so_cong_nghi > lich_ngay.cong_chuan:
         raise ValidationError('Công thực tế và nghỉ phép vượt công chuẩn ngày; cần kiểm tra dữ liệu.')
     if ban_ghi.trang_thai == 'leave' and not nghi_phep:

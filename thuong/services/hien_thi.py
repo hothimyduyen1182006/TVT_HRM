@@ -8,7 +8,7 @@ from ..models import DeXuatThuong, Thuong
 def gan_ma_hien_thi(cac_bang):
     """Tạo mã hiển thị theo năm, tháng và người dùng, giữ nguyên khóa liên kết với lương."""
     for bang in cac_bang:
-        bang.ma_hien_thi = f'MT{bang.nam}{bang.thang:02d}_{bang.nguoi_dung_id:03d}'
+        bang.ma_hien_thi = f'MT{bang.nam - 2000:02d}{bang.thang:02d}-{bang.nguoi_dung_id:03d}'
     return cac_bang
 
 

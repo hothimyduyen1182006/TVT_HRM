@@ -10,7 +10,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from bang_cong.models import ChamCong
-from bang_cong.services.quy_trinh import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
+from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
 from bang_cong.services.cham_cong_service import lich_thang
 from bang_luong.models import Luong
 from bang_cong.utils.date_utils import thang_lich
@@ -202,7 +202,7 @@ class BonusWorkflowTests(TestCase):
         bang=self.approve_attendance(); proposal=self.proposal(bang)
         self.client.force_login(self.hr)
         response=self.client.get(self.list_url,{'thang':10,'nam':2026})
-        ma_hien_thi = f'MT202610_{bang.nguoi_dung_id:03d}'
+        ma_hien_thi = f'MT2610-{bang.nguoi_dung_id:03d}'
         self.assertContains(response,ma_hien_thi)
         self.assertNotContains(response,bang.ma_thuong)
         self.assertTrue(Thuong.objects.filter(pk=bang.pk).exists())

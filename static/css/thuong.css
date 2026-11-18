@@ -95,8 +95,8 @@
 .bm-page{max-width:none;width:100%;min-width:0}
 .bm-table th,.bm-table td{overflow-wrap:anywhere}
 .bm-table thead th{white-space:nowrap;overflow-wrap:normal}
-.bm-table .bm-status{max-width:100%;white-space:normal}
-.bm-table .bm-link{max-width:100%;padding:4px 8px;white-space:normal}
+.bm-table .bm-code,.bm-table .bm-status,.bm-table .bm-link{white-space:nowrap;overflow-wrap:normal}
+.bm-table .bm-link{padding:4px 8px}
 .bm-empty-state{min-width:0}
 .bm-empty-state .pr-document{max-width:100%}
 

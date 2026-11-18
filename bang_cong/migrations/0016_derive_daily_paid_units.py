@@ -6,7 +6,7 @@ from decimal import Decimal
 
 def kiem_tra_tong_cong(apps, schema_editor):
     ChamCong = apps.get_model('attendance', 'ChamCong')
-    for dong in ChamCong.objects.using(schema_editor.connection.alias).all().iterator():
+    for dong in ChamCong.objects.using(schema_editor.connection.alias).order_by('pk').iterator():
         tong = (dong.cong_thuc_te + dong.cong_nghi_co_luong).quantize(Decimal('0.0001'))
         if dong.tong_cong != tong:
             raise RuntimeError('Tổng công ngày chưa khớp thành phần; dừng migration để đối chiếu dữ liệu.')
