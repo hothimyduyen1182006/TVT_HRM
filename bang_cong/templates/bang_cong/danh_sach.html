@@ -30,7 +30,7 @@
  <td><a class="pill-link" href="{% url 'bang_cong:cong-nhan-vien' row.employee.pk %}?month={{ form.thang.value }}&year={{ form.nam.value }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
 </tr>{% empty %}<tr><td colspan="7" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
 </tbody></table></div>
-{% if can_chot and period %}<div class="at-footer"><form method="post" action="{% url 'bang_cong:chot-thang' period.pk %}">{% csrf_token %}<button class="at-button" type="submit">Chốt toàn bộ bảng công tháng</button></form></div>{% else %}<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên</span></div>{% endif %}
+{% if can_chot and period %}<div class="at-footer"><form method="post" action="{% url 'bang_cong:chot-thang' period_id %}">{% csrf_token %}<button class="at-button" type="submit">Chốt toàn bộ bảng công tháng</button></form></div>{% else %}<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên</span></div>{% endif %}
 {% if page_obj.has_other_pages %}<nav class="at-pagination" aria-label="Phân trang">
 {% if page_obj.has_previous %}<a href="?{{ page_query }}&page=1" aria-label="Trang đầu">«</a><a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
 {% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{{ page_query }}&page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}

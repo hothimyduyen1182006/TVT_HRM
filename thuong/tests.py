@@ -13,7 +13,6 @@ from bang_cong.models import ChamCong
 from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
 from bang_cong.services.cham_cong_service import lich_thang
 from bang_luong.models import Luong
-from bang_cong.utils.date_utils import thang_lich
 from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.models import PhongBan, NhanVien
@@ -37,8 +36,8 @@ class BonusWorkflowTests(TestCase):
                 phong_ban=phong, ngay_vao_lam=date(2020,1,1), luong_co_ban=10000000,
                 thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{'BHXH':'0', 'BHYT':'0', 'BHTN':'0'},
                     'can_cu_bao_hiem':'Căn cứ kiểm thử', 'doi_tuong_tinh_thue':'resident_2026', 'can_cu_thue':'Căn cứ kiểm thử'}))
-        cls.period = thang_lich(2026,10)
-        for lich in lich_thang(2026,10,cls.period).values():
+        cls.ma_ky_cong = 202610
+        for lich in lich_thang(2026,10).values():
             if lich.loai_ngay == 'work':
                 for employee in cls.people:
                     ChamCong.objects.create(nhan_vien=employee, ngay=lich.ngay, trang_thai='present',
@@ -56,7 +55,7 @@ class BonusWorkflowTests(TestCase):
         return self.client.post(url,data,HTTP_X_CSRFTOKEN=self.client.cookies['csrftoken'].value)
 
     def approve_attendance(self, index=0):
-        duyet_cong_nhan_vien(self.hr,self.people[index],self.period.pk)
+        duyet_cong_nhan_vien(self.hr,self.people[index],self.ma_ky_cong)
         return Thuong.objects.get(nguoi_dung=self.people[index].nguoi_dung,thang=10,nam=2026)
 
     def proposal(self, bang, amount=750000):
@@ -77,7 +76,7 @@ class BonusWorkflowTests(TestCase):
         self.assertFalse(Luong.objects.exists())
 
     def test_whole_period_approval_updates_all_employees(self):
-        xu_ly_trang_thai_ky_cong(self.director,self.period.pk,'approve','Đã đối chiếu công')
+        xu_ly_trang_thai_ky_cong(self.director,self.ma_ky_cong,'approve','Đã đối chiếu công')
         self.assertEqual(Thuong.objects.filter(thuong_chuyen_can=200000).count(),2)
         self.assertFalse(DeXuatThuong.objects.exists())
 

@@ -11,9 +11,10 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from bang_cong.models import ChamCong, ChotBangCong
-from bang_cong.services.chot_bang_cong_service import ChotBangCongService
-from bang_cong.services.cham_cong_service import lich_thang as tao_lich_thang, nap_cong_ngay
-from bang_cong.utils.date_utils import thang_lich, thang_tu_ma
+from bang_cong.services.chot_bang_cong_service import ChotBangCongService, ky_cong_da_khoa
+from bang_cong.services.cham_cong_service import (
+    GIO_BAT_DAU, lich_thang as tao_lich_thang, nap_cong_ngay,
+)
 from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, yeu_cau_vai_tro,
     NHAN_SU, GIAM_DOC, TRUONG_PHONG,
@@ -25,14 +26,14 @@ from .chi_tiet import bang_cong_nhan_vien
 ZERO = Decimal('0')
 
 
-def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, lich_thang=None):
+def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None, lich=None):
     records = list(ds_ban_ghi) if ds_ban_ghi is not None else list(ChamCong.objects.filter(
         ngay__year=nam, ngay__month=thang,
         nhan_vien_id__in=ds_nhan_vien.values('pk'),
     ).select_related('nhan_vien'))
-    lich = lich_thang if lich_thang is not None else tao_lich_thang(nam, thang, ky_cong)
-    if ky_cong:
-        nap_cong_ngay(records, ky_cong, lich)
+    lich = lich if lich is not None else tao_lich_thang(nam, thang)
+    if lich:
+        nap_cong_ngay(records, nam, thang, lich)
 
     by_employee = {}
     for record in records:
@@ -53,7 +54,7 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, ky_cong, *, ds_ban_ghi=None, l
     approved_ids = set(ChotBangCong.objects.filter(
         tong_hop__nam=nam, tong_hop__thang=thang,
     ).values_list('tong_hop__nhan_vien_id', flat=True))
-    if ky_cong and ky_cong.trang_thai == 'approved':
+    if ky_cong_da_khoa(nam, thang):
         approved_ids.update(ds_nhan_vien.values_list('pk', flat=True))
     standard = sum((day.cong_chuan for day in lich.values()), ZERO) if lich else None
 
@@ -90,21 +91,22 @@ def tham_so_phan_trang(request):
 @require_POST
 def chot_bang_cong_thang(request, period_id):
     yeu_cau_vai_tro(request.user, NHAN_SU)
-    period = thang_tu_ma(period_id)
+    period_id = int(period_id)
+    nam, thang = period_id // 100, period_id % 100
     try:
         result = ChotBangCongService.chot_bang_cong(
-            period.thang, period.nam, request.user,
+            thang, nam, request.user,
         )
     except ValidationError as error:
         messages.error(request, '; '.join(error.messages))
     else:
         messages.success(
             request,
-            f"Đã chốt bảng công tháng {period.thang:02}/{period.nam} "
+            f"Đã chốt bảng công tháng {thang:02}/{nam} "
             f"cho {result['so_nhan_vien']} nhân viên.",
         )
     return redirect(reverse('bang_cong:danh-sach') + '?' + urlencode({
-        'month': period.thang, 'year': period.nam,
+        'month': thang, 'year': nam,
     }))
 
 
@@ -116,7 +118,7 @@ def danh_sach_bang_cong(request):
             return bang_cong_nhan_vien(request, nhan_vien.pk)
 
     form = BoLocBangCong(request.user, request.GET)
-    rows, period = [], None
+    rows, period, period_id = [], False, None
     if form.is_valid():
         data = form.cleaned_data
         employees = form.nhan_vien_trong_pham_vi(request.user)
@@ -124,7 +126,11 @@ def danh_sach_bang_cong(request):
             employees = employees.filter(
                 Q(ho_va_ten__icontains=data['q']) | Q(ma_ho_so__icontains=data['q']),
             )
-        period = thang_lich(data['year'], data['month'])
+        nam, thang = data['year'], data['month']
+        lich = tao_lich_thang(nam, thang)
+        ma_ky_cong = nam * 100 + thang
+        period = bool(lich)
+        period_id = ma_ky_cong if period else None
         if data.get('day'):
             employees = employees.filter(
                 dang_hoat_dong=True, ngay_vao_lam__lte=data['day'],
@@ -135,17 +141,18 @@ def danh_sach_bang_cong(request):
             elif data['day_state'] in ('ontime', 'late'):
                 field = 'gio_vao__lte' if data['day_state'] == 'ontime' else 'gio_vao__gt'
                 employees = employees.filter(
-                    pk__in=attendance.filter(**{field: period.gio_bat_dau}).values('nhan_vien_id'),
+                    pk__in=attendance.filter(**{field: GIO_BAT_DAU}).values('nhan_vien_id'),
                 )
-        rows = tong_hop_cong_thang(employees, data['year'], data['month'], period)
+        rows = tong_hop_cong_thang(employees, nam, thang, lich=lich)
         if data['review']:
             rows = [row for row in rows if row['state'] == data['review']]
 
     page_obj = Paginator(rows, 15).get_page(request.GET.get('page'))
     return render(request, 'bang_cong/danh_sach.html', {
-        'form': form, 'rows': rows, 'period': period, 'page_obj': page_obj,
+        'form': form, 'rows': rows, 'period': period,
+        'period_id': period_id, 'page_obj': page_obj,
         'page_query': tham_so_phan_trang(request),
         'can_edit': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
-        'can_chot': co_vai_tro(request.user, NHAN_SU) and bool(period),
+        'can_chot': co_vai_tro(request.user, NHAN_SU) and period,
         'director': co_vai_tro(request.user, GIAM_DOC),
     })

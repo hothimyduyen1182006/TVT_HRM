@@ -11,16 +11,16 @@ from bang_cong.services.cham_cong_service import lich_thang, nap_cong_ngay
 from nhan_vien.models import NhanVien
 
 
-def du_lieu_tong_hop(nhan_vien, ky_cong):
+def du_lieu_tong_hop(nhan_vien, nam, thang):
     """Tính các khoản công của một nhân viên trong kỳ công."""
     records = list(ChamCong.objects.filter(
         nhan_vien=nhan_vien,
-        ngay__year=ky_cong.nam,
-        ngay__month=ky_cong.thang,
+        ngay__year=nam,
+        ngay__month=thang,
     ).order_by('ngay'))
-    lich = lich_thang(ky_cong.nam, ky_cong.thang, ky_cong)
+    lich = lich_thang(nam, thang)
     if records:
-        nap_cong_ngay(records, ky_cong, lich)
+        nap_cong_ngay(records, nam, thang, lich)
 
     zero = Decimal('0')
     cong_thuc_te = sum((record.cong_thuc_te for record in records), zero)
@@ -31,13 +31,13 @@ def du_lieu_tong_hop(nhan_vien, ky_cong):
     so_ngay_vang = sum(record.trang_thai == 'absent' for record in records)
     da_chot = ChotBangCong.objects.filter(
         tong_hop__nhan_vien=nhan_vien,
-        tong_hop__nam=ky_cong.nam,
-        tong_hop__thang=ky_cong.thang,
+        tong_hop__nam=nam,
+        tong_hop__thang=thang,
     ).exists()
 
     return {
-        'thang': ky_cong.thang,
-        'nam': ky_cong.nam,
+        'thang': thang,
+        'nam': nam,
         'cong_chuan': cong_chuan,
         'cong_thuc_te': cong_thuc_te,
         'cong_nghi_co_luong': cong_nghi,
@@ -54,13 +54,13 @@ def du_lieu_tong_hop(nhan_vien, ky_cong):
     }
 
 
-def tong_hop_dung_tinh_luong(nhan_vien, ky_cong):
+def tong_hop_dung_tinh_luong(nhan_vien, nam, thang):
     """Dùng tổng hợp đã lưu nếu khớp dữ liệu công hiện tại."""
-    data = du_lieu_tong_hop(nhan_vien, ky_cong)
+    data = du_lieu_tong_hop(nhan_vien, nam, thang)
     saved = TongHopCong.objects.filter(
         nhan_vien=nhan_vien,
-        nam=ky_cong.nam,
-        thang=ky_cong.thang,
+        nam=nam,
+        thang=thang,
     ).first()
     if saved and all(getattr(saved, key) == value for key, value in data.items()):
         return saved
@@ -68,24 +68,24 @@ def tong_hop_dung_tinh_luong(nhan_vien, ky_cong):
 
 
 @transaction.atomic
-def cap_nhat_tong_hop(nhan_vien, ky_cong):
+def cap_nhat_tong_hop(nhan_vien, nam, thang):
     """Lưu tổng hợp công tháng của một nhân viên."""
-    data = du_lieu_tong_hop(nhan_vien, ky_cong)
+    data = du_lieu_tong_hop(nhan_vien, nam, thang)
     summary, _ = TongHopCong.objects.update_or_create(
         nhan_vien=nhan_vien,
-        nam=ky_cong.nam,
-        thang=ky_cong.thang,
+        nam=nam,
+        thang=thang,
         defaults=data,
     )
     return summary
 
 
-def cap_nhat_tong_hop_ca_ky(ky_cong):
+def cap_nhat_tong_hop_ca_ky(nam, thang):
     """Cập nhật tổng hợp công của nhân viên đã vào làm trước cuối kỳ."""
     ngay_cuoi_ky = date(
-        ky_cong.nam,
-        ky_cong.thang,
-        calendar.monthrange(ky_cong.nam, ky_cong.thang)[1],
+        nam,
+        thang,
+        calendar.monthrange(nam, thang)[1],
     )
     for nhan_vien in NhanVien.objects.filter(ngay_vao_lam__lte=ngay_cuoi_ky):
-        cap_nhat_tong_hop(nhan_vien, ky_cong)
+        cap_nhat_tong_hop(nhan_vien, nam, thang)

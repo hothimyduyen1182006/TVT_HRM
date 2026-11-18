@@ -35,7 +35,7 @@
           <p class="tvt-encouragement">Hãy Check-out khi bạn kết thúc công việc nhé!</p>
           <div class="tvt-clock" data-clock>--:--:--</div>
           {% if co_the_ket_thuc_ca %}<form method="post" action="{% url 'bang_cong:cham-cong' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkout-button" name="action" value="out" type="submit">CHECK-OUT</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-OUT</button>{% endif %}
-          <div class="tvt-shift-caption">Ca làm việc: {% if ky_cong %}{{ ky_cong.gio_bat_dau|time:'H:i' }} – {{ ky_cong.gio_ket_thuc|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+          <div class="tvt-shift-caption">Ca làm việc: {{ gio_bat_dau|time:'H:i' }} – {{ gio_ket_thuc|time:'H:i' }}</div>
         {% else %}
           <h1 class="tvt-main-title">CHẤM CÔNG HÔM NAY</h1>
           <p class="tvt-greeting">Chào {{ nhan_vien.ho_va_ten }} 👋</p>
@@ -43,7 +43,7 @@
           <div class="tvt-day-date">{{ hom_nay|date:'d/m/Y' }}</div>
           <div class="tvt-clock" data-clock>--:--:--</div>
           {% if co_the_vao_ca %}<form method="post" action="{% url 'bang_cong:cham-cong' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
-          <div class="tvt-shift-caption">Ca làm việc: {% if ky_cong %}{{ ky_cong.gio_bat_dau|time:'H:i' }} – {{ ky_cong.gio_ket_thuc|time:'H:i' }}{% else %}Chưa thiết lập{% endif %}</div>
+          <div class="tvt-shift-caption">Ca làm việc: {{ gio_bat_dau|time:'H:i' }} – {{ gio_ket_thuc|time:'H:i' }}</div>
         {% endif %}
         {% if loi_lich %}<div class="tvt-period-note">{{ loi_lich }}</div>{% elif da_khoa and trang_thai_trang != 'da_hoan_tat' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
       </section>

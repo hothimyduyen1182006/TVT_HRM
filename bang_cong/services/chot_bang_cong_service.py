@@ -8,21 +8,20 @@ from django.db import transaction
 from django.utils import timezone
 
 from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
-from bang_cong.thang_lich import thang_tu_ma
 from nhan_vien.access import GIAM_DOC, NHAN_SU, yeu_cau_vai_tro
 from nhan_vien.models import NhanVien
 
 
-def _ngay_cuoi_ky(ky_cong):
-    return date(ky_cong.nam, ky_cong.thang, calendar.monthrange(ky_cong.nam, ky_cong.thang)[1])
+def _ngay_cuoi_ky(nam, thang):
+    return date(nam, thang, calendar.monthrange(nam, thang)[1])
 
 
-def _tinh_lai_cac_ban_ghi(ds_ban_ghi, ky_cong, nguoi_thuc_hien, ly_do):
+def _tinh_lai_cac_ban_ghi(ds_ban_ghi, nguoi_thuc_hien, ly_do):
     """Tính lại công cho các bản ghi trước khi duyệt kỳ hoặc nhân viên."""
     from .cham_cong_service import tinh_cong_ngay
 
     for ban_ghi in ds_ban_ghi:
-        tinh_cong_ngay(ban_ghi, ky_cong)
+        tinh_cong_ngay(ban_ghi)
         ban_ghi.save()
 
 
@@ -65,15 +64,23 @@ class ChotBangCongService:
         }
 
 
-def ky_cong_da_khoa(ky_cong, ma_nhan_vien, ngay_cong=None):
-    """Kiểm tra kỳ đã chốt toàn bộ hoặc riêng bản tổng hợp nhân viên."""
-    if not ky_cong:
-        return False
-    if ky_cong.trang_thai == 'approved':
+def ky_cong_da_khoa(nam, thang, ma_nhan_vien=None):
+    """Kiểm tra tháng đã chốt toàn bộ hoặc đã chốt cho một nhân viên."""
+    ngay_cuoi = _ngay_cuoi_ky(nam, thang)
+    nhan_vien_can_duyet = set(NhanVien.objects.filter(
+        dang_hoat_dong=True,
+        ngay_vao_lam__lte=ngay_cuoi,
+    ).values_list('pk', flat=True))
+    nhan_vien_da_duyet = set(ChotBangCong.objects.filter(
+        tong_hop__nam=nam,
+        tong_hop__thang=thang,
+    ).values_list('tong_hop__nhan_vien_id', flat=True))
+
+    if nhan_vien_can_duyet and nhan_vien_can_duyet.issubset(nhan_vien_da_duyet):
         return True
-    return ky_cong.employee_approvals.filter(
-        tong_hop__nhan_vien_id=ma_nhan_vien,
-    ).exists()
+    if ma_nhan_vien is None:
+        return False
+    return ma_nhan_vien in nhan_vien_da_duyet
 
 
 @transaction.atomic
@@ -82,19 +89,20 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
     yeu_cau_vai_tro(nguoi_thuc_hien, GIAM_DOC)
     if thao_tac != 'approve':
         raise ValidationError('Chỉ được duyệt công; bảng công đã duyệt không được mở lại.')
-    ky_cong = thang_tu_ma(ma_ky_cong)
+    ma_ky_cong = int(ma_ky_cong)
+    nam, thang = ma_ky_cong // 100, ma_ky_cong % 100
     if not ly_do.strip():
         raise ValidationError('Cần ghi lý do.')
-    if ky_cong.trang_thai != 'pending':
+    if ky_cong_da_khoa(nam, thang):
         raise ValidationError('Kỳ công phải đang chờ duyệt.')
 
     from .cham_cong_service import kiem_tra_lich_lam_viec
     from .tong_hop_service import cap_nhat_tong_hop, cap_nhat_tong_hop_ca_ky
 
-    lich_da_kiem_tra = kiem_tra_lich_lam_viec(ky_cong)
-    ds_ban_ghi = ChamCong.objects.filter(ngay__year=ky_cong.nam, ngay__month=ky_cong.thang)
+    lich_da_kiem_tra = kiem_tra_lich_lam_viec(nam, thang)
+    ds_ban_ghi = ChamCong.objects.filter(ngay__year=nam, ngay__month=thang)
     ds_nhan_vien = NhanVien.objects.filter(
-        dang_hoat_dong=True, ngay_vao_lam__lte=_ngay_cuoi_ky(ky_cong),
+        dang_hoat_dong=True, ngay_vao_lam__lte=_ngay_cuoi_ky(nam, thang),
     )
     for nhan_vien in ds_nhan_vien:
         ngay_bat_buoc = {
@@ -108,40 +116,46 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
         if not set(ngay_bat_buoc).issubset(ngay_da_co):
             raise ValidationError(f'{nhan_vien}: còn ngày làm việc chưa kiểm tra.')
 
-    da_duyet_ids = ky_cong.employee_approvals.values_list('tong_hop__nhan_vien_id', flat=True)
+    da_duyet_ids = ChotBangCong.objects.filter(
+        tong_hop__nam=nam, tong_hop__thang=thang,
+    ).values_list('tong_hop__nhan_vien_id', flat=True)
     _tinh_lai_cac_ban_ghi(
-        ds_ban_ghi.exclude(nhan_vien_id__in=da_duyet_ids), ky_cong, nguoi_thuc_hien, ly_do,
+        ds_ban_ghi.exclude(nhan_vien_id__in=da_duyet_ids), nguoi_thuc_hien, ly_do,
     )
     for nhan_vien in ds_nhan_vien:
-        tong_hop = cap_nhat_tong_hop(nhan_vien, ky_cong)
+        tong_hop = cap_nhat_tong_hop(nhan_vien, nam, thang)
         ChotBangCong.objects.get_or_create(
             tong_hop=tong_hop, defaults={'nguoi_duyet': nguoi_thuc_hien},
         )
 
-    cap_nhat_tong_hop_ca_ky(ky_cong)
+    cap_nhat_tong_hop_ca_ky(nam, thang)
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
     from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 
-    for ma_nhan_vien in ky_cong.ds_nhan_vien:
+    ds_nhan_vien_da_chot = ChotBangCong.objects.filter(
+        tong_hop__nam=nam, tong_hop__thang=thang,
+    ).values_list('tong_hop__nhan_vien_id', flat=True)
+    for ma_nhan_vien in ds_nhan_vien_da_chot:
         nhan_vien = NhanVien.objects.get(pk=ma_nhan_vien)
-        dong_bo_thuong_tu_dong(nhan_vien, ky_cong.thang, ky_cong.nam)
-        cap_nhat_luong_nhan_vien(nguoi_thuc_hien, ma_nhan_vien, ky_cong.nam, ky_cong.thang)
+        dong_bo_thuong_tu_dong(nhan_vien, thang, nam)
+        cap_nhat_luong_nhan_vien(nguoi_thuc_hien, ma_nhan_vien, nam, thang)
 
 
 @transaction.atomic
 def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     """Kiểm tra và duyệt bảng công của một nhân viên trong kỳ."""
     yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU, GIAM_DOC)
-    ky_cong = thang_tu_ma(ma_ky_cong)
-    if ky_cong_da_khoa(ky_cong, nhan_vien.pk):
+    ma_ky_cong = int(ma_ky_cong)
+    nam, thang = ma_ky_cong // 100, ma_ky_cong % 100
+    if ky_cong_da_khoa(nam, thang, nhan_vien.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
 
     from .cham_cong_service import kiem_tra_lich_lam_viec
     from .tong_hop_service import cap_nhat_tong_hop
 
-    lich_da_kiem_tra = kiem_tra_lich_lam_viec(ky_cong)
+    lich_da_kiem_tra = kiem_tra_lich_lam_viec(nam, thang)
     ds_ban_ghi = ChamCong.objects.filter(
-        nhan_vien=nhan_vien, ngay__year=ky_cong.nam, ngay__month=ky_cong.thang,
+        nhan_vien=nhan_vien, ngay__year=nam, ngay__month=thang,
     )
     ngay_bat_buoc = {
         lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
@@ -152,23 +166,26 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
             or ds_ban_ghi.filter(trang_thai='incomplete').exists()):
         raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
 
-    _tinh_lai_cac_ban_ghi(ds_ban_ghi, ky_cong, nguoi_thuc_hien, 'Tính lại trước khi duyệt nhân viên')
-    ban_chot = ky_cong.employee_approvals.filter(tong_hop__nhan_vien=nhan_vien).first()
+    _tinh_lai_cac_ban_ghi(ds_ban_ghi, nguoi_thuc_hien, 'Tính lại trước khi duyệt nhân viên')
+    ban_chot = ChotBangCong.objects.filter(
+        tong_hop__nam=nam, tong_hop__thang=thang,
+        tong_hop__nhan_vien=nhan_vien,
+    ).first()
     if ban_chot:
         ban_chot.nguoi_duyet = nguoi_thuc_hien
         ban_chot.ngay_duyet = timezone.now()
         ban_chot.save(update_fields=['nguoi_duyet', 'ngay_duyet'])
     else:
         ban_chot = ChotBangCong.objects.create(
-            tong_hop=cap_nhat_tong_hop(nhan_vien, ky_cong), nguoi_duyet=nguoi_thuc_hien,
+            tong_hop=cap_nhat_tong_hop(nhan_vien, nam, thang), nguoi_duyet=nguoi_thuc_hien,
         )
 
-    cap_nhat_tong_hop(nhan_vien, ky_cong)
+    cap_nhat_tong_hop(nhan_vien, nam, thang)
     from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
 
-    dong_bo_thuong_tu_dong(nhan_vien, ky_cong.thang, ky_cong.nam)
+    dong_bo_thuong_tu_dong(nhan_vien, thang, nam)
     ban_chot.payroll_error = cap_nhat_luong_nhan_vien(
-        nguoi_thuc_hien, nhan_vien.pk, ky_cong.nam, ky_cong.thang,
+        nguoi_thuc_hien, nhan_vien.pk, nam, thang,
     )
     return ban_chot

@@ -12,7 +12,6 @@ from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import (
     lich_thang, nap_cong_ngay, tinh_tang_ca_tu_dong,
 )
-from bang_cong.utils.date_utils import thang_lich
 from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, NHAN_SU, GIAM_DOC, TRUONG_PHONG,
 )
@@ -66,22 +65,21 @@ def _du_lieu_cong_thang(request, nhan_vien):
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
         month, year = today.month, today.year
 
-    period = thang_lich(year, month)
     records = list(ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=year, ngay__month=month,
     ).select_related('nhan_vien'))
-    schedule = lich_thang(year, month, period)
+    schedule = lich_thang(year, month)
     if records:
-        nap_cong_ngay(records, period, schedule)
+        nap_cong_ngay(records, year, month, schedule)
     overtime = {
-        record.pk: tinh_tang_ca_tu_dong(record, period, schedule.get(record.ngay))
+        record.pk: tinh_tang_ca_tu_dong(record, schedule.get(record.ngay))
         for record in records
     }
     from .danh_sach import tong_hop_cong_thang
 
     summary = tong_hop_cong_thang(
-        NhanVien.objects.filter(pk=nhan_vien.pk), year, month, period,
-        ds_ban_ghi=records, lich_thang=schedule,
+        NhanVien.objects.filter(pk=nhan_vien.pk), year, month,
+        ds_ban_ghi=records, lich=schedule,
     )[0]
     rows = _danh_sach_cong_ngay(nhan_vien, year, month, records, schedule, overtime)
     days = sum(bool(row['record'] and row['record'].gio_vao) for row in rows)
@@ -95,7 +93,7 @@ def _du_lieu_cong_thang(request, nhan_vien):
 
     return {
         'month': month, 'year': year, 'rows': rows, 'summary': summary,
-        'period': period, 'progress': progress, 'average': average,
+        'period': bool(schedule), 'progress': progress, 'average': average,
         'month_query': urlencode({'month': month, 'year': year}),
     }
 

@@ -7,7 +7,8 @@ from django.views.decorators.http import require_http_methods
 
 from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import (
-    ghi_nhan_thao_tac_cham_cong, xem_lich_cham_cong,
+    GIO_BAT_DAU, GIO_KET_THUC, ghi_nhan_thao_tac_cham_cong,
+    xem_lich_cham_cong,
 )
 from bang_cong.services.chot_bang_cong_service import ky_cong_da_khoa
 from nhan_vien.models import NhanVien
@@ -44,8 +45,8 @@ def cham_cong_hom_nay(request):
 
     ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay=hom_nay).first()
     lich = xem_lich_cham_cong(hom_nay)
-    ky_cong, lich_ngay = lich['ky_cong'], lich['lich_ngay']
-    da_khoa = ky_cong_da_khoa(ky_cong, nhan_vien.pk, hom_nay) if ky_cong else False
+    lich_ngay = lich['lich_ngay']
+    da_khoa = ky_cong_da_khoa(hom_nay.year, hom_nay.month, nhan_vien.pk)
     duoc_cham_cong = bool(
         not lich['loi'] and not da_khoa and lich_ngay
         and lich_ngay.loai_ngay == 'work'
@@ -64,7 +65,8 @@ def cham_cong_hom_nay(request):
         'nhan_vien': nhan_vien,
         'clock_page': True,
         'ban_ghi_hom_nay': ban_ghi,
-        'ky_cong': ky_cong,
+        'gio_bat_dau': GIO_BAT_DAU,
+        'gio_ket_thuc': GIO_KET_THUC,
         'hom_nay': hom_nay,
         'thao_tac_thanh_cong': thao_tac.get('action'),
         'trang_thai_trang': trang_thai,

@@ -14,7 +14,6 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
 from bang_cong.services.tong_hop_service import cap_nhat_tong_hop
-from bang_cong.thang_lich import thang_lich
 from nhan_vien.access import (
     GIAM_DOC,
     NHAN_SU,
@@ -270,7 +269,7 @@ def xu_ly_don_nghi(request, ma_don, thao_tac):
             if thao_tac == 'approve':
                 nam, thang = don.ngay_bat_dau.year, don.ngay_bat_dau.month
                 while (nam, thang) <= (don.ngay_ket_thuc.year, don.ngay_ket_thuc.month):
-                    cap_nhat_tong_hop(don.nhan_vien, thang_lich(nam, thang))
+                    cap_nhat_tong_hop(don.nhan_vien, nam, thang)
                     if thang == 12:
                         nam, thang = nam + 1, 1
                     else:

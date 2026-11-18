@@ -6,7 +6,7 @@ from django.utils import timezone
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 from bang_cong.models import ChamCong
-from bang_cong.utils.date_utils import thang_lich
+from bang_cong.services.cham_cong_service import GIO_BAT_DAU, NAM_CO_LICH
 from nghi_phep.models import NgayNghi
 
 
@@ -26,7 +26,7 @@ def dashboard_context(user, form):
     day = form.cleaned_data['date']
     all_employees = nhan_vien_duoc_hien_thi(user)
     employees = all_employees.filter(dang_hoat_dong=True, ngay_vao_lam__lte=day)
-    period = thang_lich(day.year, day.month)
+    schedule_available = day.year == NAM_CO_LICH
     records = {r.nhan_vien_id: r for r in ChamCong.objects.filter(nhan_vien__in=employees, ngay=day)}
     leaves = set(NgayNghi.objects.filter(
         don_nghi_phep__nhan_vien__in=employees,
@@ -38,8 +38,8 @@ def dashboard_context(user, form):
     for employee in employees.select_related('phong_ban', 'chuc_vu').order_by('ma_ho_so'):
         record = records.get(employee.pk)
         if record and record.gio_vao:
-            if period:
-                state, label = ('late', 'Đi trễ') if record.gio_vao > period.gio_bat_dau else ('ontime', 'Đúng giờ')
+            if schedule_available:
+                state, label = ('late', 'Đi trễ') if record.gio_vao > GIO_BAT_DAU else ('ontime', 'Đúng giờ')
                 counts[state] += 1
             else:
                 state, label = 'recorded', 'Đã check-in · chưa có ca cấu hình'
@@ -68,4 +68,5 @@ def dashboard_context(user, form):
     if selected:
         rows = [r for r in rows if r['employee'].phong_ban_id == selected.pk]
     return {'selected_day': day, 'total_employees': total, 'department_count': len(departments), 'departments': departments,
-            'genders': gender_rows, 'attendance_counts': counts, 'employee_rows': rows, 'schedule_missing': period is None}
+            'genders': gender_rows, 'attendance_counts': counts, 'employee_rows': rows,
+            'schedule_missing': not schedule_available}

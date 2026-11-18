@@ -28,10 +28,9 @@ def home(request):
     latest=phieu_luong_ca_nhan(request.user).order_by(
         '-tong_hop__nam','-tong_hop__thang','-pk').first()
     today=timezone.localdate()
-    from bang_cong.utils.date_utils import thang_lich
-    period=thang_lich(latest.tong_hop.nam, latest.tong_hop.thang) if latest else None
-    payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'month':period.thang if period else today.month,
-        'year':period.nam if period else today.year})
+    thang = latest.tong_hop.thang if latest else today.month
+    nam = latest.tong_hop.nam if latest else today.year
+    payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'month':thang, 'year':nam})
     bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
     return render(request,'home.html',{
         'display_name':name,
@@ -40,7 +39,7 @@ def home(request):
         'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:danh_sach'),
         'bonus_url':bonus_url,
         'bonus_description':'Xem các khoản thưởng của bạn' if employee or not can_manage else 'Xem bảng thưởng theo quyền',
-        'payroll_description':f'Phiếu lương mới nhất · {period.thang:02}/{period.nam}' if period else (
+        'payroll_description':f'Phiếu lương mới nhất · {thang:02}/{nam}' if latest else (
             'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
         'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.dang_hoat_dong) else '',
         'leave_title':'Quản lý nghỉ phép' if can_manage else 'Đăng ký nghỉ phép',
