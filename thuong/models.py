@@ -20,22 +20,22 @@ class Thuong(models.Model):
                 ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')]
 
     ma_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_tong_thuong,
-                                 editable=False, db_column='Ma_thuong')
+                                 editable=False)
     nguoi_dung = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-                                   related_name='bang_thuong', db_column='Ma_nguoi_dung')
-    thang = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)], db_column='Thang')
-    nam = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)], db_column='Nam')
-    thuong_chuyen_can = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_chuyen_can')
-    thuong_tham_nien = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_tham_nien')
-    thuong_khac = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Thuong_khac')
-    tong_thuong = models.DecimalField(max_digits=12, decimal_places=0, default=0, db_column='Tong_thuong')
-    ly_do_chuyen_can = models.TextField(null=True, blank=True, db_column='Ly_do_chuyen_can')
-    ly_do_tham_nien = models.TextField(null=True, blank=True, db_column='Ly_do_tham_nien')
-    trang_thai = models.CharField(max_length=30, choices=STATUSES, default='draft', db_column='Trang_thai')
+                                   related_name='bang_thuong')
+    thang = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
+    nam = models.IntegerField(validators=[MinValueValidator(2000), MaxValueValidator(2100)])
+    thuong_chuyen_can = models.DecimalField(max_digits=12, decimal_places=0, default=0)
+    thuong_tham_nien = models.DecimalField(max_digits=12, decimal_places=0, default=0)
+    thuong_khac = models.DecimalField(max_digits=12, decimal_places=0, default=0)
+    tong_thuong = models.DecimalField(max_digits=12, decimal_places=0, default=0)
+    ly_do_chuyen_can = models.TextField(null=True, blank=True)
+    ly_do_tham_nien = models.TextField(null=True, blank=True)
+    trang_thai = models.CharField(max_length=30, choices=STATUSES, default='draft')
     nguoi_duyet = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
-                                    on_delete=models.PROTECT, related_name='bang_thuong_da_duyet', db_column='Ma_nguoi_duyet')
-    ngay_duyet = models.DateTimeField(null=True, blank=True, db_column='Ngay_duyet')
-    ly_do_tu_choi = models.TextField(null=True, blank=True, db_column='Ly_do_tu_choi')
+                                    on_delete=models.PROTECT, related_name='bang_thuong_da_duyet')
+    ngay_duyet = models.DateTimeField(null=True, blank=True)
+    ly_do_tu_choi = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'Thuong'
@@ -56,13 +56,13 @@ class Thuong(models.Model):
 
 class DeXuatThuong(models.Model):
     ma_de_xuat_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_de_xuat,
-                                        editable=False, db_column='Ma_de_xuat_thuong')
-    bang_thuong = models.ForeignKey(Thuong, on_delete=models.PROTECT, related_name='de_xuat', db_column='Ma_thuong')
-    ten = models.CharField('Tên thưởng khác', max_length=100, db_column='Ten_thuong')
-    so_tien = models.DecimalField('Số tiền', max_digits=12, decimal_places=0, validators=[MinValueValidator(0)], db_column='So_tien')
-    ly_do = models.TextField('Lý do', db_column='Ly_do')
-    nguoi_de_xuat = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, db_column='Ma_nguoi_de_xuat')
-    thoi_gian_de_xuat = models.DateTimeField(default=timezone.now, db_column='Ngay_de_xuat')
+                                        editable=False)
+    bang_thuong = models.ForeignKey(Thuong, on_delete=models.PROTECT, related_name='de_xuat')
+    ten = models.CharField('Tên thưởng khác', max_length=100)
+    so_tien = models.DecimalField('Số tiền', max_digits=12, decimal_places=0, validators=[MinValueValidator(0)])
+    ly_do = models.TextField('Lý do')
+    nguoi_de_xuat = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    thoi_gian_de_xuat = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = 'De_xuat_thuong'
