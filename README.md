@@ -65,14 +65,14 @@ Việc đổi tên package không tạo lại dữ liệu. Các thay đổi tên
 - `ChamCong` → bảng `Cham_cong`: giờ vào/ra, công ngày và kết quả OT; công thức vẫn nằm trong services.
 - `TongHopCong` → `Tong_hop_cong`: một bản tổng hợp cho mỗi nhân viên/tháng/năm.
 - `ChotBangCong` → `Chot_bang_cong`: nối bản chốt hiện tại với bản tổng hợp, giữ quyền và phạm vi khóa cũ.
-- Tháng công và lương được suy ra từ ngày/tháng/năm trên dữ liệu tổng hợp công; không có model kỳ tháng riêng. Lịch làm việc được tính từ quy tắc lịch trong service. Không thêm quy trình phản hồi hoặc duyệt OT.
+- Tháng công và lương được suy ra từ ngày/tháng/năm trên dữ liệu tổng hợp công; không có model kỳ tháng riêng. Không cấu hình lịch ngày làm/nghỉ/lễ; công chuẩn mỗi tháng là 24. Không thêm quy trình phản hồi hoặc duyệt OT.
 - Migration `attendance.0008_attendance_summary_and_adjustments` chuyển dữ liệu cũ, không tính lại tiền lương, không xóa lịch sử.
 - Tổng hợp được đồng bộ trong thao tác ghi; mở trang xem không tự tạo hoặc cập nhật tổng hợp. Phiếu lương đã duyệt/chi trả không bị thay đổi.
 
 ## Quy tắc OT
 
-- Áp dụng tất cả phòng ban. Ngày làm việc: OT = max(0, check-out − max(17:00, check-in)), khi có bản ghi Có mặt hợp lệ và lịch ngày.
-- Ngày nghỉ/lễ: tính giờ làm thực tế trừ nghỉ trưa; không sinh công thường. Hệ số ban ngày: 1,5 ngày thường; 2 nghỉ tuần; 3 lễ.
+- Áp dụng tất cả phòng ban. OT = max(0, check-out − max(17:00, check-in)), khi có bản ghi Có mặt hợp lệ; không phân biệt ngày thường, cuối tuần hay ngày lễ.
+- Hệ số OT trả về là 1,5 cho mọi ngày; lương OT dùng đơn giá giờ tăng ca đã xác nhận và số giờ OT.
 - Cùng một hàm `automatic_overtime()` phục vụ Bảng công và nguồn lương. Giờ OT được suy ra từ giờ vào/ra, giữ 4 chữ số thập phân; cột `so_gio_tang_ca` lưu kết quả trong lần cập nhật công, không tạo thêm công thức OT.
 - Không còn gửi yêu cầu, duyệt/từ chối hoặc quyền OT theo phòng. URL cũ trả 404. `LichSuTangCa` và cờ phòng cũ giữ trong schema để bảo toàn lịch sử, không tham gia tính; admin lịch sử chỉ đọc.
 - Lương OT = lương giờ căn cứ HR xác nhận × giờ OT tự động × hệ số. Không tự dùng thưởng/tiền ăn làm căn cứ. Tính lại thay snapshot chờ duyệt; không cộng vào tiền OT đã lưu trước đó.
@@ -132,8 +132,8 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
   trên trang chi tiết. Kỳ công hoàn tất khi đủ nhân viên đã duyệt.
   Cần kiểm tra cho biết có bản ghi thiếu dữ liệu,
   không phải trạng thái phê duyệt mới. Ngày trống không tự trở thành nghỉ không phép.
-- Bố cục dùng xanh đậm/vàng theo mẫu. Công chuẩn và giờ làm lấy từ dữ liệu thực tế trong ca;
-  không cố định 26 công hay tính 08:00–17:00 thành 9 giờ như số minh họa trong ảnh.
+- Bố cục dùng xanh đậm/vàng theo mẫu. Công chuẩn tháng cố định là 24; giờ làm tính từ giờ vào/ra,
+  khung 08:00–17:00 và giờ nghỉ trưa 12:00–13:00.
 
 ## Thiết lập dữ liệu thật
 
@@ -142,44 +142,36 @@ Bootstrap tải từ CDN, cần internet để hiển thị đầy đủ kiểu 
    cho nhân viên thường. Cổng admin chỉ dành cho superuser, kể cả staff có model permission.
 3. Tạo PhongBan chưa gán manager; tạo NhanVien gắn User, PhongBan, ngày vào làm và
    lương cơ bản. Sau đó gán manager của PhongBan tới NhanVien phụ trách phòng đó.
-4. Admin > Attendance periods: nhập tháng/năm, các giờ làm/nghỉ và giờ/công theo chính sách
-   nhóm đã xác nhận. Thời gian ngoài ca không làm tăng công hưởng lương.
-5. Lịch năm 2026 được tính từ code: thứ Hai–thứ Sáu, lễ và nghỉ bù. Không tạo lịch hoặc sửa từng ngày trong Admin.
-6. Công chuẩn lấy từ hàm lịch dùng chung; tháng được xác định từ ngày công và tổng hợp công.
-
-   Với UC-3, sau cấu hình ban đầu, kỳ mới năm 2026 dùng ca cố định và lịch trong code
-   có cấu hình hợp lệ. Mở trang chấm công chỉ xem trước; lần check-in thành công đầu tiên mới lưu
-   kỳ mới và lịch đủ tháng. Không sao chép trạng thái duyệt, không ghi đè ngày lễ/nghỉ/làm bù
-   đã cấu hình ở tháng đích. HR vẫn cần khai báo các ngoại lệ lễ/nghỉ bù theo lịch thực tế;
-   hệ thống không tự suy đoán ngày lễ. Nếu lịch nguồn thiếu ngày, chưa xác nhận hoặc có
-   nhiều quy tắc khác nhau cho cùng thứ trong tuần, hệ thống báo cần HR xác định lịch.
-   Tạo kỳ tháng mới không tự tạo dữ liệu chấm công, duyệt công hoặc tính lương.
-7. Nhân sự ghi công tại /bang_cong/them/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
+4. Ca làm dùng khung 08:00–17:00, nghỉ trưa 12:00–13:00; công thực tế tính theo giờ vào/ra,
+   tối đa 1 công/ngày.
+5. Công chuẩn mọi tháng cố định là 24; hệ thống không phân loại ngày thường, cuối tuần,
+   ngày lễ hoặc nghỉ bù. Ngày không có bản ghi chỉ hiện là chưa có dữ liệu.
+6. Nhân sự ghi công tại /bang_cong/them/. Ngày thiếu dữ liệu phải đánh dấu incomplete,
    không tự coi là nghỉ không phép. Nhập nghỉ phép đã duyệt tại Admin > Leave days.
    Nghỉ nửa ngày có thể đi cùng công nửa ngày, tổng không vượt công chuẩn ngày.
-8. Check-out sau 17:00 tự có OT theo giờ thực tế, không cần gửi/duyệt. Mở Bảng công hoặc chi tiết ngày để xem; sửa giờ ra sẽ tính lại OT. Giữ nguyên quy trình duyệt/khóa Bảng công.
-9. Nhân sự/Giám đốc chọn tháng/năm tại /bang_cong/, mở chi tiết từng nhân viên và bấm
-   Duyệt bảng công cạnh Lịch sử điều chỉnh công. Hệ thống kiểm tra đủ ngày của riêng người đó,
+7. Check-out sau 17:00 tự có OT theo giờ thực tế, không cần gửi/duyệt. Mở Bảng công hoặc chi tiết ngày để xem; sửa giờ ra sẽ tính lại OT. Giữ nguyên quy trình duyệt/khóa Bảng công.
+8. Nhân sự/Giám đốc chọn tháng/năm tại /bang_cong/, mở chi tiết từng nhân viên và bấm
+   Duyệt bảng công. Hệ thống kiểm tra có bản ghi và không còn bản ghi thiếu dữ liệu,
    tính lại chỉ số, lưu người/thời gian duyệt và chuyển dòng đó sang Đã duyệt. Khi đủ nhân viên
    được duyệt, kỳ công hoàn tất và có thể tính lương toàn kỳ.
-10. Kỳ lương tự được tạo khi duyệt công. Nhân sự mở **Thiết lập tính lương** trong hồ sơ từng nhân viên,
+9. Kỳ lương tự được tạo khi duyệt công. Nhân sự mở **Thiết lập tính lương** trong hồ sơ từng nhân viên,
     xác nhận căn cứ thuế/BH của từng nhân viên và đánh dấu đã kiểm tra.
     Nhập phụ cấp/khấu trừ có căn cứ; không nhập phạt đi muộn trùng phần công đã giảm.
-11. Admin > Bonuses: nhập thưởng đúng tháng/năm; chỉ thưởng đã duyệt mới cộng vào lương.
+10. Admin > Bonuses: nhập thưởng đúng tháng/năm; chỉ thưởng đã duyệt mới cộng vào lương.
     Không tự sinh thưởng chuyên cần/thâm niên; nhóm quản lý thưởng quyết định và duyệt.
-12. Lương chưa duyệt tự cập nhật sau khi lưu đầu vào, duyệt công, duyệt thưởng hoặc đổi lương cơ bản;
+11. Lương chưa duyệt tự cập nhật sau khi lưu đầu vào, duyệt công, duyệt thưởng hoặc đổi lương cơ bản;
     không có nút tính lương. Thiếu công/căn cứ hợp lệ thì phải bổ sung. Giám đốc kiểm tra phiếu lương,
     duyệt; sau đó Nhân sự/Giám đốc có thể xuất CSV/JSON/TXT theo bộ lọc.
-13. Giám đốc chỉ xác nhận chi trả khi đã duyệt và có mã giao dịch/đường dẫn chứng từ.
+12. Giám đốc chỉ xác nhận chi trả khi đã duyệt và có mã giao dịch/đường dẫn chứng từ.
 
 ## Công thức và ranh giới chính sách
 
-- Giờ làm thường là giao giữa giờ vào/ra với khung làm việc, trừ giao với nghỉ trưa.
-  Công thường không vượt 17:00 để không trùng OT. Ngày nghỉ/lễ không sinh công thường; OT tính riêng theo lịch.
-- Công thực tế = giờ hợp lệ / giờ mỗi công, tối đa công chuẩn ngày; cộng công nghỉ hưởng
-  lương đã duyệt, kiểm tra trùng với công thực tế. Chỉ số công/giờ lưu 4 chữ số thập phân.
+- Giờ làm hợp lệ là phần giao giữa giờ vào/ra với khung 08:00–17:00, trừ nghỉ trưa.
+  Công thực tế = giờ hợp lệ / 8 giờ, tối đa 1 công/ngày; OT bắt đầu sau 17:00, không dựa vào lịch ngày.
+- Công thực tế cộng công nghỉ hưởng lương đã duyệt, kiểm tra trùng với công thực tế.
+  Chỉ số công/giờ lưu 4 chữ số thập phân.
 - Lương theo công = lương cơ bản / công chuẩn tháng × công hưởng lương.
-- Tiền OT = lương giờ thực trả do HR xác nhận × giờ OT tự động từ chấm công × hệ số theo lịch. Bản ghi OT lịch sử không tham gia nguồn mới, không cộng trùng.
+- Tiền OT = đơn giá giờ tăng ca do HR xác nhận × giờ OT tự động từ chấm công. Bản ghi OT lịch sử không tham gia nguồn mới, không cộng trùng.
 - BH = tổng lương đóng BH × từng tỷ lệ trong JSON; ví dụ cú pháp {"BHXH": "0.08"}.
   Đây là ví dụ định dạng, không phải tỷ lệ mặc định. Không tham gia BH thì nhập {}, căn cứ
   miễn/không áp dụng và xác nhận. Tỷ lệ phải ở [0,1], tổng không vượt 1.

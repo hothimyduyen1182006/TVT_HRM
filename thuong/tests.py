@@ -11,7 +11,6 @@ from django.urls import reverse
 
 from bang_cong.models import ChamCong
 from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
-from bang_cong.services.cham_cong_service import lich_thang
 from bang_luong.models import Luong
 from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
@@ -37,11 +36,10 @@ class BonusWorkflowTests(TestCase):
                 thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{'BHXH':'0', 'BHYT':'0', 'BHTN':'0'},
                     'can_cu_bao_hiem':'Căn cứ kiểm thử', 'doi_tuong_tinh_thue':'resident_2026', 'can_cu_thue':'Căn cứ kiểm thử'}))
         cls.ma_ky_cong = 202610
-        for lich in lich_thang(2026,10).values():
-            if lich.loai_ngay == 'work':
-                for employee in cls.people:
-                    ChamCong.objects.create(nhan_vien=employee, ngay=lich.ngay, trang_thai='present',
-                        gio_vao=time(8),gio_ra=time(17),so_gio_lam=8)
+        for so_ngay in range(1, 25):
+            for employee in cls.people:
+                ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 10, so_ngay), trang_thai='present',
+                    gio_vao=time(8), gio_ra=time(17), so_gio_lam=8)
 
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True)

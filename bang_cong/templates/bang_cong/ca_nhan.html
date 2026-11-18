@@ -45,7 +45,7 @@
           {% if co_the_vao_ca %}<form method="post" action="{% url 'bang_cong:cham-cong' %}" class="tvt-punch-form">{% csrf_token %}<button class="tvt-punch-button tvt-checkin-button" name="action" value="in" type="submit">CHECK-IN</button></form>{% else %}<button class="tvt-punch-button tvt-complete-button" type="button" disabled>CHECK-IN</button>{% endif %}
           <div class="tvt-shift-caption">Ca làm việc: {{ gio_bat_dau|time:'H:i' }} – {{ gio_ket_thuc|time:'H:i' }}</div>
         {% endif %}
-        {% if loi_lich %}<div class="tvt-period-note">{{ loi_lich }}</div>{% elif da_khoa and trang_thai_trang != 'da_hoan_tat' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
+        {% if da_khoa and trang_thai_trang != 'da_hoan_tat' %}<div class="tvt-period-note">Kỳ công đã khóa; không thể ghi nhận thêm thao tác hôm nay.</div>{% endif %}
       </section>
     </div>
   {% endif %}
@@ -64,7 +64,6 @@
 {% endif %}
 {% if not personal %}<div class="at-stats"><div class="at-main-stat"><h2>T&#7893;ng s&#7889; c&#244;ng &#273;&#432;&#7907;c t&#237;nh l&#432;&#417;ng</h2><div><strong>{{ summary.paid|floatformat:'-4'|default:'0' }}</strong> <span class="caption">/ {{ summary.standard|floatformat:'-4'|default:'—' }} c&#244;ng chu&#7849;n</span></div><div><div class="at-track"><span style="width:{{ progress }}%"></span></div><div class="caption">Th&#7921;c t&#7871; {{ summary.actual|floatformat:'-4'|default:'0' }} + ngh&#7881; c&#243; l&#432;&#417;ng {{ summary.leave|floatformat:'-4'|default:'0' }} c&#244;ng</div></div></div>
 <div class="at-stat-grid"><div class="at-stat"><h3>S&#7889; ng&#224;y l&#224;m th&#7921;c t&#7871;</h3><strong>{{ summary.actual|floatformat:'-4'|default:'0' }}</strong> <span class="at-muted">c&#244;ng</span></div><div class="at-stat"><h3>Ngh&#7881; h&#432;&#7903;ng l&#432;&#417;ng</h3><strong>{{ summary.leave|floatformat:'-4'|default:'0' }}</strong> <span class="at-muted">c&#244;ng</span></div><div class="at-stat"><h3>Ng&#224;y ngh&#7881; kh&#244;ng ph&#233;p</h3><strong class="at-red">{{ summary.absent|default:'0' }}</strong> <span class="at-muted">ng&#224;y</span></div><div class="at-stat"><h3>T&#7893;ng s&#7889; l&#7847;n &#273;i tr&#7877;</h3><strong class="at-red">{{ summary.late_count|default:'0' }}</strong> <span class="at-muted">l&#7847;n</span></div><div class="at-stat"><h3>T&#7893;ng s&#7889; ph&#250;t &#273;i tr&#7877;</h3><strong class="at-red">{{ summary.late|default:'0' }}</strong> <span class="at-muted">ph&#250;t</span></div></div></div>{% endif %}
-{% if not period %}<div class="at-notice">Chưa có kỳ công cho tháng này. Các ngày thiếu dữ liệu không được tự tính là nghỉ không phép.</div>{% endif %}
 <div class="at-subheading"><h2>{% if not personal %}Chi tiết chấm công theo ngày{% else %}Tháng {{ month }}/{{ year }}{% endif %}</h2>
 </div>
 <div class="at-table-wrap"><table class="at-table"><thead><tr><th>Ngày làm</th><th>Vào ca</th><th>Hết ca</th><th>Tình trạng</th>{% if not personal %}<th>Đi trễ (phút)</th>{% endif %}<th>Giờ làm</th><th>Tăng ca (giờ)</th>{% if not personal %}<th>Công</th>{% endif %}</tr></thead><tbody>

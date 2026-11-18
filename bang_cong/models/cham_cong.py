@@ -6,7 +6,6 @@ from django.core.exceptions import ValidationError  # Báo dữ liệu không h�
 from django.db import models  # Các kiểu trường, quan hệ và ràng buộc database.
 
 # Quy ước chung của các trường bên dưới:
-# db_column: tên cột trong database; tên biến Python vẫn giữ nguyên.
 # max_digits: tổng số chữ số; decimal_places: số chữ số sau dấu thập phân.
 # default=0: giá trị ban đầu, không tự thực hiện công thức tính.
 # null=True: cho phép lưu NULL; blank=True: cho phép bỏ trống trên form.
@@ -16,15 +15,15 @@ from django.db import models  # Các kiểu trường, quan hệ và ràng buộ
 
 class ChamCong(models.Model):
     """Giờ vào/ra và kết quả tính công của một nhân viên trong một ngày."""
-    # Khóa chính tự tăng, tên cột là Ma_cham_cong.
-    id = models.BigAutoField(primary_key=True, db_column='Ma_cham_cong')
+    # Khóa chính tự tăng, Django tự đặt tên cột theo trường id.
+    id = models.BigAutoField(primary_key=True)
     # Nhân viên có bản công; employees là app label đã đăng ký.
-    nhan_vien = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT, db_column='Ma_nhan_vien')
+    nhan_vien = models.ForeignKey('employees.NhanVien', on_delete=models.PROTECT)
     # Ngày ghi nhận công.
-    ngay = models.DateField('Ngày', db_column='Ngay_cham_cong')
+    ngay = models.DateField('Ngày')
     # Giờ vào/ra có thể trống khi chưa chấm công đủ.
-    gio_vao = models.TimeField('Check-in', null=True, blank=True, db_column='Thoi_gian_vao')
-    gio_ra = models.TimeField('Check-out', null=True, blank=True, db_column='Thoi_gian_ra')
+    gio_vao = models.TimeField('Check-in', null=True, blank=True)
+    gio_ra = models.TimeField('Check-out', null=True, blank=True)
     # choices gồm mã lưu trong database và nhãn hiển thị trên form.
     trang_thai = models.CharField(
         'Trạng thái', max_length=15,
@@ -34,16 +33,15 @@ class ChamCong(models.Model):
             ('absent', 'Nghỉ không phép'),
             ('incomplete', 'Thiếu dữ liệu'),
         ],
-        db_column='Trang_thai',
     )
 
     # Số giờ làm do service tính; lưu tối đa 8 chữ số, gồm 4 số thập phân.
-    so_gio_lam = models.DecimalField(max_digits=8, decimal_places=4, default=0, db_column='So_gio_lam_viec')
+    so_gio_lam = models.DecimalField(max_digits=8, decimal_places=4, default=0)
     # Số phút đi trễ, là số nguyên không âm.
-    so_phut_tre = models.PositiveIntegerField(default=0, db_column='Thoi_gian_di_tre')
+    so_phut_tre = models.PositiveIntegerField(default=0)
     # Số giờ tăng ca do service tính và lưu.
     so_gio_tang_ca = models.DecimalField(
-        'Giờ tăng ca', db_column='So_gio_tang_ca',
+        'Giờ tăng ca',
         max_digits=12, decimal_places=4, default=0,
     )
 

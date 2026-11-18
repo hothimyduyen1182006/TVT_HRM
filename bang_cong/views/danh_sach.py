@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from bang_cong.models import ChamCong, ChotBangCong
 from bang_cong.services.chot_bang_cong_service import ChotBangCongService, ky_cong_da_khoa
 from bang_cong.services.cham_cong_service import (
-    GIO_BAT_DAU, lich_thang as tao_lich_thang, nap_cong_ngay,
+    GIO_BAT_DAU, cong_chuan_thang, nap_cong_ngay,
 )
 from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, yeu_cau_vai_tro,
@@ -26,14 +26,13 @@ from .chi_tiet import bang_cong_nhan_vien
 ZERO = Decimal('0')
 
 
-def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None, lich=None):
+def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None):
     records = list(ds_ban_ghi) if ds_ban_ghi is not None else list(ChamCong.objects.filter(
         ngay__year=nam, ngay__month=thang,
         nhan_vien_id__in=ds_nhan_vien.values('pk'),
     ).select_related('nhan_vien'))
-    lich = lich if lich is not None else tao_lich_thang(nam, thang)
-    if lich:
-        nap_cong_ngay(records, nam, thang, lich)
+    if records:
+        nap_cong_ngay(records, nam, thang)
 
     by_employee = {}
     for record in records:
@@ -56,7 +55,7 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None, lich=None)
     ).values_list('tong_hop__nhan_vien_id', flat=True))
     if ky_cong_da_khoa(nam, thang):
         approved_ids.update(ds_nhan_vien.values_list('pk', flat=True))
-    standard = sum((day.cong_chuan for day in lich.values()), ZERO) if lich else None
+    standard = cong_chuan_thang(nam, thang)
 
     rows = []
     for employee in ds_nhan_vien:
@@ -127,10 +126,9 @@ def danh_sach_bang_cong(request):
                 Q(ho_va_ten__icontains=data['q']) | Q(ma_ho_so__icontains=data['q']),
             )
         nam, thang = data['year'], data['month']
-        lich = tao_lich_thang(nam, thang)
         ma_ky_cong = nam * 100 + thang
-        period = bool(lich)
-        period_id = ma_ky_cong if period else None
+        period = True
+        period_id = ma_ky_cong
         if data.get('day'):
             employees = employees.filter(
                 dang_hoat_dong=True, ngay_vao_lam__lte=data['day'],
@@ -143,7 +141,7 @@ def danh_sach_bang_cong(request):
                 employees = employees.filter(
                     pk__in=attendance.filter(**{field: GIO_BAT_DAU}).values('nhan_vien_id'),
                 )
-        rows = tong_hop_cong_thang(employees, nam, thang, lich=lich)
+        rows = tong_hop_cong_thang(employees, nam, thang)
         if data['review']:
             rows = [row for row in rows if row['state'] == data['review']]
 

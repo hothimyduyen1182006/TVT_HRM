@@ -8,7 +8,6 @@ from django.views.decorators.http import require_http_methods
 from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import (
     GIO_BAT_DAU, GIO_KET_THUC, ghi_nhan_thao_tac_cham_cong,
-    xem_lich_cham_cong,
 )
 from bang_cong.services.chot_bang_cong_service import ky_cong_da_khoa
 from nhan_vien.models import NhanVien
@@ -44,13 +43,9 @@ def cham_cong_hom_nay(request):
         return redirect('bang_cong:cham-cong')
 
     ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien, ngay=hom_nay).first()
-    lich = xem_lich_cham_cong(hom_nay)
-    lich_ngay = lich['lich_ngay']
     da_khoa = ky_cong_da_khoa(hom_nay.year, hom_nay.month, nhan_vien.pk)
     duoc_cham_cong = bool(
-        not lich['loi'] and not da_khoa and lich_ngay
-        and lich_ngay.loai_ngay == 'work'
-        and nhan_vien.ngay_vao_lam <= hom_nay
+        not da_khoa and nhan_vien.ngay_vao_lam <= hom_nay
     )
     dang_trong_ca = bool(ban_ghi and ban_ghi.gio_vao and not ban_ghi.gio_ra)
     trang_thai = (
@@ -73,5 +68,4 @@ def cham_cong_hom_nay(request):
         'co_the_vao_ca': duoc_cham_cong and ban_ghi is None,
         'co_the_ket_thuc_ca': duoc_cham_cong and dang_trong_ca,
         'da_khoa': da_khoa,
-        'loi_lich': lich['loi'],
     })

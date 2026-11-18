@@ -6,7 +6,6 @@ class TongHopCong(models.Model):  # Khai báo model ánh xạ tới bảng tổn
     # Khóa chính tự tăng của bản tổng hợp tháng.
     id = models.BigAutoField(  # Trường khóa chính dạng số nguyên lớn, tự tăng.
         primary_key=True,  # Đánh dấu đây là khóa chính của mỗi bản ghi.
-        db_column='Ma_tong_hop',  # Dùng tên cột tương ứng trong cơ sở dữ liệu.
     )
 
     # Tháng/năm lấy trực tiếp từ dữ liệu tổng hợp và lịch chấm công.
@@ -14,32 +13,30 @@ class TongHopCong(models.Model):  # Khai báo model ánh xạ tới bảng tổn
     nhan_vien = models.ForeignKey(  # Liên kết bản tổng hợp này với một nhân viên.
         'employees.NhanVien',  # Model đích nằm trong ứng dụng employees.
         on_delete=models.CASCADE,  # Xóa tổng hợp khi nhân viên liên kết bị xóa.
-        db_column='Ma_nhan_vien',  # Tên cột khóa ngoại trong cơ sở dữ liệu.
     )
     # Tháng/năm của kết quả tổng hợp, phải khớp kỳ liên kết.
-    thang = models.PositiveSmallIntegerField(db_column='Thang')  # Tháng tổng hợp; chỉ nhận số nguyên không âm cỡ nhỏ.
-    nam = models.PositiveSmallIntegerField(db_column='Nam')  # Năm tổng hợp; chỉ nhận số nguyên không âm cỡ nhỏ.
+    thang = models.PositiveSmallIntegerField()  # Tháng tổng hợp; chỉ nhận số nguyên không âm cỡ nhỏ.
+    nam = models.PositiveSmallIntegerField()  # Năm tổng hợp; chỉ nhận số nguyên không âm cỡ nhỏ.
     # Tổng công chuẩn của lịch tháng, dùng làm căn cứ tính lương theo công.
-    cong_chuan = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_cong_chuan')  # Công chuẩn; tối đa 14 chữ số, trong đó 4 chữ số thập phân.
+    cong_chuan = models.DecimalField(max_digits=14, decimal_places=4, default=0)  # Công chuẩn; tối đa 14 chữ số, trong đó 4 chữ số thập phân.
     # Tổng công thực tế làm được, có thể gồm công lẻ.
-    cong_thuc_te = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_ngay_lam')  # Công thực tế, cho phép lưu phần lẻ; mặc định bằng 0.
+    cong_thuc_te = models.DecimalField(max_digits=14, decimal_places=4, default=0)  # Công thực tế, cho phép lưu phần lẻ; mặc định bằng 0.
     # Tổng công nghỉ hưởng lương được ghi nhận.
-    cong_nghi_co_luong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='So_ngay_nghi_co_luong')  # Số công nghỉ có hưởng lương; mặc định bằng 0.
+    cong_nghi_co_luong = models.DecimalField(max_digits=14, decimal_places=4, default=0)  # Số công nghỉ có hưởng lương; mặc định bằng 0.
     # Số ngày được ghi nhận nghỉ không phép.
-    so_ngay_khong_phep = models.PositiveIntegerField(default=0, db_column='So_ngay_nghi_khong_phep')  # Số ngày nghỉ không phép; chỉ nhận số nguyên không âm.
+    so_ngay_khong_phep = models.PositiveIntegerField(default=0)  # Số ngày nghỉ không phép; chỉ nhận số nguyên không âm.
     # Tổng công hưởng lương của nhân viên trong tháng.
-    tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0, db_column='Tong_cong')  # Tổng công hưởng lương; mặc định bằng 0.
+    tong_cong = models.DecimalField(max_digits=14, decimal_places=4, default=0)  # Tổng công hưởng lương; mặc định bằng 0.
     # Tổng số giờ tăng ca trong tháng.
     tong_gio_tang_ca = models.DecimalField(
         'Tổng giờ tăng ca',  # Nhãn hiển thị thân thiện của trường.
         max_digits=14,  # Tổng số chữ số tối đa của giá trị.
         decimal_places=4,  # Số chữ số được lưu sau dấu thập phân.
         default=0,  # Giá trị mặc định khi chưa có dữ liệu tăng ca.
-        db_column='Tong_gio_tang_ca',  # Tên cột vật lý trong cơ sở dữ liệu.
     )
     # Số lần đi trễ và tổng số phút đi trễ của tháng.
-    so_lan_tre = models.PositiveIntegerField(default=0, db_column='So_lan_di_tre')  # Số lần đi trễ; mặc định bằng 0.
-    so_phut_tre = models.PositiveIntegerField(default=0, db_column='Tong_phut_di_tre')  # Tổng phút đi trễ; mặc định bằng 0.
+    so_lan_tre = models.PositiveIntegerField(default=0)  # Số lần đi trễ; mặc định bằng 0.
+    so_phut_tre = models.PositiveIntegerField(default=0)  # Tổng phút đi trễ; mặc định bằng 0.
     # Trạng thái tổng hợp, mặc định chờ duyệt; không phải trạng thái công ngày.
     trang_thai = models.CharField(  # Trường văn bản lưu trạng thái duyệt của bản tổng hợp.
         max_length=12,  # Giới hạn độ dài chuỗi trạng thái tối đa 12 ký tự.
@@ -49,7 +46,6 @@ class TongHopCong(models.Model):  # Khai báo model ánh xạ tới bảng tổn
             ('approved', 'Đã duyệt'),  # Mã lưu approved, nhãn hiển thị Đã duyệt.
             ('empty', 'Chưa có dữ liệu'),  # Mã lưu empty, nhãn hiển thị Chưa có dữ liệu.
         ],
-        db_column='Trang_thai',  # Tên cột trạng thái trong cơ sở dữ liệu.
     )
     class Meta:  # Khai báo tùy chọn áp dụng cho toàn bộ model.
         # Tên bảng tổng hợp trong database.

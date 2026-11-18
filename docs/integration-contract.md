@@ -1,4 +1,4 @@
-> Quy định hiện hành: OT tự động cho mọi phòng ban từ chấm công; không gửi/duyệt OT. Ngày thường tính sau 17:00; xem README.md để biết ngày nghỉ/lễ, giới hạn và dữ liệu lịch sử. Các mô tả duyệt OT bên dưới chỉ là lịch sử.
+> Quy định hiện hành: không phân biệt lịch ngày thường/nghỉ/lễ. OT tự động sau 17:00 cùng hệ số cho mọi ngày; công chuẩn tháng cố định là 24. Các mô tả lịch và duyệt OT bên dưới chỉ là lịch sử.
 
 # Thỏa thuận tích hợp bảng công và bảng lương
 
@@ -26,7 +26,7 @@ Thưởng thâm niên do bonuses cung cấp sau duyệt; payroll không tự sin
 
 ## Phạm vi phần bảng công
 
-- Lịch làm việc: hàm `bang_cong.services.cham_cong_service.lich_thang()` trả ngày làm/nghỉ/lễ và công chuẩn; không có model lịch hoặc kỳ tháng riêng.
+- Không có lịch ngày làm/nghỉ/lễ. Công chuẩn tháng cố định 24; tổng hợp duyệt các bản ghi đã nhập và trạng thái đầy đủ của chúng.
 - Tháng lương được lấy từ tháng/năm trên tổng hợp công; trạng thái duyệt công nằm trong `ChotBangCong`, trạng thái duyệt/chi trả lương nằm trên từng phiếu lương.
 - ChamCong: employee, date, check_in/out, trạng thái, giờ hợp lệ, phút muộn,
   công thực tế, công nghỉ hưởng lương, công hưởng lương và ghi chú.

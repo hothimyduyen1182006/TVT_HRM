@@ -1,8 +1,6 @@
 """Tính công ngày và tăng ca; không tự lưu hoặc phê duyệt dữ liệu."""
-import calendar
-from datetime import date, datetime, time
+from datetime import datetime, time
 from decimal import Decimal, ROUND_DOWN
-from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -14,26 +12,13 @@ from nghi_phep.models import NgayNghi
 from nhan_vien.models import NhanVien
 
 CHINH_SACH_OT = 'automatic-checkout-1700-v1'
-NAM_CO_LICH = 2026
 KHONG = Decimal(0)
 GIO_BAT_DAU = time(8)
 BAT_DAU_NGHI_TRUA = time(12)
 KET_THUC_NGHI_TRUA = time(13)
 GIO_KET_THUC = time(17)
 GIO_CHUAN = Decimal(8)
-
-
-NGAY_LE_2026 = {
-    date(2026, 1, 1): 'Tết Dương lịch',
-    **{date(2026, 2, ngay): 'Tết Âm lịch' for ngay in range(16, 21)},
-    date(2026, 4, 26): 'Giỗ Tổ Hùng Vương',
-    date(2026, 4, 30): 'Ngày Chiến thắng',
-    date(2026, 5, 1): 'Quốc tế Lao động',
-    date(2026, 9, 1): 'Quốc khánh - ngày liền kề',
-    date(2026, 9, 2): 'Quốc khánh',
-    date(2026, 11, 24): 'Ngày Văn hóa Việt Nam',
-}
-NGHI_BU_2026 = {date(2026, 4, 27): 'Nghỉ bù ngày nghỉ tuần trùng Giỗ Tổ'}
+CONG_CHUAN_THANG = Decimal('24.0000')
 
 
 def cham_cong_da_khoa(ban_ghi):
@@ -56,34 +41,9 @@ def du_lieu_cham_cong(ban_ghi):
     return {khoa: str(getattr(ban_ghi, truong)) for khoa, truong in cac_truong.items()}
 
 
-def lich_du_kien(ngay):
-    """Lịch TVT 2026; năm khác phải được cấu hình riêng."""
-    if ngay.year != NAM_CO_LICH:
-        raise ValidationError('Chưa cấu hình lịch lễ cho năm này.')
-    if ngay in NGAY_LE_2026:
-        return 'holiday', Decimal(0), NGAY_LE_2026[ngay]
-    if ngay in NGHI_BU_2026:
-        return 'rest', Decimal(0), NGHI_BU_2026[ngay]
-    if ngay.weekday() >= 5:
-        return 'rest', Decimal(0), 'Nghỉ hằng tuần'
-    return 'work', Decimal(1), ''
-
-
-def lich_thang(nam, thang):
-    """Lịch tháng được suy ra trực tiếp từ quy tắc đã cấu hình trong code."""
-    if nam != NAM_CO_LICH:
-        return {}
-    ket_qua = {}
-    for so_ngay in range(1, calendar.monthrange(nam, thang)[1] + 1):
-        ngay = date(nam, thang, so_ngay)
-        loai, cong, ghi_chu = lich_du_kien(ngay)
-        ket_qua[ngay] = SimpleNamespace(ngay=ngay, loai_ngay=loai,
-                                       cong_chuan=Decimal(str(cong)), ghi_chu=ghi_chu)
-    return ket_qua
-
-
 def cong_chuan_thang(nam, thang):
-    return sum((ngay.cong_chuan for ngay in lich_thang(nam, thang).values()), KHONG)
+    """Trả về công chuẩn cố định của mọi tháng."""
+    return CONG_CHUAN_THANG
 
 
 def tinh_so_gio(ngay, gio_bat_dau, gio_ket_thuc):
@@ -107,8 +67,8 @@ def tinh_phut_di_tre(ngay, gio_vao):
     return (giay_di_tre + 59) // 60
 
 
-def tinh_tang_ca_tu_dong(ban_ghi, lich_ngay=None):
-    """Tính OT cho mọi phòng ban, không dùng các yêu cầu duyệt OT cũ."""
+def tinh_tang_ca_tu_dong(ban_ghi):
+    """Tính giờ tăng ca sau giờ kết thúc ca, không phân biệt loại ngày."""
     # Giữ khóa kết quả để tương thích template và dữ liệu lương/lịch sử đã lưu.
     ket_qua = {
         'id': ban_ghi.pk, 'date': str(ban_ghi.ngay), 'start': '', 'end': '',
@@ -118,44 +78,30 @@ def tinh_tang_ca_tu_dong(ban_ghi, lich_ngay=None):
             or ban_ghi.gio_ra <= ban_ghi.gio_vao or ban_ghi.ngay < ban_ghi.nhan_vien.ngay_vao_lam):
         return ket_qua
 
-    nam, thang = ban_ghi.ngay.year, ban_ghi.ngay.month
-    lich_ngay = lich_ngay or lich_thang(nam, thang).get(ban_ghi.ngay)
-    if not lich_ngay:
-        ket_qua['error'] = 'Thiếu cấu hình kỳ công hoặc lịch ngày để xác định OT.'
-        return ket_qua
-
-    gio_bat_dau = max(ban_ghi.gio_vao, GIO_KET_THUC) if lich_ngay.loai_ngay == 'work' else ban_ghi.gio_vao
+    gio_bat_dau = max(ban_ghi.gio_vao, GIO_KET_THUC)
     gio_ket_thuc = ban_ghi.gio_ra
     if gio_bat_dau >= gio_ket_thuc:
         return ket_qua
 
     so_gio = tinh_so_gio(ban_ghi.ngay, gio_bat_dau, gio_ket_thuc)
-    if lich_ngay.loai_ngay != 'work':
-        bat_dau_nghi = max(gio_bat_dau, BAT_DAU_NGHI_TRUA)
-        ket_thuc_nghi = min(gio_ket_thuc, KET_THUC_NGHI_TRUA)
-        if bat_dau_nghi < ket_thuc_nghi:
-            so_gio -= tinh_so_gio(ban_ghi.ngay, bat_dau_nghi, ket_thuc_nghi)
-
     ket_qua.update(
         start=str(gio_bat_dau), end=str(gio_ket_thuc), hours=max(KHONG, so_gio),
-        multiplier={'work': Decimal('1.5'), 'rest': Decimal(2), 'holiday': Decimal(3)}[lich_ngay.loai_ngay],
+        multiplier=Decimal('1.5'),
     )
     if so_gio and (gio_bat_dau < time(6) or gio_ket_thuc > time(22)):
         ket_qua['error'] = 'Có giờ ban đêm (22:00–06:00); chưa hỗ trợ công thức OT ban đêm. Cần đối soát trước khi tính lương.'
-    gio_chuan_ngay = min(GIO_CHUAN * lich_ngay.cong_chuan, GIO_CHUAN)
-    if (lich_ngay.loai_ngay == 'work' and so_gio > gio_chuan_ngay / 2) or so_gio + ban_ghi.so_gio_lam > 12:
+    if so_gio > GIO_CHUAN / 2 or so_gio + ban_ghi.so_gio_lam > 12:
         ket_qua['warnings'].append('Vượt giới hạn giờ làm thêm trong ngày; giữ nguyên giờ thực tế, cần kiểm tra tổ chức lao động.')
     return ket_qua
 
 
 def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
     """Lấy giờ tăng ca trong tháng và cảnh báo nếu vượt 40 giờ."""
-    lich_cua_thang = lich_thang(nam, thang)
     danh_sach = []
     for ban_ghi in ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=nam, ngay__month=thang,
     ).select_related('nhan_vien').order_by('ngay'):
-        tang_ca = tinh_tang_ca_tu_dong(ban_ghi, lich_cua_thang.get(ban_ghi.ngay))
+        tang_ca = tinh_tang_ca_tu_dong(ban_ghi)
         if tang_ca['error']:
             raise ValidationError(f"{ban_ghi.ngay}: {tang_ca['error']}")
         if tang_ca['hours']:
@@ -167,12 +113,8 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
     return danh_sach
 
 
-def ket_qua_cong_ngay(ban_ghi, lich_ngay=None, nghi_phep=None):
+def ket_qua_cong_ngay(ban_ghi, nghi_phep=None):
     """Tính trong bộ nhớ; không ghi công ngày vào database."""
-    nam, thang = ban_ghi.ngay.year, ban_ghi.ngay.month
-    lich_ngay = lich_ngay or lich_thang(nam, thang).get(ban_ghi.ngay)
-    if lich_ngay is None:
-        raise ValidationError('Chưa cấu hình lịch cho ngày này.')
     ket_qua = {'hours': KHONG, 'actual': KHONG, 'leave': KHONG, 'late': 0}
     if ban_ghi.gio_vao and ban_ghi.gio_ra:
         thoi_diem = lambda gio: datetime.combine(ban_ghi.ngay, gio)
@@ -183,12 +125,11 @@ def ket_qua_cong_ngay(ban_ghi, lich_ngay=None, nghi_phep=None):
             min(ket_thuc, thoi_diem(KET_THUC_NGHI_TRUA))
             - max(bat_dau, thoi_diem(BAT_DAU_NGHI_TRUA))
         ).total_seconds()))
-        if lich_ngay.loai_ngay == 'work':
-            ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
-            ket_qua['actual'] = min(lich_ngay.cong_chuan, ket_qua['hours'] / GIO_CHUAN)
+        ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
+        ket_qua['actual'] = min(Decimal(1), ket_qua['hours'] / GIO_CHUAN)
 
     # Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
-    if lich_ngay.loai_ngay == 'work':
+    if ban_ghi.gio_vao:
         ket_qua['late'] = tinh_phut_di_tre(ban_ghi.ngay, ban_ghi.gio_vao)
 
     if nghi_phep is None:
@@ -199,7 +140,7 @@ def ket_qua_cong_ngay(ban_ghi, lich_ngay=None, nghi_phep=None):
         ).select_related('don_nghi_phep').first()
     so_cong_nghi = Decimal('1.0000') if nghi_phep else KHONG
     ket_qua['leave'] = so_cong_nghi if nghi_phep and nghi_phep.don_nghi_phep.huong_luong else KHONG
-    if nghi_phep and ket_qua['actual'] + so_cong_nghi > lich_ngay.cong_chuan:
+    if nghi_phep and ket_qua['actual'] + so_cong_nghi > 1:
         raise ValidationError('Công thực tế và nghỉ phép vượt công chuẩn ngày; cần kiểm tra dữ liệu.')
     if ban_ghi.trang_thai == 'leave' and not nghi_phep:
         raise ValidationError('Chưa có nghỉ phép được duyệt cho ngày này.')
@@ -208,9 +149,8 @@ def ket_qua_cong_ngay(ban_ghi, lich_ngay=None, nghi_phep=None):
     return ket_qua
 
 
-def nap_cong_ngay(ds_ban_ghi, nam, thang, lich=None):
-    """Nạp nguồn nghỉ phép một lần cho cả tháng, dùng lại khi hiển thị/tính lương."""
-    lich = lich if lich is not None else lich_thang(nam, thang)
+def nap_cong_ngay(ds_ban_ghi, nam, thang):
+    """Nạp nghỉ phép đã duyệt một lần cho tháng và tính công của từng bản ghi."""
     ds_phep = {
         (phep.don_nghi_phep.nhan_vien_id, phep.ngay): phep
         for phep in NgayNghi.objects.filter(
@@ -222,7 +162,7 @@ def nap_cong_ngay(ds_ban_ghi, nam, thang, lich=None):
     }
     for r in ds_ban_ghi:
         r._ket_qua_cong = ket_qua_cong_ngay(
-            r, lich.get(r.ngay), ds_phep.get((r.nhan_vien_id, r.ngay), False),
+            r, ds_phep.get((r.nhan_vien_id, r.ngay), False),
         )
 
 
@@ -233,57 +173,8 @@ def tinh_cong_ngay(ban_ghi):
     ban_ghi._ket_qua_cong = ket_qua
     ban_ghi.so_gio_lam = ket_qua['hours']
     ban_ghi.so_phut_tre = ket_qua['late']
-    lich_ngay = lich_thang(ban_ghi.ngay.year, ban_ghi.ngay.month).get(ban_ghi.ngay)
-    ban_ghi.so_gio_tang_ca = tinh_tang_ca_tu_dong(ban_ghi, lich_ngay)['hours']
+    ban_ghi.so_gio_tang_ca = tinh_tang_ca_tu_dong(ban_ghi)['hours']
     return ban_ghi
-
-
-def kiem_tra_lich_lam_viec(nam, thang):
-    """Trả về lịch tháng sau khi kiểm tra giờ ca và từng ngày."""
-    if not (
-        GIO_BAT_DAU < BAT_DAU_NGHI_TRUA
-        < KET_THUC_NGHI_TRUA < GIO_KET_THUC
-        and GIO_CHUAN > 0
-    ):
-        raise ValidationError('Thứ tự ca làm hoặc giờ chuẩn không hợp lệ.')
-
-    cac_ngay = list(lich_thang(nam, thang).values())
-    so_ngay_trong_thang = calendar.monthrange(nam, thang)[1]
-    if len(cac_ngay) != so_ngay_trong_thang:
-        raise ValidationError('Chưa cấu hình lịch làm việc cho năm này.')
-
-    for lich_ngay in cac_ngay:
-        if (
-            lich_ngay.loai_ngay not in ('work', 'rest', 'holiday')
-            or not 0 <= lich_ngay.cong_chuan <= 1
-            or (lich_ngay.loai_ngay != 'work' and lich_ngay.cong_chuan != 0)
-        ):
-            raise ValidationError('Lịch áp dụng không hợp lệ.')
-    return cac_ngay
-
-
-def xem_lich_cham_cong(ngay):
-    """Đọc lịch ngày; thao tác này không tạo kỳ hoặc ghi dữ liệu."""
-    ke_hoach = {'lich_ngay': None, 'loi': ''}
-
-    try:
-        cac_ngay = kiem_tra_lich_lam_viec(ngay.year, ngay.month)
-    except ValidationError as loi:
-        ke_hoach['loi'] = ' '.join(loi.messages)
-        return ke_hoach
-
-    ke_hoach['lich_ngay'] = next(
-        lich_ngay for lich_ngay in cac_ngay if lich_ngay.ngay == ngay
-    )
-    return ke_hoach
-
-
-def dam_bao_lich_cham_cong(ngay):
-    """Trả về lịch ngày hợp lệ, hoặc báo lỗi cấu hình lịch."""
-    ke_hoach = xem_lich_cham_cong(ngay)
-    if ke_hoach['loi']:
-        raise ValidationError(ke_hoach['loi'])
-    return ke_hoach['lich_ngay']
 
 
 @transaction.atomic
@@ -308,12 +199,10 @@ def ghi_nhan_cham_cong(nguoi_dung, thao_tac):
         raise PermissionDenied('Tài khoản chưa liên kết với nhân viên đang làm việc.')
 
     nam, thang = hom_nay.year, hom_nay.month
-    lich_ngay = dam_bao_lich_cham_cong(hom_nay)
+    if hom_nay < nhan_vien.ngay_vao_lam:
+        raise ValidationError('Chưa đến ngày bắt đầu làm việc của nhân viên.')
     if ky_cong_da_khoa(nam, thang, nhan_vien.pk):
         raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
-    if lich_ngay.loai_ngay != 'work':
-        raise ValidationError('Hôm nay chưa có lịch làm việc thông thường được cấu hình.')
-
     ban_ghi = (
         ChamCong.objects.select_for_update()
         .filter(nhan_vien=nhan_vien, ngay=hom_nay)

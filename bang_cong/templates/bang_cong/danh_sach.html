@@ -18,7 +18,6 @@
  {% if form.errors %}<div class="at-errors w-100">{{ form.errors }}</div>{% endif %}
 </form>
 {% if form.day.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.day.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'bang_cong:danh-sach' %}?month={{ form.thang.value }}&amp;year={{ form.nam.value }}">Bỏ lọc theo ngày</a></div>{% endif %}
-{% if not period and form.is_valid %}<div class="at-notice">Chưa cấu hình kỳ công cho tháng đã chọn. Công chuẩn chỉ hiển thị khi có lịch làm việc.</div>{% endif %}
 <div class="at-table-wrap"><table class="at-table"><thead><tr><th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
 {% for row in page_obj %}<tr>
  <td class="name">{{ row.employee.ho_va_ten }}<span class="code">{{ row.employee.ma_ho_so }}</span></td>

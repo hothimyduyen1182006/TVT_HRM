@@ -7,24 +7,20 @@ class ChotBangCong(models.Model):  # Khai báo bảng lưu thông tin duyệt/ch
     # Khóa chính tự tăng của bản chốt.
     id = models.BigAutoField(  # Tạo mã số tự tăng riêng cho mỗi lần chốt.
         primary_key=True,  # Đánh dấu trường này là khóa chính của bảng.
-        db_column='Ma_chot',  # Đặt tên cột tương ứng trong cơ sở dữ liệu.
     )
     # Một tổng hợp có tối đa một bản chốt; mặc định truy cập ngược là tong_hop.chotbangcong.
     tong_hop = models.OneToOneField(  # Nối bản chốt này với một bản tổng hợp công.
         'TongHopCong',  # Model tổng hợp công được liên kết trong cùng ứng dụng.
         on_delete=models.PROTECT,  # Không cho xóa bản tổng hợp khi bản chốt này còn tham chiếu.
-        db_column='Ma_tong_hop',  # Tên cột lưu mã tổng hợp trong cơ sở dữ liệu.
     )
     # Tài khoản thực hiện duyệt; cho phép trống để hỗ trợ dữ liệu lịch sử.
     nguoi_duyet = models.ForeignKey(  # Lưu tài khoản đã thực hiện chốt công.
         settings.AUTH_USER_MODEL,  # Trỏ đến model tài khoản được cấu hình cho dự án.
         on_delete=models.PROTECT,  # Không cho xóa tài khoản nếu tài khoản còn được ghi là người chốt.
-        db_column='Ma_nguoi_chot',  # Tên cột mã người chốt trong cơ sở dữ liệu.
     )
     # Tự ghi thời điểm tạo lần đầu; không tự cập nhật ở những lần sửa sau.
     ngay_duyet = models.DateTimeField(  # Lưu ngày và giờ bản chốt được tạo.
         auto_now_add=True,  # Django tự ghi thời điểm tạo lần đầu, không đổi khi sửa bản ghi.
-        db_column='Ngay_chot',  # Tên cột ngày chốt trong cơ sở dữ liệu.
     )
 
     class Meta:  # Chứa các thiết lập áp dụng cho model, không phải các cột dữ liệu.

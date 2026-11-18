@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import (
-    lich_thang, nap_cong_ngay, tinh_tang_ca_tu_dong,
+    nap_cong_ngay, tinh_tang_ca_tu_dong,
 )
 from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, NHAN_SU, GIAM_DOC, TRUONG_PHONG,
@@ -21,7 +21,7 @@ ZERO = Decimal('0')
 WEEKDAYS = ('T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN')
 
 
-def _danh_sach_cong_ngay(nhan_vien, nam, thang, records, lich, tang_ca):
+def _danh_sach_cong_ngay(nhan_vien, nam, thang, records, tang_ca):
     by_day = {record.ngay: record for record in records}
     today = timezone.localdate()
     last_day = calendar.monthrange(nam, thang)[1]
@@ -33,7 +33,7 @@ def _danh_sach_cong_ngay(nhan_vien, nam, thang, records, lich, tang_ca):
         ngay = date(nam, thang, number)
         if ngay < nhan_vien.ngay_vao_lam:
             continue
-        record, schedule = by_day.get(ngay), lich.get(ngay)
+        record = by_day.get(ngay)
         state, label = 'incomplete', 'Chưa có dữ liệu'
         if record:
             state, label = {
@@ -41,11 +41,6 @@ def _danh_sach_cong_ngay(nhan_vien, nam, thang, records, lich, tang_ca):
                 'leave': ('leave', 'Nghỉ có lương' if record.cong_nghi_co_luong else 'Nghỉ không lương'),
                 'absent': ('absent', 'Nghỉ không phép'),
             }.get(record.trang_thai, ('incomplete', 'Thiếu dữ liệu'))
-        elif schedule and schedule.loai_ngay != 'work':
-            state = 'rest'
-            label = schedule.ghi_chu or (
-                'Nghỉ lễ' if schedule.loai_ngay == 'holiday' else 'Nghỉ hằng tuần'
-            )
         ot = tang_ca.get(record.pk, {}) if record else {}
         rows.append({
             'date': ngay, 'weekday': WEEKDAYS[ngay.weekday()], 'record': record,
@@ -68,20 +63,19 @@ def _du_lieu_cong_thang(request, nhan_vien):
     records = list(ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=year, ngay__month=month,
     ).select_related('nhan_vien'))
-    schedule = lich_thang(year, month)
     if records:
-        nap_cong_ngay(records, year, month, schedule)
+        nap_cong_ngay(records, year, month)
     overtime = {
-        record.pk: tinh_tang_ca_tu_dong(record, schedule.get(record.ngay))
+        record.pk: tinh_tang_ca_tu_dong(record)
         for record in records
     }
     from .danh_sach import tong_hop_cong_thang
 
     summary = tong_hop_cong_thang(
         NhanVien.objects.filter(pk=nhan_vien.pk), year, month,
-        ds_ban_ghi=records, lich=schedule,
+        ds_ban_ghi=records,
     )[0]
-    rows = _danh_sach_cong_ngay(nhan_vien, year, month, records, schedule, overtime)
+    rows = _danh_sach_cong_ngay(nhan_vien, year, month, records, overtime)
     days = sum(bool(row['record'] and row['record'].gio_vao) for row in rows)
     average = '—'
     if days:
@@ -93,7 +87,7 @@ def _du_lieu_cong_thang(request, nhan_vien):
 
     return {
         'month': month, 'year': year, 'rows': rows, 'summary': summary,
-        'period': bool(schedule), 'progress': progress, 'average': average,
+        'period': True, 'progress': progress, 'average': average,
         'month_query': urlencode({'month': month, 'year': year}),
     }
 

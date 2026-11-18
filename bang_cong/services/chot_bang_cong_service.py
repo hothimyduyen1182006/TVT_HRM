@@ -85,7 +85,7 @@ def ky_cong_da_khoa(nam, thang, ma_nhan_vien=None):
 
 @transaction.atomic
 def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
-    """Duyệt toàn bộ kỳ công sau khi kiểm tra các ngày làm việc bắt buộc."""
+    """Duyệt kỳ công sau khi kiểm tra bản ghi đã nhập và dữ liệu còn thiếu."""
     yeu_cau_vai_tro(nguoi_thuc_hien, GIAM_DOC)
     if thao_tac != 'approve':
         raise ValidationError('Chỉ được duyệt công; bảng công đã duyệt không được mở lại.')
@@ -96,25 +96,19 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
     if ky_cong_da_khoa(nam, thang):
         raise ValidationError('Kỳ công phải đang chờ duyệt.')
 
-    from .cham_cong_service import kiem_tra_lich_lam_viec
-    from .tong_hop_service import cap_nhat_tong_hop, cap_nhat_tong_hop_ca_ky
+    from .tong_hop_service import cap_nhat_tong_hop
 
-    lich_da_kiem_tra = kiem_tra_lich_lam_viec(nam, thang)
     ds_ban_ghi = ChamCong.objects.filter(ngay__year=nam, ngay__month=thang)
     ds_nhan_vien = NhanVien.objects.filter(
-        dang_hoat_dong=True, ngay_vao_lam__lte=_ngay_cuoi_ky(nam, thang),
+        dang_hoat_dong=True,
+        ngay_vao_lam__lte=_ngay_cuoi_ky(nam, thang),
     )
     for nhan_vien in ds_nhan_vien:
-        ngay_bat_buoc = {
-            lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
-            if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.ngay_vao_lam
-        }
-        ngay_da_co = set(
-            ds_ban_ghi.filter(nhan_vien=nhan_vien)
-            .exclude(trang_thai='incomplete').values_list('ngay', flat=True)
-        )
-        if not set(ngay_bat_buoc).issubset(ngay_da_co):
-            raise ValidationError(f'{nhan_vien}: còn ngày làm việc chưa kiểm tra.')
+        ban_ghi_nhan_vien = ds_ban_ghi.filter(nhan_vien=nhan_vien)
+        if not ban_ghi_nhan_vien.exists():
+            raise ValidationError(f'{nhan_vien}: chưa có bản ghi chấm công trong kỳ.')
+        if ban_ghi_nhan_vien.filter(trang_thai='incomplete').exists():
+            raise ValidationError(f'{nhan_vien}: còn bản ghi chấm công thiếu dữ liệu.')
 
     da_duyet_ids = ChotBangCong.objects.filter(
         tong_hop__nam=nam, tong_hop__thang=thang,
@@ -128,7 +122,6 @@ def xu_ly_trang_thai_ky_cong(nguoi_thuc_hien, ma_ky_cong, thao_tac, ly_do):
             tong_hop=tong_hop, defaults={'nguoi_duyet': nguoi_thuc_hien},
         )
 
-    cap_nhat_tong_hop_ca_ky(nam, thang)
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
     from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 
@@ -150,37 +143,31 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     if ky_cong_da_khoa(nam, thang, nhan_vien.pk):
         raise ValidationError('Bảng công nhân viên này đã được duyệt.')
 
-    from .cham_cong_service import kiem_tra_lich_lam_viec
     from .tong_hop_service import cap_nhat_tong_hop
 
-    lich_da_kiem_tra = kiem_tra_lich_lam_viec(nam, thang)
     ds_ban_ghi = ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=nam, ngay__month=thang,
     )
-    ngay_bat_buoc = {
-        lich_ngay.ngay for lich_ngay in lich_da_kiem_tra
-        if lich_ngay.loai_ngay == 'work' and lich_ngay.ngay >= nhan_vien.ngay_vao_lam
-    }
-    ngay_da_co = set(ds_ban_ghi.exclude(trang_thai='incomplete').values_list('ngay', flat=True))
-    if (not ds_ban_ghi.exists() or not ngay_bat_buoc.issubset(ngay_da_co)
-            or ds_ban_ghi.filter(trang_thai='incomplete').exists()):
-        raise ValidationError('Bảng công nhân viên còn thiếu ngày hoặc có dữ liệu chưa kiểm tra.')
+    if not ds_ban_ghi.exists() or ds_ban_ghi.filter(trang_thai='incomplete').exists():
+        raise ValidationError('Bảng công nhân viên chưa có dữ liệu hoặc còn bản ghi thiếu thông tin.')
 
     _tinh_lai_cac_ban_ghi(ds_ban_ghi, nguoi_thuc_hien, 'Tính lại trước khi duyệt nhân viên')
     ban_chot = ChotBangCong.objects.filter(
         tong_hop__nam=nam, tong_hop__thang=thang,
         tong_hop__nhan_vien=nhan_vien,
     ).first()
+    tong_hop = cap_nhat_tong_hop(nhan_vien, nam, thang)
     if ban_chot:
         ban_chot.nguoi_duyet = nguoi_thuc_hien
         ban_chot.ngay_duyet = timezone.now()
         ban_chot.save(update_fields=['nguoi_duyet', 'ngay_duyet'])
     else:
         ban_chot = ChotBangCong.objects.create(
-            tong_hop=cap_nhat_tong_hop(nhan_vien, nam, thang), nguoi_duyet=nguoi_thuc_hien,
+            tong_hop=tong_hop, nguoi_duyet=nguoi_thuc_hien,
         )
+        tong_hop.trang_thai = 'approved'
+        tong_hop.save(update_fields=['trang_thai'])
 
-    cap_nhat_tong_hop(nhan_vien, nam, thang)
     from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
 

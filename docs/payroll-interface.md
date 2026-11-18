@@ -1,4 +1,4 @@
-> Quy định hiện hành: OT tự động cho mọi phòng ban từ chấm công; không gửi/duyệt OT. Ngày thường tính sau 17:00; xem README.md để biết ngày nghỉ/lễ, giới hạn và dữ liệu lịch sử. Các mô tả duyệt OT bên dưới chỉ là lịch sử.
+> Quy định hiện hành: không phân biệt lịch ngày thường/nghỉ/lễ. OT tự động sau 17:00 cùng hệ số cho mọi ngày; công chuẩn tháng cố định là 24. Các mô tả lịch và duyệt OT bên dưới chỉ là lịch sử.
 
 # Giao diện Bảng lương theo vai trò
 
