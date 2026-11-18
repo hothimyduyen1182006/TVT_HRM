@@ -157,7 +157,7 @@ class BangLuongTests(TestCase):
     def test_calculation_uses_only_approved_bonus_total(self):
         from django.core.exceptions import ValidationError
         from bang_cong.models import ChotBangCong
-        from bang_luong.services.tinh_luong_service import tinh_bang_luong
+        from bang_luong.services.tinh_luong_service import gui_bang_luong_cho_giam_doc, tinh_bang_luong
         from thuong.services.quy_trinh import duyet_bang
 
         ChotBangCong.objects.create(tong_hop=self.summary, nguoi_duyet=self.hr)
@@ -182,11 +182,20 @@ class BangLuongTests(TestCase):
                     tinh_bang_luong(self.hr, 2026, 11)
                 self.assertFalse(Luong.objects.exists())
 
+        self.bonus.trang_thai = 'draft'
+        self.bonus.save()
+        slip = self.tao_phieu()
+        Luong.objects.filter(pk=slip.pk).update(tong_tien_thuong=150000)
+        self.client.force_login(self.hr)
+        response = self.client.get('/bang_luong/', {'thang': 11, 'nam': 2026})
+        self.assertFalse(response.context['bang_luong'].exists())
+        with self.assertRaisesMessage(ValidationError, 'bảng thưởng chưa được duyệt'):
+            gui_bang_luong_cho_giam_doc(self.hr, 2026, 11)
+
         self.bonus.trang_thai = 'pending'
         self.bonus.save()
         duyet_bang(self.bonus, self.director)
-        self.assertEqual(tinh_bang_luong(self.hr, 2026, 11), 1)
-        slip = Luong.objects.get(tong_hop=self.summary)
+        slip.refresh_from_db()
         self.assertEqual(slip.tong_thuong_id, self.bonus.pk)
         self.assertEqual(slip.tong_tien_thuong, Decimal('3950000'))
         self.assertEqual(slip.tong_thu_nhap, slip.luong_theo_cong + slip.luong_tang_ca + slip.phu_cap + Decimal('3950000'))

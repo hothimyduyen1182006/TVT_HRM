@@ -14,7 +14,7 @@ from nhan_vien.access import GIAM_DOC, NHAN_SU, co_vai_tro, nhan_vien_duoc_hien_
 def phieu_luong_ca_nhan(user):
     return Luong.objects.select_related(
         'tong_hop__nhan_vien__phong_ban', 'tong_thuong',
-    ).filter(tong_hop__nhan_vien__nguoi_dung=user)
+    ).filter(tong_hop__nhan_vien__nguoi_dung=user, tong_thuong__trang_thai='approved')
 
 
 def du_lieu_phieu_luong(phieu):
@@ -51,6 +51,7 @@ def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope=None):
         raise ValidationError('Định dạng tệp không được hỗ trợ.')
     phieu_luong = list(queryset.filter(
         tong_hop__thang=month, tong_hop__nam=year,
+        tong_thuong__trang_thai='approved',
         trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET],
         tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(actor),
     ).select_related('tong_hop__nhan_vien__phong_ban').order_by(

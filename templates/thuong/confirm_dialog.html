@@ -1,0 +1,13 @@
+<dialog id="bm-confirm-dialog" aria-labelledby="bm-confirm-text">
+ <section class="app-message-popup">
+  <button class="app-message-close" type="button" aria-label="Đóng thông báo" data-bm-close-dialog>×</button>
+  <div class="app-message-row app-message-info">
+   <span class="app-message-icon" aria-hidden="true">?</span>
+   <span id="bm-confirm-text">{{ confirm_text }}</span>
+  </div>
+  <div class="bm-confirm-actions">
+   <button class="btn btn-light" type="button" data-bm-close-dialog>Hủy</button>
+   <button id="bm-confirm-approve" class="btn {% if delete_confirmation %}btn-danger{% else %}btn-success{% endif %}" type="button">{% if delete_confirmation %}Xóa{% elif can_decide_period %}Duyệt{% else %}Gửi duyệt{% endif %}</button>
+  </div>
+ </section>
+</dialog>

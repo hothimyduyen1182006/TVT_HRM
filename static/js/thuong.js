@@ -28,20 +28,27 @@ const form = document.getElementById('bm-submit-form');
 
  document.getElementById('bm-bulk-form')?.addEventListener('submit', event => {
    const selected = rows.filter(row => row.checked);
-   if (!selected.length) { event.preventDefault(); alert('Vui lòng chọn ít nhất một nhân viên.'); return; }
+   if (!selected.length) { event.preventDefault(); moXacNhan('Vui lòng chọn ít nhất một nhân viên.', false); return; }
    if (event.submitter?.value === 'reject') {
      event.preventDefault();
-     if (selected.length > 1) { alert('Bạn chỉ có thể từ chối từng người. Vui lòng chọn một nhân viên và thực hiện từ chối riêng.'); return; }
+     if (selected.length > 1) { moXacNhan('Bạn chỉ có thể từ chối từng người. Vui lòng chọn một nhân viên và thực hiện từ chối riêng.', false); return; }
      moTuChoi(event.currentTarget);
    } else if (!daXacNhanDuyet) {
      event.preventDefault();
-     document.getElementById('bm-confirm-text').textContent = `Bạn có chắc muốn duyệt bảng thưởng của ${selected.length} nhân viên đã chọn không?`;
-     xacNhanDuyet.showModal();
+     moXacNhan(`Bạn có chắc muốn duyệt bảng thưởng của ${selected.length} nhân viên đã chọn không?`, true);
    }
  });
  const xacNhanDuyet = document.getElementById('bm-confirm-dialog');
+ const nutDuyet = document.getElementById('bm-confirm-approve');
+ const nutDong = xacNhanDuyet.querySelector('.bm-confirm-actions [data-bm-close-dialog]');
+ function moXacNhan(noiDung, choPhepDuyet) {
+   document.getElementById('bm-confirm-text').textContent = noiDung;
+   nutDuyet.hidden = !choPhepDuyet;
+   nutDong.textContent = choPhepDuyet ? 'Hủy' : 'OK';
+   xacNhanDuyet.showModal();
+ }
  let daXacNhanDuyet = false;
- document.getElementById('bm-confirm-approve').addEventListener('click', () => {
+ nutDuyet.addEventListener('click', () => {
    daXacNhanDuyet = true;
    const form = document.getElementById('bm-bulk-form');
    form.requestSubmit(form.querySelector('button[value="approve"]'));
@@ -81,6 +88,24 @@ cacOChon.forEach(o => o.addEventListener('change', () => {
  chonTatCa.checked = soDaChon === cacOChon.length;
  chonTatCa.indeterminate = soDaChon > 0 && soDaChon < cacOChon.length;
 }));
+  }
+
+  const deleteForms = document.querySelectorAll('[data-bm-delete-form]');
+  if (deleteForms.length) {
+    const dialog = document.getElementById('bm-confirm-dialog');
+    const confirmButton = document.getElementById('bm-confirm-approve');
+    let formToDelete;
+
+    deleteForms.forEach(form => form.addEventListener('submit', event => {
+      event.preventDefault();
+      formToDelete = form;
+      dialog.showModal();
+    }));
+
+    confirmButton.addEventListener('click', () => {
+      confirmButton.disabled = true;
+      formToDelete.submit();
+    });
   }
 
   document.querySelectorAll('[data-bm-close-dialog]').forEach(button => {

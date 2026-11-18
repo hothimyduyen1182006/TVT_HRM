@@ -67,7 +67,7 @@ class NhanVien(models.Model):
                                          default='Đang làm việc')
     class Meta:
         ordering = ['ma_ho_so']
-        db_table = 'Ho_so_ca_nhan'
+        db_table = 'Nhan_vien'
     def __str__(self):
         return f'{self.ma_ho_so} - {self.ho_va_ten}'
 

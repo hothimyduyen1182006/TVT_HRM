@@ -24,7 +24,7 @@ def _bang_luong_trong_pham_vi(user):
     nhan_vien = nhan_vien_duoc_hien_thi(user)
     return Luong.objects.select_related(
         'tong_hop__nhan_vien__phong_ban', 'tong_thuong',
-    ).filter(tong_hop__nhan_vien__in=nhan_vien)
+    ).filter(tong_hop__nhan_vien__in=nhan_vien, tong_thuong__trang_thai='approved')
 
 
 def _loc_bang_luong(queryset, form):
@@ -99,6 +99,7 @@ def luong_ca_nhan(request):
     if hasattr(request.user, 'employee'):
         rows = Luong.objects.select_related('tong_hop', 'tong_thuong').filter(
             tong_hop__nhan_vien=request.user.employee,
+            tong_thuong__trang_thai='approved',
         ).order_by('-tong_hop__nam', '-tong_hop__thang')
         if form.is_valid():
             rows = rows.filter(
@@ -121,7 +122,7 @@ def timezone_localdate():
 def chi_tiet_luong(request, pk):
     phieu = get_object_or_404(
         Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong'),
-        pk=pk,
+        pk=pk, tong_thuong__trang_thai='approved',
     )
     if not nhan_vien_duoc_hien_thi(request.user).filter(
         pk=phieu.tong_hop.nhan_vien_id,

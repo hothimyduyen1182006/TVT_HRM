@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load payroll_display %}
 {% block title %}Thưởng cá nhân · TVT{% endblock %}
-{% block record_scope %}{% include 'includes/record_scope.html' with module='bonuses' %}{% endblock %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='bonuses' personal=True %}{% endblock %}
 {% block extra_head %}
 <style>
   .bp-page{max-width:1180px;margin:1.5rem auto}
