@@ -1,15 +1,13 @@
-
-from datetime import date, timedelta
+﻿from datetime import date
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
-
 SO_NGAY_PHEP_NAM = 12
 
-
-def tinh_ngay_phep_da_dung(nhan_vien, nam, bo_qua_ma_don=None):
+# NOTE: Tính tổng số ngày phép năm đã sử dụng trong một năm.
+def tinh_ngay_phep_da_dung(nhan_vien, nam):
     dau_nam = date(nam, 1, 1)
     cuoi_nam = date(nam, 12, 31)
 
@@ -20,22 +18,20 @@ def tinh_ngay_phep_da_dung(nhan_vien, nam, bo_qua_ma_don=None):
         ngay_bat_dau__lte=cuoi_nam,
         ngay_ket_thuc__gte=dau_nam,
     )
-    if bo_qua_ma_don is not None:
-        cac_don = cac_don.exclude(pk=bo_qua_ma_don)
 
-    cac_ngay_da_dung = set()
+    tong_ngay = 0
 
-    for don in cac_don.only('ngay_bat_dau', 'ngay_ket_thuc'):
+    for don in cac_don:
         ngay_dau = max(don.ngay_bat_dau, dau_nam)
         ngay_cuoi = min(don.ngay_ket_thuc, cuoi_nam)
 
-        for so_ngay_lech in range((ngay_cuoi - ngay_dau).days + 1):
-            cac_ngay_da_dung.add(ngay_dau + timedelta(days=so_ngay_lech))
+        tong_ngay += (ngay_cuoi - ngay_dau).days + 1
 
-    return len(cac_ngay_da_dung)
+    return tong_ngay
 
 
 class DonNghiPhep(models.Model):
+    #Khai báo các loại nghỉ và trạng thái xử lý của đơn nghỉ phép.
     LOAI_NGHI = [
         ('phep_nam', 'Nghỉ theo quỹ phép'),
         ('luong_dac_biet', 'Nghỉ hưởng lương đặc biệt'),
@@ -70,6 +66,7 @@ class DonNghiPhep(models.Model):
 
     ly_do = models.CharField('Lý do', max_length=255)
 
+    #Lưu tệp minh chứng cho đơn nghỉ phép, không bắt buộc đính kèm.
     tep_dinh_kem = models.FileField(
         'Ảnh minh chứng',
         upload_to='leave_evidence/%Y/%m/',
@@ -90,7 +87,6 @@ class DonNghiPhep(models.Model):
     )
 
     ngay_tao = models.DateTimeField(auto_now_add=True)
-
     nguoi_duyet = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -123,6 +119,7 @@ class DonNghiPhep(models.Model):
                     'ngay_ket_thuc': 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.'
                 })
 
+            #Không cho phép một nhân viên có hai đơn nghỉ trùng thời gian
             if self.nhan_vien_id and self.trang_thai in ('cho_duyet', 'da_duyet'):
                 don_trung = DonNghiPhep.objects.filter(
                     nhan_vien_id=self.nhan_vien_id,
@@ -136,12 +133,19 @@ class DonNghiPhep(models.Model):
             if self.nhan_vien_id and self.ngay_bat_dau < self.nhan_vien.ngay_vao_lam:
                 loi['ngay_bat_dau'] = 'Ngày nghỉ không được trước ngày vào làm.'
 
-            if self.nhan_vien_id and self.loai_nghi == 'phep_nam':
+            # Kiểm tra giới hạn 12 ngày phép năm cho từng năm.
+            # Nếu đơn kéo dài qua nhiều năm thì kiểm tra riêng số ngày của mỗi năm.
+            if (
+                self._state.adding
+                and self.nhan_vien_id
+                and self.loai_nghi == 'phep_nam'
+            ):
                 for nam in range(self.ngay_bat_dau.year, self.ngay_ket_thuc.year + 1):
                     dau_nam = max(self.ngay_bat_dau, date(nam, 1, 1))
                     cuoi_nam = min(self.ngay_ket_thuc, date(nam, 12, 31))
                     so_ngay_yeu_cau = (cuoi_nam - dau_nam).days + 1
-                    da_dung = tinh_ngay_phep_da_dung(self.nhan_vien, nam, self.pk)
+                    da_dung = tinh_ngay_phep_da_dung(self.nhan_vien, nam)
+
                     if da_dung + so_ngay_yeu_cau > SO_NGAY_PHEP_NAM:
                         con_lai = max(0, SO_NGAY_PHEP_NAM - da_dung)
                         loi['loai_nghi'] = f'Năm {nam} chỉ còn {con_lai} ngày phép năm.'
@@ -150,6 +154,7 @@ class DonNghiPhep(models.Model):
         if loi:
             raise ValidationError(loi)
 
+    #Chỉ cho phép nhân viên hủy đơn khi đơn vẫn đang chờ duyệt.
     def huy(self):
         if self.trang_thai != 'cho_duyet':
             raise ValidationError('Chỉ được hủy đơn đang chờ duyệt.')
@@ -157,10 +162,13 @@ class DonNghiPhep(models.Model):
         self.trang_thai = 'da_huy'
         self.save(update_fields=['trang_thai'])
 
+    # NOTE: Hiển thị mã đơn và tên nhân viên khi xem đối tượng trong Django Admin.
     def __str__(self):
         return f'Đơn nghỉ phép #{self.ma_don} - {self.nhan_vien}'
 
 
+#Lưu từng ngày nghỉ cụ thể thuộc một đơn nghỉ phép.
+#Dữ liệu này được sử dụng để theo dõi ngày nghỉ và tính công.
 class NgayNghi(models.Model):
     don_nghi_phep = models.ForeignKey(
         DonNghiPhep,
@@ -172,20 +180,6 @@ class NgayNghi(models.Model):
 
     class Meta:
         ordering = ['-ngay']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['don_nghi_phep', 'ngay'],
-                name='unique_leave_request_day',
-            ),
-        ]
-
-    @property
-    def nhan_vien(self):
-        return self.don_nghi_phep.nhan_vien
-
-    @property
-    def huong_luong(self):
-        return self.don_nghi_phep.huong_luong
 
     def __str__(self):
-        return f'{self.nhan_vien} - {self.ngay}'
+        return f'{self.don_nghi_phep.nhan_vien} - {self.ngay}'

@@ -68,7 +68,7 @@ class LeaveAccessTests(TestCase):
     def assert_scope(self, response, names):
         self.assertEqual(response.status_code, 200)
         expected = {self.requests[name].pk for name in names}
-        self.assertEqual(set(response.context['requests'].values_list('pk', flat=True)), expected)
+        self.assertEqual(set(response.context['cac_don'].values_list('pk', flat=True)), expected)
         for name, item in self.requests.items():
             if name in names:
                 self.assertContains(response, reverse('nghi_phep:detail', args=[item.pk]))
@@ -93,8 +93,8 @@ class LeaveAccessTests(TestCase):
                 self.client.force_login(self.people[name].user)
                 self.assert_scope(self.client.get(self.url), expected)
                 response = self.post(self.url, {'ly_do': 'Thiếu ngày nghỉ'})
-                if not response.context['manage_view']:
-                    self.assertTrue(response.context['form'].errors)
+                if not response.context['dang_quan_ly']:
+                    self.assertTrue(response.context['bieu_mau'].errors)
                 self.assert_scope(response, expected)
         self.assertEqual(DonNghiPhep.objects.count(), len(self.requests))
 
@@ -103,7 +103,7 @@ class LeaveAccessTests(TestCase):
         self.assert_scope(self.client.get(self.url), set())
         response = self.post(self.url, self.valid_data())
         self.assert_scope(response, set())
-        self.assertFalse(response.context['can_review'])
+        self.assertFalse(response.context['duoc_duyet'])
         self.assertContains(response, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
         self.assertEqual(DonNghiPhep.objects.count(), len(self.requests))
 
@@ -126,10 +126,10 @@ class LeaveAccessTests(TestCase):
                 url = self.url + f'?department={self.other_department.pk}'
                 for response in [self.client.get(url), self.post(url, {'ly_do': 'Thiếu ngày'})]:
                     self.assertEqual(response.status_code, 200)
-                    self.assertFalse(response.context['requests'].exists())
+                    self.assertFalse(response.context['cac_don'].exists())
                     self.assertNotContains(response, self.requests['outsider'].ly_do)
                 response = self.post(self.url + '?status=invalid', {'ly_do': 'Thiếu ngày'})
-                self.assertTrue(response.context['filters'].errors)
+                self.assertTrue(response.context['bo_loc'].errors)
                 self.assertNotContains(response, self.requests['outsider'].ly_do)
 
     def test_valid_submission_uses_logged_in_employee_and_pending_status(self):
@@ -168,8 +168,8 @@ class LeaveAccessTests(TestCase):
         self.client.force_login(self.people['hr'].user)
         url = self.url + '?status=invalid'
         for response in [self.client.get(url), self.post(url, {'view': 'manage'})]:
-            self.assertTrue(response.context['filters'].errors)
-            self.assertFalse(response.context['requests'].exists())
+            self.assertTrue(response.context['bo_loc'].errors)
+            self.assertFalse(response.context['cac_don'].exists())
         self.assertEqual(DonNghiPhep.objects.count(), len(self.requests))
 
     def test_detail_and_review_controls_follow_scope(self):
@@ -231,9 +231,9 @@ class LeaveAccessTests(TestCase):
             self.assertEqual(item.trang_thai, 'da_duyet')
             self.assertEqual(item.nguoi_duyet_id, self.people[name].user_id)
             self.assertIsNotNone(item.ngay_duyet)
-            leave = NgayNghi.objects.get(nhan_vien=item.nhan_vien, ngay=day)
+            leave = NgayNghi.objects.get(don_nghi_phep=item, ngay=day)
             self.assertTrue(leave.da_duyet)
-            self.assertTrue(leave.huong_luong)
+            self.assertTrue(leave.don_nghi_phep.huong_luong)
 
     def test_rejection_requires_reason_and_does_not_create_leave_day(self):
         self.client.force_login(self.people['manager'].user)

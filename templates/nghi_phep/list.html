@@ -6,20 +6,20 @@
 <script src="{% static 'leaves/leave.js' %}?v=20261115-leave-balance" defer></script>
 {% endblock %}
 {% block content %}
-<section class="leave-page {% if manage_view %}leave-reviewer-page{% else %}leave-employee-page{% endif %}">
-  {% if is_reviewer %}
+<section class="leave-page {% if dang_quan_ly %}leave-reviewer-page{% else %}leave-employee-page{% endif %}">
+  {% if la_nguoi_duyet %}
     <nav class="leave-tabs" aria-label="Chức năng nghỉ phép">
-      <a class="leave-tab {% if active_view == 'manage' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=manage">Quản lý đơn nghỉ phép</a>
-      <a class="leave-tab {% if active_view == 'mine' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=mine">Đơn nghỉ phép của tôi</a>
+      <a class="leave-tab {% if tab_hien_tai == 'manage' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=manage">Quản lý đơn nghỉ phép</a>
+      <a class="leave-tab {% if tab_hien_tai == 'mine' %}active{% endif %}" href="{% url 'nghi_phep:list' %}?view=mine">Đơn nghỉ phép của tôi</a>
     </nav>
   {% endif %}
-  {% if manage_view %}
+  {% if dang_quan_ly %}
     <header class="leave-page-heading reviewer-page-heading"><h1>Các yêu cầu nghỉ phép</h1></header>
   {% else %}
     <header class="leave-page-heading employee-page-heading"><h1>ĐƠN NGHỈ PHÉP</h1></header>
   {% endif %}
 
-  {% if own_employee and not manage_view %}
+  {% if ho_so_cua_toi and not dang_quan_ly %}
     <section class="leave-panel leave-compose">
       <div class="leave-panel-title">
         <div>
@@ -32,47 +32,47 @@
       <form method="post" enctype="multipart/form-data" class="leave-form">
         {% csrf_token %}
         <input type="hidden" name="view" value="mine">
-        {% for error in form.non_field_errors %}<div class="leave-error-banner">{{ error }}</div>{% endfor %}
+        {% for error in bieu_mau.non_field_errors %}<div class="leave-error-banner">{{ error }}</div>{% endfor %}
       <div class="leave-form-grid">
         <div class="leave-field">
-          <label for="{{ form.ngay_bat_dau.id_for_label }}">{{ form.ngay_bat_dau.label }} <i>*</i></label>
-          {{ form.ngay_bat_dau }}
-          {% for error in form.ngay_bat_dau.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
+          <label for="{{ bieu_mau.ngay_bat_dau.id_for_label }}">{{ bieu_mau.ngay_bat_dau.label }} <i>*</i></label>
+          {{ bieu_mau.ngay_bat_dau }}
+          {% for error in bieu_mau.ngay_bat_dau.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
         <div class="leave-field">
-          <label for="{{ form.ngay_ket_thuc.id_for_label }}">{{ form.ngay_ket_thuc.label }} <i>*</i></label>
-          {{ form.ngay_ket_thuc }}
-          {% for error in form.ngay_ket_thuc.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
+          <label for="{{ bieu_mau.ngay_ket_thuc.id_for_label }}">{{ bieu_mau.ngay_ket_thuc.label }} <i>*</i></label>
+          {{ bieu_mau.ngay_ket_thuc }}
+          {% for error in bieu_mau.ngay_ket_thuc.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
         <div class="leave-field leave-field-wide">
-          <label for="{{ form.loai_nghi.id_for_label }}">{{ form.loai_nghi.label }} <i>*</i></label>
-          {{ form.loai_nghi }}
-          {% for error in form.loai_nghi.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
+          <label for="{{ bieu_mau.loai_nghi.id_for_label }}">{{ bieu_mau.loai_nghi.label }} <i>*</i></label>
+          {{ bieu_mau.loai_nghi }}
+          {% for error in bieu_mau.loai_nghi.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
         <div class="leave-field leave-field-wide">
           <label for="leave-days-count">Số ngày nghỉ</label>
           <input id="leave-days-count" class="leave-input leave-calculated-value" type="text" value="0" readonly aria-live="polite">
         </div>
         <div class="leave-field leave-field-wide">
-          <label for="leave-annual-balance">Quỹ phép còn lại năm {{ annual_leave_year }}</label>
-          <input id="leave-annual-balance" class="leave-input leave-calculated-value" type="text" value="{{ annual_leave_remaining }} ngày" readonly>
+          <label for="leave-annual-balance">Quỹ phép còn lại năm {{ nam_phep }}</label>
+          <input id="leave-annual-balance" class="leave-input leave-calculated-value" type="text" value="{{ so_ngay_phep_con_lai }} ngày" readonly>
           <small class="leave-help">Đơn nghỉ theo quỹ phép đang chờ duyệt cũng được giữ chỗ trong quỹ phép.</small>
         </div>
         <div class="leave-field leave-field-wide">
-          <label for="{{ form.ly_do.id_for_label }}">{{ form.ly_do.label }} <i>*</i></label>
-          {{ form.ly_do }}
+          <label for="{{ bieu_mau.ly_do.id_for_label }}">{{ bieu_mau.ly_do.label }} <i>*</i></label>
+          {{ bieu_mau.ly_do }}
           <small class="leave-help">Mô tả ngắn gọn lý do xin nghỉ để quản lý xem xét.</small>
-          {% for error in form.ly_do.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
+          {% for error in bieu_mau.ly_do.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
         <div class="leave-field leave-field-wide">
-          <label for="{{ form.tep_dinh_kem.id_for_label }}">Tệp minh chứng <span>(không bắt buộc)</span></label>
-          <label class="leave-upload" for="{{ form.tep_dinh_kem.id_for_label }}">
+          <label for="{{ bieu_mau.tep_dinh_kem.id_for_label }}">Tệp minh chứng <span>(không bắt buộc)</span></label>
+          <label class="leave-upload" for="{{ bieu_mau.tep_dinh_kem.id_for_label }}">
             <span class="leave-upload-icon" aria-hidden="true">↑</span>
             <span><b>Chọn ảnh hoặc tệp PDF</b><small>JPG, PNG, WEBP, GIF hoặc PDF · tối đa 5 MB</small></span>
-            {{ form.tep_dinh_kem }}
+            {{ bieu_mau.tep_dinh_kem }}
           </label>
           <small class="leave-selected-file" data-evidence-name aria-live="polite">Chưa chọn tệp</small>
-          {% for error in form.tep_dinh_kem.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
+          {% for error in bieu_mau.tep_dinh_kem.errors %}<small class="leave-field-error">{{ error }}</small>{% endfor %}
         </div>
       </div>
         <div class="leave-form-footer">
@@ -83,24 +83,24 @@
     </section>
   {% endif %}
 
-  {% if manage_view %}
+  {% if dang_quan_ly %}
     <form method="get" class="leave-management-filter">
       <input type="hidden" name="view" value="manage">
       <div class="leave-management-field keyword">
-        <label for="{{ filters.q.id_for_label }}">Tên nhân viên</label>
-        {{ filters.q }}
+        <label for="{{ bo_loc.q.id_for_label }}">Tên nhân viên</label>
+        {{ bo_loc.q }}
       </div>
       <div class="leave-management-field">
-        <label for="{{ filters.department.id_for_label }}">Phòng ban</label>
-        {{ filters.department }}
+        <label for="{{ bo_loc.department.id_for_label }}">Phòng ban</label>
+        {{ bo_loc.department }}
       </div>
       <div class="leave-management-field">
-        <label for="{{ filters.leave_type.id_for_label }}">Loại nghỉ phép</label>
-        {{ filters.leave_type }}
+        <label for="{{ bo_loc.leave_type.id_for_label }}">Loại nghỉ phép</label>
+        {{ bo_loc.leave_type }}
       </div>
       <div class="leave-management-field">
-        <label for="{{ filters.status.id_for_label }}">Trạng thái</label>
-        {{ filters.status }}
+        <label for="{{ bo_loc.status.id_for_label }}">Trạng thái</label>
+        {{ bo_loc.status }}
       </div>
       <button class="leave-management-filter-button" type="submit">⚑ Lọc</button>
     </form>
@@ -108,14 +108,14 @@
 
   <section class="leave-panel leave-history">
     <div class="leave-panel-title history-title">
-      <div><h2>{% if manage_view %}Lịch sử nghỉ phép của nhân sự{% else %}Lịch sử nghỉ phép{% endif %}</h2></div>
+      <div><h2>{% if dang_quan_ly %}Lịch sử nghỉ phép của nhân sự{% else %}Lịch sử nghỉ phép{% endif %}</h2></div>
     </div>
-    <div class="leave-table-wrap {% if manage_view %}leave-management-table-wrap{% endif %}">
-      <table class="leave-table {% if manage_view %}leave-management-table{% endif %}">
+    <div class="leave-table-wrap {% if dang_quan_ly %}leave-management-table-wrap{% endif %}">
+      <table class="leave-table {% if dang_quan_ly %}leave-management-table{% endif %}">
         <thead>
           <tr>
             <th>STT</th>
-            {% if manage_view %}
+            {% if dang_quan_ly %}
               <th>Mã nhân viên</th>
               <th>Họ tên</th>
               <th class="leave-management-department">Phòng ban</th>
@@ -128,43 +128,43 @@
               <th>Trạng thái</th>
             {% endif %}
             <th>Minh chứng</th>
-            <th>{% if manage_view %}Tác vụ{% else %}Chi tiết{% endif %}</th>
+            <th>{% if dang_quan_ly %}Tác vụ{% else %}Chi tiết{% endif %}</th>
           </tr>
         </thead>
         <tbody>
-          {% for item in requests %}
+          {% for don in cac_don %}
             <tr>
               <td>{{ forloop.counter }}</td>
-              {% if manage_view %}
-                <td class="leave-management-code">{{ item.nhan_vien.ma_ho_so }}</td>
-                <td class="leave-management-name">{{ item.nhan_vien.ho_va_ten }}</td>
-                <td class="leave-management-department">{{ item.nhan_vien.phong_ban.ten_phong_ban }}</td>
-                <td>{{ item.get_loai_nghi_display }}</td>
+              {% if dang_quan_ly %}
+                <td class="leave-management-code">{{ don.nhan_vien.ma_ho_so }}</td>
+                <td class="leave-management-name">{{ don.nhan_vien.ho_va_ten }}</td>
+                <td class="leave-management-department">{{ don.nhan_vien.phong_ban.ten_phong_ban }}</td>
+                <td>{{ don.get_loai_nghi_display }}</td>
               {% else %}
-                <td>{{ item.ngay_bat_dau|date:'d/m/Y' }}</td>
-                <td>{{ item.ngay_ket_thuc|date:'d/m/Y' }}</td>
-                <td>{{ item.get_loai_nghi_display }}</td>
+                <td>{{ don.ngay_bat_dau|date:'d/m/Y' }}</td>
+                <td>{{ don.ngay_ket_thuc|date:'d/m/Y' }}</td>
+                <td>{{ don.get_loai_nghi_display }}</td>
               {% endif %}
-              <td><span class="leave-status {{ item.trang_thai }}">{{ item.get_trang_thai_display }}</span></td>
+              <td><span class="leave-status {{ don.trang_thai }}">{{ don.get_trang_thai_display }}</span></td>
               <td>
-                {% if item.tep_dinh_kem %}
-                  <a class="leave-evidence-link" href="{% url 'nghi_phep:evidence' item.pk %}" target="_blank" rel="noopener">Mở ảnh</a>
+                {% if don.tep_dinh_kem %}
+                  <a class="leave-evidence-link" href="{% url 'nghi_phep:evidence' don.pk %}" target="_blank" rel="noopener">Mở ảnh</a>
                 {% else %}
                   <span class="leave-no-evidence">—</span>
                 {% endif %}
               </td>
               <td>
-                <a class="leave-detail-link {% if manage_view %}manager-detail-link{% endif %}" href="{% url 'nghi_phep:detail' item.pk %}?view={% if manage_view %}manage{% else %}mine{% endif %}">
+                <a class="leave-detail-link {% if dang_quan_ly %}manager-detail-link{% endif %}" href="{% url 'nghi_phep:detail' don.pk %}?view={% if dang_quan_ly %}manage{% else %}mine{% endif %}">
                   Xem chi tiết <span aria-hidden="true">→</span>
                 </a>
               </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="{% if manage_view %}8{% else %}7{% endif %}" class="leave-empty">
+              <td colspan="{% if dang_quan_ly %}8{% else %}7{% endif %}" class="leave-empty">
                 <span aria-hidden="true">▤</span>
                 <b>Chưa có đơn nghỉ phép</b>
-                <small>{% if manage_view %}Thử thay đổi bộ lọc để tìm đơn.{% else %}Đơn bạn gửi sẽ xuất hiện tại đây.{% endif %}</small>
+                <small>{% if dang_quan_ly %}Thử thay đổi bộ lọc để tìm đơn.{% else %}Đơn bạn gửi sẽ xuất hiện tại đây.{% endif %}</small>
               </td>
             </tr>
           {% endfor %}

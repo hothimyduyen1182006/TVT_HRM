@@ -19,3 +19,11 @@ class DonNghiPhepAdmin(admin.ModelAdmin):
 class NgayNghiAdmin(QuanTriChiDoc):
     list_display = ('don_nghi_phep', 'ngay', 'nhan_vien', 'huong_luong')
     list_filter = ('don_nghi_phep__loai_nghi', 'don_nghi_phep__trang_thai')
+
+    @admin.display(description='Nhân viên')
+    def nhan_vien(self, obj):
+        return obj.don_nghi_phep.nhan_vien
+
+    @admin.display(description='Hưởng lương')
+    def huong_luong(self, obj):
+        return obj.don_nghi_phep.huong_luong

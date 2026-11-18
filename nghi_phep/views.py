@@ -13,8 +13,8 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 
-from bang_cong.services.tong_hop_service import cap_nhat_tong_hop
-from bang_cong.utils.date_utils import thang_lich
+from bang_cong.services.quy_trinh import cap_nhat_tong_hop
+from bang_cong.thang_lich import thang_lich
 from nhan_vien.access import (
     GIAM_DOC,
     NHAN_SU,
@@ -29,7 +29,6 @@ from .forms import (
     CAC_LOAI_TEP_CHO_PHEP,
     DonNghiPhepForm,
     LocDonNghiPhepForm,
-    TepMinhChungForm,
 )
 from .models import SO_NGAY_PHEP_NAM, DonNghiPhep, NgayNghi, tinh_ngay_phep_da_dung
 
@@ -47,43 +46,60 @@ def pham_vi_co_the_xem(nguoi_dung, nhan_vien=None):
 
 @login_required
 def danh_sach_don_nghi(request):
-    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    la_nguoi_duyet = co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
-    pham_vi = nhan_vien_duoc_hien_thi(request.user) if la_nguoi_duyet else NhanVien.objects.none()
+    # Lấy hồ sơ nhân viên của tài khoản hiện tại để tạo và xem đơn cá nhân.
+    ho_so_cua_toi = NhanVien.objects.filter(
+        nguoi_dung=request.user,
+        dang_hoat_dong=True,
+    ).first()
 
-    tab_mac_dinh = 'manage' if la_nguoi_duyet else 'mine'
-    tab_yeu_cau = request.POST.get('view') if request.method == 'POST' else request.GET.get('view')
-    tab_hien_tai = tab_yeu_cau if la_nguoi_duyet and tab_yeu_cau in {'mine', 'manage'} else tab_mac_dinh
+    # Người duyệt có thêm phạm vi xem đơn của nhân viên thuộc quyền.
+    la_nguoi_duyet = co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+    nhan_vien_duoc_quan_ly = (
+        nhan_vien_duoc_hien_thi(request.user)
+        if la_nguoi_duyet else NhanVien.objects.none()
+    )
+
+    if la_nguoi_duyet:
+        tab_hien_tai = request.GET.get('view') or request.POST.get('view') or 'manage'
+        if tab_hien_tai not in ['mine', 'manage']:
+            tab_hien_tai = 'manage'
+    else:
+        tab_hien_tai = 'mine'
+
     dang_quan_ly = la_nguoi_duyet and tab_hien_tai == 'manage'
 
+    # Chọn danh sách đơn theo tab đang mở.
     cac_don = DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet')
     if dang_quan_ly:
-        cac_don = cac_don.filter(nhan_vien__in=pham_vi)
-    elif nhan_vien:
-        cac_don = cac_don.filter(nhan_vien=nhan_vien)
+        cac_don = cac_don.filter(nhan_vien__in=nhan_vien_duoc_quan_ly)
+    elif ho_so_cua_toi:
+        cac_don = cac_don.filter(nhan_vien=ho_so_cua_toi)
     else:
         cac_don = cac_don.none()
 
     bieu_mau = DonNghiPhepForm(
-        data=request.POST or None,
-        files=request.FILES or None,
-        nhan_vien=nhan_vien,
+        data=request.POST if request.method == 'POST' else None,
+        files=request.FILES if request.method == 'POST' else None,
+        nhan_vien=ho_so_cua_toi,
     )
     if request.method == 'POST':
-        if not nhan_vien:
+        bieu_mau_hop_le = bieu_mau.is_valid()
+        if not ho_so_cua_toi:
             messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
-        elif bieu_mau.is_valid():
+        elif bieu_mau_hop_le:
             don = bieu_mau.save(commit=False)
             don.save()
             messages.success(request, 'Đã gửi đơn nghỉ phép.')
-            if la_nguoi_duyet:
-                return redirect(f"{reverse('nghi_phep:list')}?view=mine")
-            return redirect('nghi_phep:list')
+            return redirect(f"{reverse('nghi_phep:list')}?view=mine")
 
-    cac_phong_ban = (
-        PhongBan.objects.filter(pk__in=pham_vi.values('phong_ban_id')).distinct()
-        if la_nguoi_duyet else PhongBan.objects.none()
-    )
+    la_quan_ly_nhan_su = co_vai_tro(request.user, NHAN_SU, GIAM_DOC)
+    la_truong_phong = co_vai_tro(request.user, TRUONG_PHONG)
+    if la_quan_ly_nhan_su:
+        cac_phong_ban = PhongBan.objects.all()
+    elif la_truong_phong:
+        cac_phong_ban = PhongBan.objects.filter(pk=ho_so_cua_toi.phong_ban_id)
+    else:
+        cac_phong_ban = PhongBan.objects.none()
     bo_loc = LocDonNghiPhepForm(cac_phong_ban, request.GET)
     if not bo_loc.is_valid():
         cac_don = cac_don.none()
@@ -105,26 +121,21 @@ def danh_sach_don_nghi(request):
             if dieu_kien[ten_truong]:
                 cac_don = cac_don.filter(**{truong_model: dieu_kien[ten_truong]})
 
-    # Đọc ngày bắt đầu hợp lệ ngay cả khi trường khác trong form có lỗi.
-    ngay_chon = None
-    if bieu_mau.is_bound:
-        bieu_mau.is_valid()
-        ngay_chon = bieu_mau.cleaned_data.get('ngay_bat_dau')
-
+    # Dùng ngày hợp lệ trong lần kiểm tra form ở trên để chọn năm tính phép.
+    ngay_chon = bieu_mau.cleaned_data.get('ngay_bat_dau') if bieu_mau.is_bound else None
     nam_phep = ngay_chon.year if ngay_chon else timezone.localdate().year
-    da_dung = tinh_ngay_phep_da_dung(nhan_vien, nam_phep) if nhan_vien else 0
+    da_dung = tinh_ngay_phep_da_dung(ho_so_cua_toi, nam_phep) if ho_so_cua_toi else 0
 
     return render(request, 'nghi_phep/list.html', {
-        'requests': cac_don,
-        'form': bieu_mau,
-        'filters': bo_loc,
-        'is_reviewer': la_nguoi_duyet,
-        'own_employee': nhan_vien,
-        'can_review': la_nguoi_duyet,
-        'active_view': tab_hien_tai,
-        'manage_view': dang_quan_ly,
-        'annual_leave_year': nam_phep,
-        'annual_leave_remaining': max(0, SO_NGAY_PHEP_NAM - da_dung),
+        'cac_don': cac_don,
+        'bieu_mau': bieu_mau,
+        'bo_loc': bo_loc,
+        'la_nguoi_duyet': la_nguoi_duyet,
+        'ho_so_cua_toi': ho_so_cua_toi,
+        'tab_hien_tai': tab_hien_tai,
+        'dang_quan_ly': dang_quan_ly,
+        'nam_phep': nam_phep,
+        'so_ngay_phep_con_lai': max(0, SO_NGAY_PHEP_NAM - da_dung),
     })
 
 
@@ -151,17 +162,12 @@ def chi_tiet_don_nghi(request, ma_don):
         co_tep = False
 
     return render(request, 'nghi_phep/detail.html', {
-        'item': don,
-        'can_review': duoc_duyet,
-        'days_count': don.so_ngay_nghi,
-        'back_view': tab_quay_lai,
-        'evidence_available': co_tep,
-        'can_attach_evidence': bool(
-            don.trang_thai == 'cho_duyet'
-            and don.nhan_vien_id == ma_nhan_vien_lien_ket
-            and not co_tep
-        ),
-        'can_cancel': (
+        'don': don,
+        'duoc_duyet': duoc_duyet,
+        'so_ngay_nghi': don.so_ngay_nghi,
+        'tab_quay_lai': tab_quay_lai,
+        'co_tep_minh_chung': co_tep,
+        'duoc_huy_don': (
             don.trang_thai == 'cho_duyet'
             and don.nhan_vien_id == ma_nhan_vien_lien_ket
         ),
@@ -188,30 +194,6 @@ def huy_don_nghi(request, ma_don):
         else:
             messages.success(request, 'Đã hủy đơn nghỉ phép.')
 
-    return redirect('nghi_phep:detail', ma_don=don.pk)
-
-
-@login_required
-@require_POST
-def bo_sung_minh_chung(request, ma_don):
-    nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
-    if not nhan_vien:
-        raise PermissionDenied
-    don = get_object_or_404(
-        DonNghiPhep, pk=ma_don, nhan_vien=nhan_vien, trang_thai='cho_duyet',
-    )
-    if don.tep_dinh_kem and don.tep_dinh_kem.storage.exists(don.tep_dinh_kem.name):
-        messages.error(request, 'Đơn này đã có tệp minh chứng.')
-        return redirect('nghi_phep:detail', ma_don=don.pk)
-
-    bieu_mau = TepMinhChungForm(request.POST, request.FILES)
-    if bieu_mau.is_valid():
-        don.tep_dinh_kem = bieu_mau.cleaned_data['tep_dinh_kem']
-        don.save(update_fields=['tep_dinh_kem'])
-        ten_tep = don.tep_dinh_kem.name.rsplit('/', 1)[-1]
-        messages.success(request, f'Đã đính kèm tệp minh chứng "{ten_tep}".')
-    else:
-        messages.error(request, '; '.join(err for loi in bieu_mau.errors.values() for err in loi))
     return redirect('nghi_phep:detail', ma_don=don.pk)
 
 

@@ -68,17 +68,6 @@ class DonNghiPhepForm(forms.ModelForm):
         return du_lieu
 
 
-class TepMinhChungForm(forms.Form):
-    """Biểu mẫu tải minh chứng bổ sung cho đơn đã tạo."""
-    tep_dinh_kem = forms.FileField(
-        label='Ảnh minh chứng',
-        widget=forms.ClearableFileInput(attrs={'accept': DINH_DANG_TEP_CHO_PHEP}),
-    )
-
-    def clean_tep_dinh_kem(self):
-        return kiem_tra_tep(self.cleaned_data.get('tep_dinh_kem'))
-
-
 class LocDonNghiPhepForm(forms.Form):
     """Các bộ lọc danh sách đơn; tên trường giữ nguyên để khớp URL và giao diện."""
     q = forms.CharField(required=False, label='Từ khóa')
