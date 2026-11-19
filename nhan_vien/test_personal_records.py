@@ -63,7 +63,7 @@ class ManagementPersonalRecordsTests(TestCase):
     def test_personal_attendance_ignores_other_employee_query(self):
         employee = self.people[2]
         self.client.force_login(employee.nguoi_dung)
-        response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026,
+        response = self.client.get('/bang_cong/ca-nhan/', {'thang': 1, 'nam': 2026,
             'employee': self.people[0].pk, 'department': self.team.pk})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['employee'], employee)
@@ -72,7 +72,7 @@ class ManagementPersonalRecordsTests(TestCase):
 
     def test_employee_has_no_management_scope_switch(self):
         self.client.force_login(self.people[3].nguoi_dung)
-        response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026})
+        response = self.client.get('/bang_cong/ca-nhan/', {'thang': 1, 'nam': 2026})
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'class="record-scope')
 
@@ -98,7 +98,7 @@ class ManagementPersonalRecordsTests(TestCase):
         for employee in self.people:
             with self.subTest(user=employee.nguoi_dung.username):
                 self.client.force_login(employee.nguoi_dung)
-                response = self.client.get('/bang_cong/ca-nhan/', {'month': 1, 'year': 2026})
+                response = self.client.get('/bang_cong/ca-nhan/', {'thang': 1, 'nam': 2026})
                 path = '/bang_luong/ca-nhan/' if employee == self.people[3] else '/bang_luong/'
                 self.assertContains(response, f'<a href="{path}" >BẢNG LƯƠNG</a>', html=True)
                 destination = self.client.get(path, {'month': 1, 'year': 2026})

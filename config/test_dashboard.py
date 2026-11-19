@@ -70,8 +70,8 @@ class DashboardTests(TestCase):
         self.assertContains(response, 'href="/departments/?date=2026-01-05"')
         expected = {'ontime': self.people[0], 'late': self.people[1], 'unchecked': self.people[2]}
         for state, employee in expected.items():
-            response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026,
-                'day': '2026-01-05', 'day_state': state})
+            response = self.client.get('/bang_cong/', {'thang': 1, 'nam': 2026,
+                'ngay_cham_cong': '2026-01-05', 'trang_thai_cham_cong': state})
             self.assertEqual(response.status_code, 200)
             self.assertEqual([row['employee'] for row in response.context['rows']], [employee])
 
@@ -88,5 +88,5 @@ class DashboardTests(TestCase):
         response = self.client.get('/nhan_vien/', {'active_as_of': '2026-01-05', 'department': self.people[2].phong_ban_id})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['rows'].exists())
-        response = self.client.get('/bang_cong/', {'month': 1, 'year': 2026, 'day': '2026-01-05', 'day_state': 'unchecked'})
+        response = self.client.get('/bang_cong/', {'thang': 1, 'nam': 2026, 'ngay_cham_cong': '2026-01-05', 'trang_thai_cham_cong': 'unchecked'})
         self.assertEqual(response.context['rows'], [])

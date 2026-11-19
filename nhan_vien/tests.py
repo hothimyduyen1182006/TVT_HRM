@@ -87,7 +87,7 @@ class DemoDataTests(TestCase):
     def test_hr_has_full_navigation_without_director_or_admin_privileges(self):
         hr = get_user_model().objects.get(username='quanlynhansu')
         self.client.force_login(hr)
-        response = self.client.get('/bang_cong/?month=9&year=2026')
+        response = self.client.get('/bang_cong/?thang=9&nam=2026')
         for text in ['DASHBOARD', 'NHÂN VIÊN', 'BẢNG CÔNG', 'BẢNG THƯỞNG', 'BẢNG LƯƠNG', 'NGHỈ PHÉP']:
             self.assertContains(response, text)
         self.assertEqual(self.client.get('/thuong/?month=9&year=2026').status_code, 200)

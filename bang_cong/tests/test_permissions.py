@@ -26,7 +26,7 @@ class CurrentAttendanceAccessTests(TestCase):
 
     def test_hr_can_access_management_attendance(self):
         self.client.force_login(self.hr)
-        self.assertEqual(self.client.get('/bang_cong/?month=10&year=2026').status_code, 200)
+        self.assertEqual(self.client.get('/bang_cong/?thang=10&nam=2026').status_code, 200)
 
 
 class CurrentAttendanceSchemaTests(TestCase):

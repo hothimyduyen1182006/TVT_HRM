@@ -1,17 +1,20 @@
 from urllib.parse import urlencode
 from decimal import Decimal
+from datetime import date
 
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from bang_cong.models import ChamCong, ChotBangCong
-from bang_cong.services.chot_bang_cong_service import ChotBangCongService, ky_cong_da_khoa
+from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien
 from bang_cong.services.cham_cong_service import (
     GIO_BAT_DAU, cong_chuan_thang, nap_cong_ngay,
 )
@@ -53,8 +56,6 @@ def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None):
     approved_ids = set(ChotBangCong.objects.filter(
         tong_hop__nam=nam, tong_hop__thang=thang,
     ).values_list('tong_hop__nhan_vien_id', flat=True))
-    if ky_cong_da_khoa(nam, thang):
-        approved_ids.update(ds_nhan_vien.values_list('pk', flat=True))
     standard = cong_chuan_thang(nam, thang)
 
     rows = []
@@ -88,24 +89,42 @@ def tham_so_phan_trang(request):
 
 @login_required
 @require_POST
-def chot_bang_cong_thang(request, period_id):
+def chot_nhan_vien_da_chon(request, period_id):
     yeu_cau_vai_tro(request.user, NHAN_SU)
     period_id = int(period_id)
     nam, thang = period_id // 100, period_id % 100
     try:
-        result = ChotBangCongService.chot_bang_cong(
-            thang, nam, request.user,
+        try:
+            date(nam, thang, 1)
+        except ValueError as error:
+            raise ValidationError('Kỳ công không hợp lệ.') from error
+        truong_nhan_vien = forms.ModelMultipleChoiceField(
+            queryset=nhan_vien_duoc_hien_thi(request.user),
+            error_messages={
+                'required': 'Cần chọn ít nhất một nhân viên để chốt.',
+                'invalid_choice': 'Danh sách có nhân viên không hợp lệ hoặc ngoài phạm vi quyền.',
+                'invalid_pk_value': 'Mã nhân viên không hợp lệ.',
+            },
         )
+        danh_sach = truong_nhan_vien.clean(request.POST.getlist('nhan_vien'))
+        with transaction.atomic():
+            ban_chot = [
+                (nhan_vien, duyet_cong_nhan_vien(request.user, nhan_vien, period_id))
+                for nhan_vien in danh_sach.order_by('pk')
+            ]
     except ValidationError as error:
         messages.error(request, '; '.join(error.messages))
     else:
         messages.success(
             request,
             f"Đã chốt bảng công tháng {thang:02}/{nam} "
-            f"cho {result['so_nhan_vien']} nhân viên.",
+            f"cho {len(ban_chot)} nhân viên.",
         )
+        for nhan_vien, ket_qua in ban_chot:
+            if ket_qua.payroll_error:
+                messages.warning(request, f'{nhan_vien}: {ket_qua.payroll_error}')
     return redirect(reverse('bang_cong:danh-sach') + '?' + urlencode({
-        'month': thang, 'year': nam,
+        'thang': thang, 'nam': nam,
     }))
 
 
@@ -121,33 +140,34 @@ def danh_sach_bang_cong(request):
     if form.is_valid():
         data = form.cleaned_data
         employees = form.nhan_vien_trong_pham_vi(request.user)
-        if data['q']:
+        if data['tu_khoa']:
             employees = employees.filter(
-                Q(ho_va_ten__icontains=data['q']) | Q(ma_ho_so__icontains=data['q']),
+                Q(ho_va_ten__icontains=data['tu_khoa']) | Q(ma_ho_so__icontains=data['tu_khoa']),
             )
-        nam, thang = data['year'], data['month']
+        nam, thang = data['nam'], data['thang']
         ma_ky_cong = nam * 100 + thang
         period = True
         period_id = ma_ky_cong
-        if data.get('day'):
+        if data.get('ngay_cham_cong'):
             employees = employees.filter(
-                dang_hoat_dong=True, ngay_vao_lam__lte=data['day'],
+                dang_hoat_dong=True, ngay_vao_lam__lte=data['ngay_cham_cong'],
             )
-            attendance = ChamCong.objects.filter(ngay=data['day'], gio_vao__isnull=False)
-            if data['day_state'] == 'unchecked':
+            attendance = ChamCong.objects.filter(ngay=data['ngay_cham_cong'], gio_vao__isnull=False)
+            if data['trang_thai_cham_cong'] == 'unchecked':
                 employees = employees.exclude(pk__in=attendance.values('nhan_vien_id'))
-            elif data['day_state'] in ('ontime', 'late'):
-                field = 'gio_vao__lte' if data['day_state'] == 'ontime' else 'gio_vao__gt'
+            elif data['trang_thai_cham_cong'] in ('ontime', 'late'):
+                field = 'gio_vao__lte' if data['trang_thai_cham_cong'] == 'ontime' else 'gio_vao__gt'
                 employees = employees.filter(
                     pk__in=attendance.filter(**{field: GIO_BAT_DAU}).values('nhan_vien_id'),
                 )
         rows = tong_hop_cong_thang(employees, nam, thang)
-        if data['review']:
-            rows = [row for row in rows if row['state'] == data['review']]
+        if data['trang_thai']:
+            rows = [row for row in rows if row['state'] == data['trang_thai']]
 
     page_obj = Paginator(rows, 15).get_page(request.GET.get('page'))
     return render(request, 'bang_cong/danh_sach.html', {
         'form': form, 'rows': rows, 'period': period,
+        'month_query': urlencode({'thang': thang, 'nam': nam}) if period else '',
         'period_id': period_id, 'page_obj': page_obj,
         'page_query': tham_so_phan_trang(request),
         'can_edit': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),

@@ -53,8 +53,8 @@ def _danh_sach_cong_ngay(nhan_vien, nam, thang, records, tang_ca):
 def _du_lieu_cong_thang(request, nhan_vien):
     today = timezone.localdate()
     try:
-        month = int(request.GET.get('month', today.month))
-        year = int(request.GET.get('year', today.year))
+        month = int(request.GET.get('thang', today.month))
+        year = int(request.GET.get('nam', today.year))
     except (TypeError, ValueError):
         month, year = today.month, today.year
     if not 1 <= month <= 12 or not 2000 <= year <= 2100:
@@ -88,7 +88,7 @@ def _du_lieu_cong_thang(request, nhan_vien):
     return {
         'month': month, 'year': year, 'rows': rows, 'summary': summary,
         'period': True, 'progress': progress, 'average': average,
-        'month_query': urlencode({'month': month, 'year': year}),
+        'month_query': urlencode({'thang': month, 'nam': year}),
     }
 
 

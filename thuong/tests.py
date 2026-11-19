@@ -9,8 +9,8 @@ from django.db import IntegrityError, transaction
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from bang_cong.models import ChamCong
-from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, xu_ly_trang_thai_ky_cong
+from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
+from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, ky_cong_da_khoa
 from bang_luong.models import Luong
 from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
@@ -73,10 +73,55 @@ class BonusWorkflowTests(TestCase):
         self.assertFalse(DeXuatThuong.objects.exists())
         self.assertFalse(Luong.objects.exists())
 
-    def test_whole_period_approval_updates_all_employees(self):
-        xu_ly_trang_thai_ky_cong(self.director,self.ma_ky_cong,'approve','Đã đối chiếu công')
-        self.assertEqual(Thuong.objects.filter(thuong_chuyen_can=200000).count(),2)
+    def test_attendance_closing_only_updates_selected_employee(self):
+        url = reverse('bang_cong:chot-nhan-vien-da-chon', args=[self.ma_ky_cong])
+        response = self.post(self.hr, url, {'nhan_vien': [self.people[0].pk]})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertQuerySetEqual(
+            ChotBangCong.objects.values_list('tong_hop__nhan_vien_id', flat=True),
+            [self.people[0].pk],
+        )
+        self.assertTrue(Thuong.objects.filter(
+            nguoi_dung=self.people[0].nguoi_dung, thuong_chuyen_can=200000,
+        ).exists())
+        self.assertFalse(Thuong.objects.filter(nguoi_dung=self.people[1].nguoi_dung).exists())
         self.assertFalse(DeXuatThuong.objects.exists())
+
+    def test_attendance_closing_requires_a_selection(self):
+        url = reverse('bang_cong:chot-nhan-vien-da-chon', args=[self.ma_ky_cong])
+        response = self.post(self.hr, url, {})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ChotBangCong.objects.exists())
+
+    def test_attendance_lock_requires_the_employees_own_closing_record(self):
+        NhanVien.objects.filter(pk=self.people[1].pk).update(dang_hoat_dong=False)
+        self.approve_attendance()
+
+        self.assertTrue(ky_cong_da_khoa(2026, 10, self.people[0].pk))
+        self.assertFalse(ky_cong_da_khoa(2026, 10, self.people[1].pk))
+
+    def test_incomplete_attendance_blocks_closing_and_rolls_back_summary(self):
+        nhan_vien = self.people[0]
+        ChamCong.objects.filter(nhan_vien=nhan_vien, ngay=date(2026, 10, 1)).update(
+            trang_thai='incomplete', gio_ra=None,
+        )
+
+        with self.assertRaises(ValidationError):
+            duyet_cong_nhan_vien(self.hr, nhan_vien, self.ma_ky_cong)
+
+        self.assertFalse(TongHopCong.objects.filter(nhan_vien=nhan_vien).exists())
+        self.assertFalse(ChotBangCong.objects.exists())
+
+    def test_attendance_closing_rolls_back_if_a_selected_employee_has_no_records(self):
+        ChamCong.objects.filter(nhan_vien=self.people[1]).delete()
+        url = reverse('bang_cong:chot-nhan-vien-da-chon', args=[self.ma_ky_cong])
+        response = self.post(self.hr, url, {'nhan_vien': [person.pk for person in self.people]})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ChotBangCong.objects.exists())
+        self.assertFalse(Thuong.objects.exists())
 
     def test_unapproved_or_incomplete_attendance_cannot_be_submitted(self):
         bang=dong_bo_thuong_tu_dong(self.people[0],10,2026)

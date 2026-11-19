@@ -2,12 +2,15 @@ from datetime import date, time
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from bang_cong.models import ChamCong, TongHopCong
 from bang_cong.services.cham_cong_service import tinh_tang_ca_tu_dong
 from bang_luong.models import Luong
+from nhan_vien.access import NHAN_SU
 from nhan_vien.models import NhanVien, PhongBan
 from thuong.models import Thuong
 
@@ -46,3 +49,31 @@ class CurrentAttendancePayrollIntegrationTests(TestCase):
             luong_theo_cong=10000000, luong_thuc_linh=10000000,
         )
         self.assertEqual(payroll.so_gio_tang_ca, Decimal('7.5'))
+
+    def test_attendance_list_filters_with_get_parameters(self):
+        self.approver.groups.add(Group.objects.get_or_create(name=NHAN_SU)[0])
+        self.client.force_login(self.approver)
+        ChamCong.objects.create(
+            nhan_vien=self.employee, ngay=date(2026, 10, 5),
+            gio_vao=time(8), gio_ra=time(17), trang_thai='present',
+        )
+        response = self.client.get(reverse('bang_cong:danh-sach'), {
+            'thang': 10, 'nam': 2026, 'phong_ban': self.employee.phong_ban_id,
+            'tu_khoa': 'AT01', 'trang_thai': 'pending',
+            'ngay_cham_cong': '2026-10-05', 'trang_thai_cham_cong': 'ontime',
+        })
+
+        self.assertContains(response, 'value="2026-10-05"')
+        self.assertEqual([row['employee'] for row in response.context['rows']], [self.employee])
+
+    def test_attendance_list_rejects_invalid_filter_parameters(self):
+        self.approver.groups.add(Group.objects.get_or_create(name=NHAN_SU)[0])
+        self.client.force_login(self.approver)
+        response = self.client.get(reverse('bang_cong:danh-sach'), {
+            'thang': 10, 'nam': 2026, 'phong_ban': 'khong-hop-le',
+            'ngay_cham_cong': '2026-11-05',
+        })
+
+        self.assertTrue(response.context['form'].has_error('phong_ban', 'invalid_choice'))
+        self.assertContains(response, 'Ngày chấm công phải thuộc tháng/năm đã chọn.')
+        self.assertEqual(response.context['rows'], [])
