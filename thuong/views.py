@@ -39,9 +39,11 @@ def danh_sach_thuong(request):
     if ky.get('thang') and ky.get('nam') and co_vai_tro(request.user, NHAN_SU):
         for nhan_vien in form.pham_vi_nhan_vien(request.user):
             quy_trinh.dong_bo_thuong_tu_dong(nhan_vien, ky['thang'], ky['nam'])
-    cac_bang = loc_bang_thuong(bang_thuong_trong_pham_vi(request.user), ky) if form.is_valid() else Thuong.objects.none()
+    bang_trong_ky = bang_thuong_trong_pham_vi(request.user)
     if co_vai_tro(request.user, GIAM_DOC):
-        cac_bang = cac_bang.exclude(trang_thai='draft')
+        bang_trong_ky = bang_trong_ky.exclude(trang_thai='draft')
+    bang_trong_ky = loc_bang_thuong(bang_trong_ky, {cot: ky.get(cot) for cot in ('thang', 'nam')})
+    cac_bang = loc_bang_thuong(bang_trong_ky, ky) if form.is_valid() else Thuong.objects.none()
     tong = cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or Decimal(0)
     trang = Paginator(cac_bang, 5).get_page(request.GET.get('page'))
     tham_so = request.GET.copy()
@@ -49,6 +51,12 @@ def danh_sach_thuong(request):
     co_ky = bool(ky.get('thang') and ky.get('nam'))
     return render(request, 'thuong/list_redesign.html', {
         'form': form, 'rows': gan_ma_hien_thi(trang.object_list), 'page_obj': trang, 'page_query': tham_so.urlencode(),
+        'khong_co_du_lieu_ky': (
+            form.is_valid()
+            and not any(ky.get(cot) for cot in ('tu_khoa', 'nhan_vien', 'phong_ban'))
+            and not trang.paginator.count
+            and not bang_trong_ky.exists()
+        ),
         'tong_tien': tong, 'can_propose': co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG),
         'can_send_period': co_ky and co_vai_tro(request.user, NHAN_SU) and not co_vai_tro(request.user, GIAM_DOC)
                            and bang_thuong_trong_pham_vi(request.user).filter(thang=ky['thang'], nam=ky['nam'], trang_thai__in=['draft', 'rejected']).exists(),
