@@ -18,8 +18,8 @@ def chon_ky_thuong(cac_truong, nam_hien_tai, nhan_thang='Tất cả', nhan_nam='
     ])
 
 
-class VNDField(forms.DecimalField):
-    """Accept plain or thousands-grouped whole-VND values."""
+class TruongTienVND(forms.DecimalField):
+    """Nhận số tiền nguyên, có thể có dấu phân cách hàng nghìn."""
 
     def to_python(self, value):
         if value in self.empty_values:
@@ -35,7 +35,7 @@ class VNDField(forms.DecimalField):
         return super().to_python(normalized_value)
 
 
-class BonusFilter(forms.Form):
+class FormLocThuong(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12, required=False)
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100, required=False)
     nhan_vien = forms.ModelChoiceField(label='Nhân viên', queryset=NhanVien.objects.none(), required=False)
@@ -78,7 +78,7 @@ class BonusFilter(forms.Form):
         return pham_vi
 
 
-class PersonalBonusFilter(forms.Form):
+class FormLocThuongCaNhan(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12, required=False)
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100, required=False)
     trang_thai = forms.ChoiceField(label='Trạng thái', required=False,
@@ -96,13 +96,13 @@ class PersonalBonusFilter(forms.Form):
         chon_ky_thuong(self.fields, today.year)
 
 
-class BonusProposalForm(forms.Form):
+class FormDeXuatThuong(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12)
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100)
     nhan_vien = forms.ModelChoiceField(label='Nhân viên', queryset=NhanVien.objects.none())
     ten = forms.CharField(label='Tên khoản thưởng khác', max_length=100, required=False)
     ly_do = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea, required=False)
-    so_tien = VNDField(
+    so_tien = TruongTienVND(
         label='Số tiền (VNĐ)',
         min_value=0,
         max_digits=12,

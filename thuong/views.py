@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 
 from nhan_vien.access import GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, nhan_vien_duoc_hien_thi
 from nhan_vien.models import NhanVien
-from .forms import BonusFilter, BonusProposalForm, PersonalBonusFilter
+from .forms import FormLocThuong, FormDeXuatThuong, FormLocThuongCaNhan
 from .models import Thuong
 from .services.hien_thi import (
     bang_thuong_trong_pham_vi, cac_khoan_hien_thi, gan_ma_hien_thi,
@@ -32,7 +32,7 @@ def danh_sach_thuong(request):
     du_lieu = request.GET.copy()
     if co_vai_tro(request.user, GIAM_DOC) and 'trang_thai' not in du_lieu:
         du_lieu['trang_thai'] = 'pending'
-    form = BonusFilter(request.user, du_lieu, default_current_period=True)
+    form = FormLocThuong(request.user, du_lieu, default_current_period=True)
     if not form.is_valid() and {'nhan_vien', 'phong_ban'} & set(form.errors):
         return trang_tu_choi_truy_cap(request)
     ky = form.cleaned_data if form.is_valid() else {}
@@ -71,7 +71,7 @@ def danh_sach_thuong_ca_nhan(request):
     nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user).first()
     if nhan_vien is None and not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         return trang_tu_choi_truy_cap(request)
-    form = PersonalBonusFilter(request.GET)
+    form = FormLocThuongCaNhan(request.GET)
     tat_ca = Thuong.objects.select_related('nguoi_dung__employee__phong_ban').filter(nguoi_dung=request.user)
     ky = form.cleaned_data if form.is_valid() else {}
     cac_bang = loc_bang_thuong(tat_ca, ky).order_by('-nam', '-thang')
@@ -114,7 +114,7 @@ def chi_tiet_thuong(request, nhan_vien_id, nam, thang):
 def de_xuat_thuong_khac(request):
     if not co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG):
         return trang_tu_choi_truy_cap(request)
-    form = BonusProposalForm(request.user, request.POST or None)
+    form = FormDeXuatThuong(request.user, request.POST or None)
     if request.method == 'POST' and form.is_valid():
         du_lieu = form.cleaned_data
         try:
@@ -135,7 +135,7 @@ def sua_de_xuat_thuong(request, bonus_id):
         return trang_tu_choi_truy_cap(request)
     de_xuat = get_object_or_404(lich_su_de_xuat_trong_pham_vi(request.user), pk=bonus_id)
     bang = de_xuat.bang_thuong
-    form = BonusProposalForm(request.user, request.POST or None, initial={
+    form = FormDeXuatThuong(request.user, request.POST or None, initial={
         'thang': bang.thang, 'nam': bang.nam, 'nhan_vien': bang.nguoi_dung.employee.pk,
         'ten': de_xuat.ten, 'so_tien': de_xuat.so_tien, 'ly_do': de_xuat.ly_do})
     for cot in ['thang', 'nam', 'nhan_vien']:
@@ -219,7 +219,7 @@ def xu_ly_bang_da_chon(request, nam, thang, gui_duyet=False):
 def xuat_bang_thuong(request):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
         return trang_tu_choi_truy_cap(request)
-    form = BonusFilter(request.user, request.POST)
+    form = FormLocThuong(request.user, request.POST)
     if not form.is_valid() or not form.cleaned_data.get('thang') or not form.cleaned_data.get('nam'):
         messages.error(request, 'Vui lòng chọn tháng, năm và bộ lọc hợp lệ trước khi xuất bảng thưởng.')
         return redirect('thuong:list')
