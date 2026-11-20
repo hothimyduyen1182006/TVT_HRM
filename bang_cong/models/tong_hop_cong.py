@@ -37,13 +37,13 @@ class TongHopCong(models.Model):  # Khai báo model ánh xạ tới bảng tổn
     # Số lần đi trễ và tổng số phút đi trễ của tháng.
     so_lan_tre = models.PositiveIntegerField(default=0)  # Số lần đi trễ; mặc định bằng 0.
     so_phut_tre = models.PositiveIntegerField(default=0)  # Tổng phút đi trễ; mặc định bằng 0.
-    # Trạng thái tổng hợp, mặc định chờ duyệt; không phải trạng thái công ngày.
-    trang_thai = models.CharField(  # Trường văn bản lưu trạng thái duyệt của bản tổng hợp.
+    # Trạng thái tổng hợp, mặc định chờ chốt; không phải trạng thái công ngày.
+    trang_thai = models.CharField(  # Trường văn bản lưu trạng thái chốt của bản tổng hợp.
         max_length=12,  # Giới hạn độ dài chuỗi trạng thái tối đa 12 ký tự.
-        default='pending',  # Trạng thái mặc định là đang chờ duyệt.
+        default='pending',  # Trạng thái mặc định là đang chờ chốt.
         choices=[
-            ('pending', 'Chờ duyệt'),  # Mã lưu pending, nhãn hiển thị Chờ duyệt.
-            ('approved', 'Đã duyệt'),  # Mã lưu approved, nhãn hiển thị Đã duyệt.
+            ('pending', 'Chờ chốt'),  # Mã lưu pending, nhãn hiển thị Chờ chốt.
+            ('approved', 'Đã chốt'),  # Mã lưu approved, nhãn hiển thị Đã chốt.
             ('empty', 'Chưa có dữ liệu'),  # Mã lưu empty, nhãn hiển thị Chưa có dữ liệu.
         ],
     )

@@ -1,4 +1,4 @@
-"""Tính công ngày và tăng ca; không tự lưu hoặc phê duyệt dữ liệu."""
+"""Tính công ngày và tăng ca; không tự lưu hoặc chốt dữ liệu."""
 from datetime import datetime, time
 from decimal import Decimal, ROUND_DOWN
 
@@ -22,7 +22,7 @@ CONG_CHUAN_THANG = Decimal('24.0000')
 
 
 def cham_cong_da_khoa(ban_ghi):
-    """Kiểm tra bản ghi công có thuộc kỳ đã được duyệt hay không."""
+    """Kiểm tra bản ghi công có thuộc kỳ đã chốt hay không."""
     return ky_cong_da_khoa(
         ban_ghi.ngay.year, ban_ghi.ngay.month,
         ban_ghi.nhan_vien_id,
@@ -202,7 +202,7 @@ def ghi_nhan_cham_cong(nguoi_dung, thao_tac):
     if hom_nay < nhan_vien.ngay_vao_lam:
         raise ValidationError('Chưa đến ngày bắt đầu làm việc của nhân viên.')
     if ky_cong_da_khoa(nam, thang, nhan_vien.pk):
-        raise ValidationError('Bảng công đã duyệt, không thể chấm công thêm.')
+        raise ValidationError('Bảng công đã chốt, không thể chấm công thêm.')
     ban_ghi = (
         ChamCong.objects.select_for_update()
         .filter(nhan_vien=nhan_vien, ngay=hom_nay)

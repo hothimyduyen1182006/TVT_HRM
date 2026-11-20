@@ -1,4 +1,4 @@
-"""Chốt bảng công và xử lý quy trình duyệt công."""
+"""Xử lý chốt bảng công theo nhân viên."""
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -19,13 +19,13 @@ def ky_cong_da_khoa(nam, thang, ma_nhan_vien):
 
 @transaction.atomic
 def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
-    """Kiểm tra và duyệt bảng công của một nhân viên trong kỳ."""
+    """Kiểm tra và chốt bảng công của một nhân viên trong kỳ."""
     yeu_cau_vai_tro(nguoi_thuc_hien, NHAN_SU)
     ma_ky_cong = int(ma_ky_cong)
     nam, thang = ma_ky_cong // 100, ma_ky_cong % 100
     nhan_vien = NhanVien.objects.select_for_update().get(pk=nhan_vien.pk)
     if ky_cong_da_khoa(nam, thang, nhan_vien.pk):
-        raise ValidationError('Bảng công nhân viên này đã được duyệt.')
+        raise ValidationError('Bảng công nhân viên này đã được chốt.')
 
     from .tong_hop_service import cap_nhat_tong_hop
 

@@ -164,15 +164,16 @@
     background:#e6eff9;
     color:#235b93
 }
-.at-pill.approved,.at-pill.present{
+.at-pill.approved,.at-pill.present,.at-pill[data-trang-thai="Đi đúng giờ"]{
     background:#e2f4e7;
     color:#158143
 }
-.at-pill.pending,.at-pill.leave{
+.at-pill.pending,.at-pill.leave,
+.at-pill[data-trang-thai="Nghỉ có lương"],.at-pill[data-trang-thai="Nghỉ không lương"]{
     background:#e4edfa;
     color:#245da2
 }
-.at-pill.incomplete{
+.at-pill.incomplete,.at-pill[data-trang-thai="Thiếu dữ liệu"]{
     background:#fff0dd;
     color:#ac640e
 }
@@ -180,7 +181,8 @@
     background:#edf0f5;
     color:#8591a3
 }
-.at-pill.late,.at-pill.absent{
+.at-pill.late,.at-pill.absent,
+.at-pill[data-trang-thai="Đi làm trễ"],.at-pill[data-trang-thai="Nghỉ không phép"]{
     background:#fce4e1;
     color:#d63528
 }

@@ -50,11 +50,11 @@ class ManagementPersonalRecordsTests(TestCase):
                     self.assertContains(response, 'của tôi')
                 response = self.client.get('/bang_cong/ca-nhan/', params)
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.context['employee'], employee)
-                self.assertTrue(response.context['personal'])
+                self.assertEqual(response.context['nhan_vien'], employee)
+                self.assertTrue(response.context['ca_nhan'])
                 self.assertFalse(response.context['can_approve'])
                 self.assertFalse(response.context['can_edit'])
-                self.assertEqual(response.context['summary']['paid'], Decimal(1))
+                self.assertEqual(response.context['tong_hop']['paid'], Decimal(1))
                 response = self.client.get('/bang_luong/ca-nhan/', params)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn(employee, [row.nhan_vien for row in response.context['bang_luong']])
@@ -66,7 +66,7 @@ class ManagementPersonalRecordsTests(TestCase):
         response = self.client.get('/bang_cong/ca-nhan/', {'thang': 1, 'nam': 2026,
             'employee': self.people[0].pk, 'department': self.team.pk})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['employee'], employee)
+        self.assertEqual(response.context['nhan_vien'], employee)
         # Quyền xem bản thân không mở rộng quyền xem nhân viên phòng khác.
         self.assertEqual(self.client.get(f'/bang_cong/nhan-vien/{self.people[0].pk}/').status_code, 404)
 

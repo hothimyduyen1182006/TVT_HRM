@@ -35,7 +35,7 @@ def tinh_thuong_chuyen_can(nhan_vien, thang, nam):
         nhan_vien=nhan_vien, thang=thang, nam=nam, chotbangcong__isnull=False,
     ).first()
     if not cong:
-        raise ValidationError(f'Bảng công của {nhan_vien} chưa được duyệt.')
+        raise ValidationError(f'Bảng công của {nhan_vien} chưa được chốt.')
     du_cong = (cong.cong_chuan > 0 and cong.cong_thuc_te >= cong.cong_chuan
                and cong.so_ngay_khong_phep == 0 and cong.cong_nghi_co_luong == 0)
     so_tien = Decimal(200000 if du_cong else 0)

@@ -20,8 +20,8 @@
  {% if form.errors %}<div class="at-errors w-100" role="alert">{{ form.errors }}</div>{% endif %}
 </form>
 {% if form.ngay_cham_cong.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.ngay_cham_cong.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'bang_cong:danh-sach' %}{% if month_query %}?{{ month_query }}{% endif %}">Bỏ lọc theo ngày</a></div>{% endif %}
-<div class="at-table-wrap"><table class="at-table"><thead><tr>{% if can_chot %}<th scope="col"><input type="checkbox" id="chot-chon-tat-ca" aria-label="Chọn tất cả nhân viên đủ điều kiện trên trang này" disabled></th>{% endif %}<th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
-{% for row in page_obj %}<tr>
+<div class="at-table-wrap"><table class="at-table"><thead><tr>{% if can_chot %}<th scope="col"><input type="checkbox" id="chot-chon-tat-ca" aria-label="Chọn tất cả nhân viên đủ điều kiện trong danh sách" disabled></th>{% endif %}<th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
+{% for row in rows %}<tr>
  {% if can_chot %}<td>{% if row.state == 'pending' %}<input type="checkbox" form="chot-nhan-vien" name="nhan_vien" value="{{ row.employee.pk }}" aria-label="Chọn {{ row.employee.ho_va_ten }} để chốt">{% endif %}</td>{% endif %}
  <td class="name">{{ row.employee.ho_va_ten }}<span class="code">{{ row.employee.ma_ho_so }}</span></td>
  <td><span class="at-pill department">{{ row.employee.phong_ban.ten_phong_ban }}</span></td>
@@ -62,9 +62,5 @@
     updateSelectAll();
   })();
 </script>
-{% else %}<div class="at-footer"><span class="at-muted">{{ page_obj.paginator.count }} nhân viên</span></div>{% endif %}
-{% if page_obj.has_other_pages %}<nav class="at-pagination" aria-label="Phân trang">
-{% if page_obj.has_previous %}<a href="?{{ page_query }}&page=1" aria-label="Trang đầu">«</a><a href="?{{ page_query }}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước">‹</a>{% endif %}
-{% for number in page_obj.paginator.page_range %}{% if number >= page_obj.number|add:'-2' and number <= page_obj.number|add:'2' %}{% if number == page_obj.number %}<span class="current" aria-current="page">{{ number }}</span>{% else %}<a href="?{{ page_query }}&page={{ number }}">{{ number }}</a>{% endif %}{% endif %}{% endfor %}
-{% if page_obj.has_next %}<a href="?{{ page_query }}&page={{ page_obj.next_page_number }}" aria-label="Trang sau">›</a><a href="?{{ page_query }}&page={{ page_obj.paginator.num_pages }}" aria-label="Trang cuối">»</a>{% endif %}</nav>{% endif %}
+{% else %}<div class="at-footer"><span class="at-muted">{{ rows|length }} nhân viên</span></div>{% endif %}
 </div>{% endblock %}

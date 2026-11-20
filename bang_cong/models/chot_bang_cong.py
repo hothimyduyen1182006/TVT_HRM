@@ -2,7 +2,7 @@ from django.conf import settings  # Lấy cấu hình tài khoản người dùn
 from django.db import models  # Dùng các kiểu model và trường dữ liệu của Django.
 
 
-class ChotBangCong(models.Model):  # Khai báo bảng lưu thông tin duyệt/chốt công.
+class ChotBangCong(models.Model):  # Khai báo bảng lưu thông tin chốt công.
     """Một bản chốt cho mỗi nhân viên/tháng, liên kết đúng bản tổng hợp."""
     # Khóa chính tự tăng của bản chốt.
     id = models.BigAutoField(  # Tạo mã số tự tăng riêng cho mỗi lần chốt.
@@ -13,7 +13,7 @@ class ChotBangCong(models.Model):  # Khai báo bảng lưu thông tin duyệt/ch
         'TongHopCong',  # Model tổng hợp công được liên kết trong cùng ứng dụng.
         on_delete=models.PROTECT,  # Không cho xóa bản tổng hợp khi bản chốt này còn tham chiếu.
     )
-    # Tài khoản thực hiện duyệt; cho phép trống để hỗ trợ dữ liệu lịch sử.
+    # Tài khoản thực hiện chốt; cho phép trống để hỗ trợ dữ liệu lịch sử.
     nguoi_duyet = models.ForeignKey(  # Lưu tài khoản đã thực hiện chốt công.
         settings.AUTH_USER_MODEL,  # Trỏ đến model tài khoản được cấu hình cho dự án.
         on_delete=models.PROTECT,  # Không cho xóa tài khoản nếu tài khoản còn được ghi là người chốt.
