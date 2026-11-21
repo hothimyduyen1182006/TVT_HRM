@@ -49,7 +49,7 @@ class CurrentAttendancePayrollIntegrationTests(TestCase):
             tong_hop=summary, tong_thuong=bonus, luong_co_ban=10000000,
             luong_theo_cong=10000000, luong_thuc_linh=10000000,
         )
-        self.assertEqual(payroll.so_gio_tang_ca, Decimal('7.5'))
+        self.assertEqual(payroll.tong_hop.tong_gio_tang_ca, Decimal('7.5'))
 
     def test_attendance_list_filters_with_get_parameters(self):
         self.approver.groups.add(Group.objects.get_or_create(name=NHAN_SU)[0])

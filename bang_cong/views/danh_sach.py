@@ -40,21 +40,17 @@ def chot_nhan_vien_da_chon(request, period_id):
         )
         danh_sach = truong_nhan_vien.clean(request.POST.getlist('nhan_vien'))
         with transaction.atomic():
-            ban_chot = [
-                (nhan_vien, duyet_cong_nhan_vien(request.user, nhan_vien, period_id))
-                for nhan_vien in danh_sach.order_by('pk')
-            ]
+            ds_nhan_vien = list(danh_sach.order_by('pk'))
+            for nhan_vien in ds_nhan_vien:
+                duyet_cong_nhan_vien(request.user, nhan_vien, period_id)
     except ValidationError as error:
         messages.error(request, '; '.join(error.messages))
     else:
         messages.success(
             request,
             f"Đã chốt bảng công tháng {thang:02}/{nam} "
-            f"cho {len(ban_chot)} nhân viên.",
+            f"cho {len(ds_nhan_vien)} nhân viên.",
         )
-        for nhan_vien, ket_qua in ban_chot:
-            if ket_qua.payroll_error:
-                messages.warning(request, f'{nhan_vien}: {ket_qua.payroll_error}')
     return redirect(reverse('bang_cong:danh-sach') + '?' + urlencode({
         'thang': thang, 'nam': nam,
     }))

@@ -57,7 +57,7 @@ class ManagementPersonalRecordsTests(TestCase):
                 self.assertEqual(response.context['tong_hop']['paid'], Decimal(1))
                 response = self.client.get('/bang_luong/ca-nhan/', params)
                 self.assertEqual(response.status_code, 200)
-                self.assertIn(employee, [row.nhan_vien for row in response.context['bang_luong']])
+                self.assertIn(employee, [row.tong_hop.nhan_vien for row in response.context['bang_luong']])
                 self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
 
     def test_personal_attendance_ignores_other_employee_query(self):
@@ -83,7 +83,7 @@ class ManagementPersonalRecordsTests(TestCase):
             'employee': self.people[0].pk, 'department': self.team.pk, 'q': 'Người 0'}, follow=True)
         self.assertEqual(response.redirect_chain, [('/bang_luong/ca-nhan/', 302)])
         self.assertContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
-        self.assertIn(employee, [row.nhan_vien for row in response.context['bang_luong']])
+        self.assertIn(employee, [row.tong_hop.nhan_vien for row in response.context['bang_luong']])
         self.assertTrue(response.context['personal'])
         self.assertNotContains(response, 'data-open-dialog="pr-calculate"')
 
@@ -92,7 +92,7 @@ class ManagementPersonalRecordsTests(TestCase):
         response = self.client.get('/bang_luong/ca-nhan/', {'month': 1, 'year': 2026})
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
-        self.assertIn(self.people[3], [row.nhan_vien for row in response.context['bang_luong']])
+        self.assertIn(self.people[3], [row.tong_hop.nhan_vien for row in response.context['bang_luong']])
 
     def test_payroll_navigation_points_to_allowed_page_for_each_role(self):
         for employee in self.people:

@@ -39,11 +39,7 @@ def duyet_cong_nhan_vien(nguoi_thuc_hien, nhan_vien, ma_ky_cong):
     tong_hop.trang_thai = 'approved'
     tong_hop.save(update_fields=['trang_thai'])
 
-    from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
     from thuong.services.quy_trinh import dong_bo_thuong_tu_dong
 
     dong_bo_thuong_tu_dong(nhan_vien, thang, nam)
-    ban_chot.payroll_error = cap_nhat_luong_nhan_vien(
-        nguoi_thuc_hien, nhan_vien.pk, nam, thang,
-    )
     return ban_chot

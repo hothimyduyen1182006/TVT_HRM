@@ -47,12 +47,10 @@ def du_lieu_phieu_luong(phieu):
 def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope=None):
     if not co_vai_tro(actor, NHAN_SU, GIAM_DOC):
         raise PermissionDenied('Không có quyền xuất bảng lương.')
-    if fmt not in ('csv', 'json', 'txt'):
-        raise ValidationError('Định dạng tệp không được hỗ trợ.')
     phieu_luong = list(queryset.filter(
         tong_hop__thang=month, tong_hop__nam=year,
         tong_thuong__trang_thai='approved',
-        trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET],
+        trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet'],
         tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(actor),
     ).select_related('tong_hop__nhan_vien__phong_ban').order_by(
         'tong_hop__nhan_vien__ma_ho_so',

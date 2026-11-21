@@ -61,12 +61,6 @@ def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
     bang.nguoi_duyet, bang.ngay_duyet = nguoi_dung, timezone.now()
     bang.ly_do_tu_choi = ly_do.strip() if tu_choi else ''
     luu_bang_thuong(bang)
-    if not tu_choi:
-        from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
-        loi_luong = cap_nhat_luong_nhan_vien(
-            nguoi_dung, bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
-        if loi_luong:
-            raise ValidationError('Không thể duyệt thưởng vì chưa cập nhật được lương: ' + loi_luong)
 
 
 def cap_nhat_thuong_khac(bang):

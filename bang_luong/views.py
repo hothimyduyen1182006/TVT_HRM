@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -25,6 +26,13 @@ def _bang_luong_trong_pham_vi(user):
     return Luong.objects.select_related(
         'tong_hop__nhan_vien__phong_ban', 'tong_thuong',
     ).filter(tong_hop__nhan_vien__in=nhan_vien, tong_thuong__trang_thai='approved')
+
+
+def _them_cac_khoan_tong(queryset):
+    return queryset.annotate(
+        tong_thu_nhap=F('luong_theo_cong') + F('luong_tang_ca') + F('phu_cap') + F('tong_tien_thuong'),
+        tong_khau_tru=F('khau_tru_bhxh') + F('thue_tncn') + F('khau_tru_khac'),
+    )
 
 
 def _loc_bang_luong(queryset, form):
@@ -71,17 +79,17 @@ def danh_sach_bang_luong(request):
     la_nhan_su = co_vai_tro(request.user, NHAN_SU)
     la_giam_doc = co_vai_tro(request.user, GIAM_DOC)
     co_phieu_khoa = phieu_trong_ky.filter(
-        trang_thai__in=[Luong.CHO_GIAM_DOC_DUYET, Luong.DA_DUYET],
+        trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet'],
     ).exists()
     return render(request, 'bang_luong/list.html', {
         'form': form,
         'bang_luong': rows,
         'co_quyen_tinh': la_nhan_su and not co_phieu_khoa,
         'co_quyen_gui': la_nhan_su and co_phieu and not phieu_trong_ky.exclude(
-            trang_thai=Luong.CHO_DUYET,
+            trang_thai='Cho_duyet',
         ).exists(),
         'co_quyen_ky': la_giam_doc and co_phieu and not phieu_trong_ky.exclude(
-            trang_thai=Luong.CHO_GIAM_DOC_DUYET,
+            trang_thai='Cho_giam_doc_duyet',
         ).exists(),
         'co_quyen_xuat': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
         'co_quyen_xem_tat_ca': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
@@ -97,7 +105,7 @@ def luong_ca_nhan(request):
         form = BoLocPhieuLuong({'thang': hom_nay.month, 'nam': hom_nay.year})
     rows = Luong.objects.none()
     if hasattr(request.user, 'employee'):
-        rows = Luong.objects.select_related('tong_hop', 'tong_thuong').filter(
+        rows = Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong').filter(
             tong_hop__nhan_vien=request.user.employee,
             tong_thuong__trang_thai='approved',
         ).order_by('-tong_hop__nam', '-tong_hop__thang')
@@ -109,7 +117,7 @@ def luong_ca_nhan(request):
         else:
             rows = rows.none()
     return render(request, 'bang_luong/list.html', {
-        'form': form, 'bang_luong': rows, 'ca_nhan': True,
+        'form': form, 'bang_luong': _them_cac_khoan_tong(rows), 'ca_nhan': True,
     })
 
 
@@ -121,23 +129,19 @@ def timezone_localdate():
 @login_required
 def chi_tiet_luong(request, pk):
     phieu = get_object_or_404(
-        Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong'),
+        _them_cac_khoan_tong(Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong')),
         pk=pk, tong_thuong__trang_thai='approved',
     )
     if not nhan_vien_duoc_hien_thi(request.user).filter(
         pk=phieu.tong_hop.nhan_vien_id,
     ).exists():
         raise PermissionDenied('Không có quyền truy cập bảng lương này.')
-    return render(request, 'bang_luong/detail.html', {
-        'phieu': phieu, 'tong_thu_nhap': phieu.tong_thu_nhap,
-    })
+    return render(request, 'bang_luong/detail.html', {'phieu': phieu})
 
 
 @login_required
 @require_POST
 def tinh_luong(request):
-    if not co_vai_tro(request.user, NHAN_SU):
-        raise PermissionDenied('Chỉ Quản lý nhân sự được tính lương.')
     form = BoLocPhieuLuong(request.POST)
     if not form.is_valid():
         messages.error(request, 'Vui lòng chọn tháng và năm hợp lệ để tính lương.')

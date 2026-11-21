@@ -3,6 +3,8 @@ from django.utils import timezone
 
 from nhan_vien.models import PhongBan
 
+from .models import Luong
+
 
 class BoLocBangLuong(forms.Form):
     thang = forms.IntegerField(min_value=1, max_value=12, label='Tháng')
@@ -13,10 +15,7 @@ class BoLocBangLuong(forms.Form):
     )
     trang_thai = forms.ChoiceField(required=False, label='Trạng thái', choices=[
         ('', 'Tất cả'),
-        ('Cho_duyet', 'Chờ duyệt'),
-        ('Cho_giam_doc_duyet', 'Chờ Giám đốc ký'),
-        ('Da_duyet', 'Đã duyệt'),
-        ('Da_chi_tra', 'Đã chi trả'),
+        *Luong._meta.get_field('trang_thai').choices,
     ])
 
     def __init__(self, *args, **kwargs):

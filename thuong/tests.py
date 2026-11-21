@@ -12,7 +12,6 @@ from django.urls import reverse
 from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
 from bang_cong.services.chot_bang_cong_service import duyet_cong_nhan_vien, ky_cong_da_khoa
 from bang_luong.models import Luong
-from bang_luong.services.tinh_luong_service import cap_nhat_luong_nhan_vien
 from nhan_vien.access import NHAN_SU, GIAM_DOC, TRUONG_PHONG
 from nhan_vien.models import PhongBan, NhanVien
 from nghi_phep.models import DonNghiPhep, NgayNghi
@@ -33,7 +32,7 @@ class BonusWorkflowTests(TestCase):
             user = get_user_model().objects.create_user(f'employee{i}')
             cls.people.append(NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'NV{i}', ho_va_ten=f'Nhân viên {i}',
                 phong_ban=phong, ngay_vao_lam=date(2020,1,1), luong_co_ban=10000000,
-                thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'0', 'ty_le_bao_hiem':{'BHXH':'0', 'BHYT':'0', 'BHTN':'0'},
+                thiet_lap_luong={'da_kiem_tra':True, 'luong_dong_bao_hiem':'8000000',
                     'can_cu_bao_hiem':'Căn cứ kiểm thử', 'doi_tuong_tinh_thue':'resident_2026', 'can_cu_thue':'Căn cứ kiểm thử'}))
         cls.ma_ky_cong = 202610
         for so_ngay in range(1, 25):
@@ -193,7 +192,7 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(bang.tong_thuong,3200000)
         self.assertFalse(Luong.objects.exists())
 
-    def test_submission_and_selected_approval_flow_updates_payroll_once(self):
+    def test_submission_and_selected_approval_does_not_create_payroll(self):
         bang=self.approve_attendance()
         other=self.approve_attendance(1)
         self.proposal(bang)
@@ -207,8 +206,6 @@ class BonusWorkflowTests(TestCase):
         self.assertFalse(Luong.objects.filter(tong_hop__nhan_vien=self.people[1]).exists())
         self.assertEqual(bang.nguoi_duyet,self.director)
         self.assertEqual(bang.tong_thuong,3950000)
-        self.assertFalse(Luong.objects.exists())
-        self.assertEqual(cap_nhat_luong_nhan_vien(self.hr,self.people[0].pk,2026,10), '')
         self.assertFalse(Luong.objects.exists())
         self.assertTrue(LogEntry.objects.filter(user=self.director,object_id=bang.pk).exists())
 
@@ -293,7 +290,7 @@ class BonusWorkflowTests(TestCase):
         gui_bang_luong_cho_giam_doc(self.hr, 2026, 10)
         duyet_toan_bo_bang_luong(self.director, 2026, 10)
 
-        self.assertEqual(Luong.objects.filter(trang_thai=Luong.DA_DUYET).count(),2)
+        self.assertEqual(Luong.objects.filter(trang_thai='Da_duyet').count(),2)
         self.client.force_login(self.hr)
         self.assertEqual(self.client.get(reverse('bang_luong:danh_sach'),{'month':10,'year':2026}).status_code,200)
         self.client.force_login(self.people[0].nguoi_dung)
