@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -7,20 +5,11 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 
-def tao_ma_tong_thuong():
-    return 'T' + uuid4().hex[:24]
-
-
-def tao_ma_de_xuat():
-    return 'D' + uuid4().hex[:24]
-
-
 class Thuong(models.Model):
     STATUSES = [('draft', 'Bản nháp'), ('pending', 'Chờ duyệt'),
                 ('approved', 'Đã duyệt'), ('rejected', 'Từ chối')]
 
-    ma_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_tong_thuong,
-                                 editable=False)
+    ma_thuong = models.CharField(primary_key=True, max_length=25, editable=False)
     nguoi_dung = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
                                    related_name='bang_thuong', db_column='nguoi_dung')
     thang = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
@@ -36,6 +25,12 @@ class Thuong(models.Model):
                                     on_delete=models.PROTECT, related_name='bang_thuong_da_duyet', db_column='nguoi_duyet')
     ngay_duyet = models.DateTimeField(null=True, blank=True)
     ly_do_tu_choi = models.TextField(null=True, blank=True)
+
+    def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
+        if not self.ma_thuong:
+            self.ma_thuong = f'MT{self.nam - 2000:02d}{self.thang:02d}-{self.nguoi_dung_id:03d}'
+            force_insert = True
+        super().save(force_insert, force_update, using, update_fields)
 
     class Meta:
         db_table = 'Thuong'
@@ -55,8 +50,7 @@ class Thuong(models.Model):
 
 
 class DeXuatThuong(models.Model):
-    ma_de_xuat_thuong = models.CharField(primary_key=True, max_length=25, default=tao_ma_de_xuat,
-                                        editable=False)
+    ma_de_xuat_thuong = models.BigAutoField(primary_key=True)
     bang_thuong = models.ForeignKey(Thuong, on_delete=models.PROTECT, related_name='de_xuat', db_column='bang_thuong')
     ten = models.CharField('Tên thưởng khác', max_length=100)
     so_tien = models.DecimalField('Số tiền', max_digits=12, decimal_places=0, validators=[MinValueValidator(0)])

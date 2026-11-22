@@ -5,7 +5,7 @@ import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
 import django.utils.timezone
-import thuong.models
+from . import _legacy_codes
 
 
 class Migration(migrations.Migration):
@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='thuong',
             name='ma_thuong',
-            field=models.CharField(default=thuong.models.tao_ma_tong_thuong, editable=False, max_length=25, primary_key=True, serialize=False),
+            field=models.CharField(default=_legacy_codes.tao_ma_tong_thuong, editable=False, max_length=25, primary_key=True, serialize=False),
         ),
         migrations.AlterField(
             model_name='thuong',
@@ -88,7 +88,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='dexuatthuong',
             name='ma_de_xuat_thuong',
-            field=models.CharField(default=thuong.models.tao_ma_de_xuat, editable=False, max_length=25, primary_key=True, serialize=False),
+            field=models.CharField(default=_legacy_codes.tao_ma_de_xuat, editable=False, max_length=25, primary_key=True, serialize=False),
         ),
         migrations.AlterField(
             model_name='dexuatthuong',

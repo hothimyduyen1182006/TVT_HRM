@@ -14,7 +14,7 @@ from nhan_vien.models import NhanVien
 from .forms import FormLocThuong, FormDeXuatThuong, FormLocThuongCaNhan
 from .models import Thuong
 from .services.hien_thi import (
-    bang_thuong_trong_pham_vi, cac_khoan_hien_thi, gan_ma_hien_thi,
+    bang_thuong_trong_pham_vi, cac_khoan_hien_thi,
     lich_su_de_xuat, lich_su_de_xuat_trong_pham_vi, loc_bang_thuong,
 )
 from .services import quy_trinh
@@ -50,7 +50,7 @@ def danh_sach_thuong(request):
     tham_so.pop('page', None)
     co_ky = bool(ky.get('thang') and ky.get('nam'))
     return render(request, 'thuong/list_redesign.html', {
-        'form': form, 'rows': gan_ma_hien_thi(trang.object_list), 'page_obj': trang, 'page_query': tham_so.urlencode(),
+        'form': form, 'rows': trang.object_list, 'page_obj': trang, 'page_query': tham_so.urlencode(),
         'khong_co_du_lieu_ky': (
             form.is_valid()
             and not any(ky.get(cot) for cot in ('tu_khoa', 'nhan_vien', 'phong_ban'))
@@ -86,7 +86,7 @@ def danh_sach_thuong_ca_nhan(request):
         return f'{url}?thang={bang.thang}&nam={bang.nam}&trang_thai=approved' if bang else url
     nam = ky.get('nam')
     return render(request, 'thuong/personal.html', {
-        'form': form, 'rows': gan_ma_hien_thi(cac_bang), 'nhan_vien': nhan_vien,
+        'form': form, 'rows': cac_bang, 'nhan_vien': nhan_vien,
         'tong_tien': cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
         'tong_da_nhan': da_duyet.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
         'nhan_de_tong_da_nhan': f'Tổng đã nhận (Năm {nam})' if nam else 'Tổng đã nhận (Tất cả năm)',

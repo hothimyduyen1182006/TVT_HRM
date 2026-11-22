@@ -25,9 +25,8 @@ def tinh_thuong_tham_nien(nhan_vien, thang, nam):
     else:
         muc_thuong = Decimal(500000)
 
-    so_tien = so_nam_tham_nien * muc_thuong
     ly_do = f'{so_nam_tham_nien} năm thâm niên; mức thưởng tháng áp dụng {muc_thuong:,.0f} VNĐ.'
-    return 'seniority', 'Thưởng thâm niên', so_tien, ly_do
+    return 'seniority', 'Thưởng thâm niên', muc_thuong, ly_do
 
 
 def tinh_thuong_chuyen_can(nhan_vien, thang, nam):

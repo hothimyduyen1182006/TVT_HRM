@@ -6,7 +6,7 @@ from django.contrib.auth.models import Group
 from django.contrib.admin.models import LogEntry
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
@@ -17,6 +17,25 @@ from nhan_vien.models import PhongBan, NhanVien
 from nghi_phep.models import DonNghiPhep, NgayNghi
 from .models import DeXuatThuong, Thuong
 from .services.quy_trinh import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
+
+from .services.tinh_toan import tinh_thuong_tham_nien
+
+
+class SeniorityBonusTests(SimpleTestCase):
+    def test_uses_flat_rate_at_completed_year_thresholds(self):
+        cases = [
+            (date(2025, 11, 1), 0),
+            (date(2025, 10, 31), 150000),
+            (date(2023, 11, 1), 150000),
+            (date(2023, 10, 31), 200000),
+            (date(2021, 11, 1), 200000),
+            (date(2021, 10, 31), 500000),
+            (date(2020, 1, 1), 500000),
+        ]
+        for start_date, expected in cases:
+            with self.subTest(start_date=start_date):
+                employee = NhanVien(ngay_vao_lam=start_date)
+                self.assertEqual(tinh_thuong_tham_nien(employee, 10, 2026)[2], expected)
 
 
 class BonusWorkflowTests(TestCase):
@@ -64,8 +83,8 @@ class BonusWorkflowTests(TestCase):
     def test_attendance_approval_creates_summary_without_automatic_proposals(self):
         bang=self.approve_attendance()
         self.assertEqual(bang.thuong_chuyen_can,200000)
-        self.assertEqual(bang.thuong_tham_nien,3000000)
-        self.assertEqual(bang.tong_thuong,3200000)
+        self.assertEqual(bang.thuong_tham_nien,500000)
+        self.assertEqual(bang.tong_thuong,700000)
         self.assertTrue(bang.ly_do_chuyen_can)
         self.assertTrue(bang.ly_do_tham_nien)
         self.assertEqual(bang.trang_thai,'draft')
@@ -145,7 +164,7 @@ class BonusWorkflowTests(TestCase):
         proposal=self.proposal(bang)
         bang.refresh_from_db()
         self.assertEqual(bang.thuong_khac,750000)
-        self.assertEqual(bang.tong_thuong,3950000)
+        self.assertEqual(bang.tong_thuong,1450000)
         proposal.so_tien=500000
         luu_de_xuat(proposal)
         bang.refresh_from_db()
@@ -153,7 +172,7 @@ class BonusWorkflowTests(TestCase):
         xoa_de_xuat(proposal)
         bang.refresh_from_db()
         self.assertEqual(bang.thuong_khac,0)
-        self.assertEqual(bang.tong_thuong,3200000)
+        self.assertEqual(bang.tong_thuong,700000)
 
     def test_partial_workday_does_not_receive_attendance_bonus(self):
         ChamCong.objects.filter(nhan_vien=self.people[0],ngay=date(2026,10,5)).update(gio_ra=time(12))
@@ -189,7 +208,7 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(bang.trang_thai,'approved')
         self.assertEqual(Thuong.objects.get(nguoi_dung=self.people[1].nguoi_dung).trang_thai,'draft')
         self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),1)
-        self.assertEqual(bang.tong_thuong,3200000)
+        self.assertEqual(bang.tong_thuong,700000)
         self.assertFalse(Luong.objects.exists())
 
     def test_submission_and_selected_approval_does_not_create_payroll(self):
@@ -205,7 +224,7 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(other.trang_thai,'pending')
         self.assertFalse(Luong.objects.filter(tong_hop__nhan_vien=self.people[1]).exists())
         self.assertEqual(bang.nguoi_duyet,self.director)
-        self.assertEqual(bang.tong_thuong,3950000)
+        self.assertEqual(bang.tong_thuong,1450000)
         self.assertFalse(Luong.objects.exists())
         self.assertTrue(LogEntry.objects.filter(user=self.director,object_id=bang.pk).exists())
 
@@ -243,7 +262,8 @@ class BonusWorkflowTests(TestCase):
         response=self.client.get(self.list_url,{'thang':10,'nam':2026})
         ma_hien_thi = f'MT2610-{bang.nguoi_dung_id:03d}'
         self.assertContains(response,ma_hien_thi)
-        self.assertNotContains(response,bang.ma_thuong)
+        self.assertEqual(bang.pk, ma_hien_thi)
+        self.assertIsInstance(proposal.pk, int)
         self.assertTrue(Thuong.objects.filter(pk=bang.pk).exists())
         for url in [reverse('thuong:propose'),reverse('thuong:proposal-edit',args=[proposal.pk]),
                     reverse('thuong:detail',args=[self.people[0].pk,2026,10]), reverse('home')]:
@@ -286,7 +306,7 @@ class BonusWorkflowTests(TestCase):
         self.post(self.director,self.decision_url,{**selected,'action':'approve'})
         self.assertFalse(Luong.objects.exists())
         self.assertEqual(tinh_bang_luong(self.hr, 2026, 10), 2)
-        self.assertEqual(Luong.objects.filter(tong_tien_thuong=3200000).count(),2)
+        self.assertEqual(Luong.objects.filter(tong_tien_thuong=700000).count(),2)
         gui_bang_luong_cho_giam_doc(self.hr, 2026, 10)
         duyet_toan_bo_bang_luong(self.director, 2026, 10)
 

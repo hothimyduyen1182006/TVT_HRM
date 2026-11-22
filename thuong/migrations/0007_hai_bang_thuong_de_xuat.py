@@ -6,7 +6,7 @@ from django.db import migrations, models
 import django.db.models.deletion
 import django.db.models.expressions
 import django.utils.timezone
-import thuong.models
+from . import _legacy_codes
 
 
 def chuyen_du_lieu(apps, schema_editor):
@@ -88,7 +88,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Thuong',
             fields=[
-                ('ma_thuong', models.CharField(db_column='Ma_thuong', default=thuong.models.tao_ma_tong_thuong, editable=False, max_length=25, primary_key=True, serialize=False)),
+                ('ma_thuong', models.CharField(db_column='Ma_thuong', default=_legacy_codes.tao_ma_tong_thuong, editable=False, max_length=25, primary_key=True, serialize=False)),
                 ('nguoi_dung', models.ForeignKey(db_column='Ma_nguoi_dung', on_delete=django.db.models.deletion.PROTECT, related_name='bang_thuong', to=settings.AUTH_USER_MODEL)),
                 ('thang', models.PositiveSmallIntegerField(db_column='Thang', validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(12)])),
                 ('nam', models.PositiveSmallIntegerField(db_column='Nam', validators=[django.core.validators.MinValueValidator(2000), django.core.validators.MaxValueValidator(2100)])),
@@ -136,7 +136,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='DeXuatThuong',
             fields=[
-                ('ma_de_xuat_thuong', models.CharField(db_column='Ma_de_xuat_thuong', default=thuong.models.tao_ma_de_xuat, editable=False, max_length=25, primary_key=True, serialize=False)),
+                ('ma_de_xuat_thuong', models.CharField(db_column='Ma_de_xuat_thuong', default=_legacy_codes.tao_ma_de_xuat, editable=False, max_length=25, primary_key=True, serialize=False)),
                 ('bang_thuong', models.ForeignKey(db_column='Ma_thuong', on_delete=django.db.models.deletion.PROTECT, related_name='de_xuat', to='bonuses.thuong')),
                 ('ten', models.CharField(db_column='Ten_thuong', max_length=100, verbose_name='Tên thưởng khác')),
                 ('so_tien', models.DecimalField(db_column='So_tien', decimal_places=0, max_digits=12, validators=[django.core.validators.MinValueValidator(0)], verbose_name='Số tiền')),

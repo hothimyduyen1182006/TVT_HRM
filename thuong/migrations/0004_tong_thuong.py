@@ -3,7 +3,7 @@
 import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
-import thuong.models
+from . import _legacy_codes
 
 
 class Migration(migrations.Migration):
@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             name='TongThuong',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('ma_thuong', models.CharField(default=thuong.models.tao_ma_tong_thuong, editable=False, max_length=25, unique=True)),
+                ('ma_thuong', models.CharField(default=_legacy_codes.tao_ma_tong_thuong, editable=False, max_length=25, unique=True)),
                 ('nhan_vien', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='employees.employee')),
                 ('thang', models.PositiveSmallIntegerField(validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(12)])),
                 ('nam', models.PositiveSmallIntegerField(validators=[django.core.validators.MinValueValidator(2000), django.core.validators.MaxValueValidator(2100)])),

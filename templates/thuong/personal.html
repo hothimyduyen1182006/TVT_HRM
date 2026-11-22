@@ -76,7 +76,7 @@
       <tbody>
         {% for row in rows %}
         <tr>
-          <td>{{ row.ma_hien_thi }}</td><td>{{ row.thang }}</td><td>{{ row.nam }}</td>
+          <td>{{ row.ma_thuong }}</td><td>{{ row.thang }}</td><td>{{ row.nam }}</td>
           <td class="bp-money">{% if row.thuong_chuyen_can %}{{ row.thuong_chuyen_can|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
           <td class="bp-money">{% if row.thuong_tham_nien %}{{ row.thuong_tham_nien|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
           <td class="bp-money">{% if row.thuong_khac %}{{ row.thuong_khac|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
