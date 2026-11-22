@@ -13,14 +13,40 @@ from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 from django.utils import timezone
 
 from nhan_vien.models import PhongBan, NhanVien
-from nhan_vien import test_personal_records as personal_fixtures
-from bang_cong.models import TongHopCong
+from bang_cong.models import ChamCong, TongHopCong
 from bang_luong.models import Luong
 from thuong.models import Thuong
 
 
 class HomePageTests(TestCase):
-    setUp=personal_fixtures.ManagementPersonalRecordsTests.setUp
+    def setUp(self):
+        self.department = PhongBan.objects.create(ma_phong_ban='SELF', ten_phong_ban='Phòng bản thân')
+        self.team = PhongBan.objects.create(ma_phong_ban='TEAM', ten_phong_ban='Phòng quản lý')
+        self.people = []
+        for index, role in enumerate(['Nhân sự', 'Giám đốc', 'Trưởng phòng', 'Nhân viên']):
+            user = get_user_model().objects.create_user(f'personal{index}')
+            user.groups.add(Group.objects.get_or_create(name=role)[0])
+            employee = NhanVien.objects.create(nguoi_dung=user, ma_ho_so=f'SELF{index}', ho_va_ten=f'Người {index}',
+                phong_ban=self.department, ngay_vao_lam=date(2020, 1, 1), luong_co_ban=10000000)
+            self.people.append(employee)
+        self.team.truong_phong = self.people[2]
+        self.team.save()
+        for employee in self.people:
+            ChamCong.objects.create(nhan_vien=employee, ngay=date(2026, 1, 5),
+                trang_thai='present', gio_vao=time(8), gio_ra=time(17), so_gio_lam=8)
+            summary = TongHopCong.objects.create(
+                nhan_vien=employee, nam=2026, thang=1, cong_chuan=1,
+                cong_thuc_te=1, tong_cong=1,
+            )
+            bonus = Thuong.objects.create(
+                nguoi_dung=employee.nguoi_dung, nam=2026, thang=1,
+                trang_thai='approved', nguoi_duyet=self.people[1].nguoi_dung,
+                ngay_duyet=timezone.now(),
+            )
+            Luong.objects.create(
+                tong_hop=summary, tong_thuong=bonus, luong_co_ban=10000000,
+                luong_theo_cong=10000000, luong_thuc_linh=10000000,
+            )
 
     def test_home_requires_login_and_does_not_accept_post(self):
         self.assertRedirects(self.client.get('/'),'/accounts/login/?next=/',fetch_redirect_response=False)
