@@ -35,7 +35,7 @@ from .models import SO_NGAY_PHEP_NAM, DonNghiPhep, NgayNghi, tinh_ngay_phep_da_d
 VAI_TRO_DUOC_DUYET = (NHAN_SU, GIAM_DOC, TRUONG_PHONG)
 
 
-# Trả về danh sách nhân viên người dùng được xem, kèm hồ sơ của chính họ nếu có.
+# Xác định phạm vi hồ sơ nhân viên mà tài khoản hiện tại được phép xem.# Trả về danh sách nhân viên người dùng được xem, kèm hồ sơ của chính họ nếu có.
 def pham_vi_co_the_xem(nguoi_dung, nhan_vien=None):
     pham_vi = nhan_vien_duoc_hien_thi(nguoi_dung)
     if nhan_vien:
@@ -45,13 +45,13 @@ def pham_vi_co_the_xem(nguoi_dung, nhan_vien=None):
 
 @login_required
 def danh_sach_don_nghi(request):
-    # Lấy hồ sơ nhân viên của tài khoản hiện tại để tạo và xem đơn cá nhân.
+    # Tìm hồ sơ nhân viên đang hoạt động được liên kết với tài khoản đăng nhập.    # Lấy hồ sơ nhân viên của tài khoản hiện tại để tạo và xem đơn cá nhân.
     ho_so_cua_toi = NhanVien.objects.filter(
         nguoi_dung=request.user,
         dang_hoat_dong=True,
     ).first()
 
-    # Người duyệt có thêm phạm vi xem đơn của nhân viên thuộc quyền.
+    # Kiểm tra quyền duyệt và lấy danh sách nhân viên thuộc phạm vi quản lý.    # Người duyệt có thêm phạm vi xem đơn của nhân viên thuộc quyền.
     la_nguoi_duyet = co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
     nhan_vien_duoc_quan_ly = (
         nhan_vien_duoc_hien_thi(request.user)
@@ -67,7 +67,7 @@ def danh_sach_don_nghi(request):
 
     dang_quan_ly = la_nguoi_duyet and tab_hien_tai == 'manage'
 
-    # Chọn danh sách đơn theo tab đang mở.
+    # Chọn tab cá nhân hoặc tab quản lý tùy theo quyền của người dùng.    # Chọn danh sách đơn theo tab đang mở.
     cac_don = DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet')
     if dang_quan_ly:
         cac_don = cac_don.filter(nhan_vien__in=nhan_vien_duoc_quan_ly)
@@ -76,11 +76,13 @@ def danh_sach_don_nghi(request):
     else:
         cac_don = cac_don.none()
 
+    # Khởi tạo form; dữ liệu và tệp chỉ được nhận khi gửi yêu cầu POST.
     bieu_mau = DonNghiPhepForm(
         data=request.POST if request.method == 'POST' else None,
         files=request.FILES if request.method == 'POST' else None,
         nhan_vien=ho_so_cua_toi,
     )
+    # Kiểm tra dữ liệu gửi lên và lưu đơn nếu form hợp lệ.
     if request.method == 'POST':
         bieu_mau_hop_le = bieu_mau.is_valid()
         if not ho_so_cua_toi:
@@ -91,6 +93,7 @@ def danh_sach_don_nghi(request):
             messages.success(request, 'Đã gửi đơn nghỉ phép.')
             return redirect(f"{reverse('nghi_phep:list')}?view=mine")
 
+    # Xác định các phòng ban người dùng được phép chọn khi lọc đơn.
     la_quan_ly_nhan_su = co_vai_tro(request.user, NHAN_SU, GIAM_DOC)
     la_truong_phong = co_vai_tro(request.user, TRUONG_PHONG)
     if la_quan_ly_nhan_su:
@@ -99,16 +102,19 @@ def danh_sach_don_nghi(request):
         cac_phong_ban = PhongBan.objects.filter(pk=ho_so_cua_toi.phong_ban_id)
     else:
         cac_phong_ban = PhongBan.objects.none()
+    # Nhận điều kiện tìm kiếm và lọc đơn từ URL.
     bo_loc = LocDonNghiPhepForm(cac_phong_ban, request.GET)
     if not bo_loc.is_valid():
         cac_don = cac_don.none()
     else:
         dieu_kien = bo_loc.cleaned_data
+        # Tìm theo họ tên hoặc mã hồ sơ nhân viên nếu có từ khóa.
         if dieu_kien['q']:
             cac_don = cac_don.filter(
                 Q(nhan_vien__ho_va_ten__icontains=dieu_kien['q'])
                 | Q(nhan_vien__ma_ho_so__icontains=dieu_kien['q'])
             )
+        # Ghép tên bộ lọc trên giao diện với trường dữ liệu trong model.
         cac_truong_loc = {
             'department': 'nhan_vien__phong_ban_id',
             'status': 'trang_thai',
@@ -120,7 +126,7 @@ def danh_sach_don_nghi(request):
             if dieu_kien[ten_truong]:
                 cac_don = cac_don.filter(**{truong_model: dieu_kien[ten_truong]})
 
-    # Dùng ngày hợp lệ trong lần kiểm tra form ở trên để chọn năm tính phép.
+    # Xác định năm phép và tính số ngày phép còn lại của nhân viên.    # Dùng ngày hợp lệ trong lần kiểm tra form ở trên để chọn năm tính phép.
     ngay_chon = bieu_mau.cleaned_data.get('ngay_bat_dau') if bieu_mau.is_bound else None
     nam_phep = ngay_chon.year if ngay_chon else timezone.localdate().year
     da_dung = tinh_ngay_phep_da_dung(ho_so_cua_toi, nam_phep) if ho_so_cua_toi else 0
@@ -139,14 +145,17 @@ def danh_sach_don_nghi(request):
 
 
 @login_required
+# Hiển thị thông tin chi tiết của đơn nghỉ phép trong phạm vi được phép xem.
 def chi_tiet_don_nghi(request, ma_don):
     ma_nhan_vien_lien_ket = NhanVien.objects.filter(nguoi_dung=request.user).values_list('pk', flat=True).first()
     nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    # Chỉ truy xuất đơn nếu mã đơn tồn tại và người dùng có quyền xem.
     don = get_object_or_404(
         DonNghiPhep.objects.select_related('nhan_vien', 'nhan_vien__phong_ban', 'nguoi_duyet'),
         pk=ma_don,
         nhan_vien__in=pham_vi_co_the_xem(request.user, nhan_vien),
     )
+    # Người duyệt không được duyệt đơn do chính mình gửi.
     duoc_duyet = (
         co_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
         and don.nhan_vien_id != ma_nhan_vien_lien_ket
@@ -155,6 +164,7 @@ def chi_tiet_don_nghi(request, ma_don):
     if tab_quay_lai not in ('mine', 'manage'):
         tab_quay_lai = 'manage' if duoc_duyet else 'mine'
 
+    # Kiểm tra tệp minh chứng có tồn tại trong nơi lưu trữ hay không.
     try:
         co_tep = bool(don.tep_dinh_kem and don.tep_dinh_kem.storage.exists(don.tep_dinh_kem.name))
     except (OSError, SuspiciousFileOperation):
@@ -175,11 +185,13 @@ def chi_tiet_don_nghi(request, ma_don):
 
 @login_required
 @require_POST
+# Hủy đơn nghỉ phép của nhân viên đang đăng nhập.
 def huy_don_nghi(request, ma_don):
     nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
     if not nhan_vien:
         raise PermissionDenied
 
+    # Thực hiện trong một giao dịch để tránh dữ liệu cập nhật không nhất quán.
     with transaction.atomic():
         don = get_object_or_404(
             DonNghiPhep.objects.select_for_update(),
@@ -188,6 +200,7 @@ def huy_don_nghi(request, ma_don):
         )
         try:
             don.huy()
+        # Thông báo lỗi nếu dữ liệu không hợp lệ hoặc đơn đã được xử lý.
         except ValidationError as loi:
             messages.error(request, '; '.join(loi.messages))
         else:
@@ -199,8 +212,10 @@ def huy_don_nghi(request, ma_don):
 @never_cache
 @login_required
 @require_safe
+# Cho phép người có quyền xem tải hoặc mở tệp minh chứng của đơn.
 def tai_minh_chung(request, ma_don):
     nhan_vien = NhanVien.objects.filter(nguoi_dung=request.user, dang_hoat_dong=True).first()
+    # Kiểm tra quyền truy cập đơn trước khi trả tệp minh chứng.
     don = get_object_or_404(
         DonNghiPhep,
         pk=ma_don,
@@ -208,12 +223,14 @@ def tai_minh_chung(request, ma_don):
     )
     if not don.tep_dinh_kem:
         raise Http404
+    # Xác định kiểu nội dung của tệp để trình duyệt xử lý phù hợp.
     loai_tep = guess_type(don.tep_dinh_kem.name)[0] or 'application/octet-stream'
     try:
         tep = don.tep_dinh_kem.open('rb')
     except (OSError, SuspiciousFileOperation):
         raise Http404
 
+    # Tạo phản hồi chứa tệp; loại tệp không được phép xem trực tiếp sẽ tải xuống.
     phan_hoi = FileResponse(
         tep,
         content_type=loai_tep,
@@ -226,32 +243,40 @@ def tai_minh_chung(request, ma_don):
 
 @login_required
 @require_POST
+# Xử lý yêu cầu duyệt hoặc từ chối đơn nghỉ phép.
 def xu_ly_don_nghi(request, ma_don, thao_tac):
     yeu_cau_vai_tro(request.user, *VAI_TRO_DUOC_DUYET)
+    # Lấy đơn cần xử lý và bảo đảm đơn thuộc phạm vi quản lý của người duyệt.
     don = get_object_or_404(
         DonNghiPhep.objects.select_related('nhan_vien'),
         pk=ma_don,
         nhan_vien__in=nhan_vien_duoc_hien_thi(request.user),
     )
+    # Không cho phép người dùng tự duyệt đơn nghỉ phép của chính mình.
     nhan_vien_dang_dung = NhanVien.objects.filter(nguoi_dung=request.user).only('pk').first()
     if nhan_vien_dang_dung and don.nhan_vien_id == nhan_vien_dang_dung.pk:
         raise PermissionDenied
+    # Chỉ xử lý đơn đang chờ duyệt và thao tác phải là duyệt hoặc từ chối.
     if don.trang_thai != 'cho_duyet' or thao_tac not in ('approve', 'reject'):
         messages.error(request, 'Đơn này đã được xử lý hoặc thao tác không hợp lệ.')
         return redirect('nghi_phep:detail', ma_don=don.pk)
 
+    # Lấy ghi chú của người duyệt; khi từ chối đơn thì phải có lý do.
     ghi_chu = request.POST.get('ghi_chu_duyet', '').strip()
     if thao_tac == 'reject' and not ghi_chu:
         messages.error(request, 'Vui lòng nhập lý do từ chối.')
         return redirect('nghi_phep:detail', ma_don=don.pk)
 
+    # Khóa bản ghi trong giao dịch để tránh nhiều người xử lý cùng một đơn.
     try:
         with transaction.atomic():
             don = DonNghiPhep.objects.select_for_update().get(pk=ma_don)
+            # Kiểm tra lại trạng thái sau khi khóa để tránh xử lý trùng.
             if don.trang_thai != 'cho_duyet':
                 raise ValidationError('Đơn này đã được xử lý.')
             if thao_tac == 'approve':
                 don.full_clean()
+                # Tạo bản ghi cho từng ngày nghỉ thuộc đơn đã được duyệt.
                 for so_ngay in range(don.so_ngay_nghi):
                     NgayNghi.objects.create(
                         don_nghi_phep=don,
@@ -261,6 +286,7 @@ def xu_ly_don_nghi(request, ma_don, thao_tac):
             else:
                 don.trang_thai = 'tu_choi'
 
+            # Lưu kết quả, ghi chú, người duyệt và thời điểm xử lý.
             don.ghi_chu_duyet = ghi_chu
             don.nguoi_duyet = request.user
             don.ngay_duyet = timezone.now()
