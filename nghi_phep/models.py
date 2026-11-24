@@ -51,7 +51,6 @@ class DonNghiPhep(models.Model):
         'employees.NhanVien',
         on_delete=models.PROTECT,
         related_name='don_nghi_phep',
-        db_column='Ma_nguoi_dung',
     )
 
     ngay_bat_dau = models.DateField('Từ ngày')
@@ -101,6 +100,7 @@ class DonNghiPhep(models.Model):
     )
 
     class Meta:
+        db_table = 'Don_nghi_phep'
         ordering = ['-ngay_tao']
 
     @property
@@ -179,6 +179,7 @@ class NgayNghi(models.Model):
     ngay = models.DateField('Ngày nghỉ')
 
     class Meta:
+        db_table = 'Ngay_nghi'
         ordering = ['-ngay']
 
     def __str__(self):

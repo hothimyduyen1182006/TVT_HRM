@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'bang_cong/css/bang_cong.css' %}?v=20261120-attendance-status">{% endblock %}
-{% block record_scope %}{% include 'includes/record_scope.html' with module='attendance' personal=ca_nhan month_query=tham_so_ky %}{% endblock %}
+{% block record_scope %}{% endblock %}
 {% block title %}{% if clock_page %}{% if trang_thai_trang == 'dang_trong_ca' %}Check-out{% else %}Check-in{% endif %} · TVT{% else %}Chấm công {{ nhan_vien.ho_va_ten }} · TVT{% endif %}{% endblock %}
 {% block content %}<div class="attendance-shell">
 {% if clock_page %}
