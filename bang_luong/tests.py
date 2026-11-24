@@ -106,18 +106,44 @@ class BangLuongTests(TestCase):
         response = self.client.get('/bang_luong/ca-nhan/?thang=11&nam=2026')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context['bang_luong']), [own])
+        home = self.client.get(reverse('home'))
+        self.assertEqual(
+            home.context['payroll_url'],
+            f"{reverse('bang_luong:ca_nhan')}?thang=11&nam=2026",
+        )
+        self.assertEqual(list(self.client.get(home.context['payroll_url']).context['bang_luong']), [own])
         self.assertEqual(self.client.get(f'/bang_luong/chi-tiet/{own.pk}/').status_code, 200)
-        self.assertEqual(self.client.get(f'/bang_luong/chi-tiet/{other.pk}/').status_code, 403)
+        self.assertEqual(self.client.get(f'/bang_luong/chi-tiet/{other.pk}/').status_code, 404)
 
     def test_manager_filters_by_period_employee_and_status(self):
         phieu = self.tao_phieu()
         self.client.force_login(self.hr)
-        response = self.client.get('/bang_luong/?month=11&year=2026&status=Cho_duyet')
+        response = self.client.get('/bang_luong/', {
+            'thang': 11, 'nam': 2026, 'trang_thai': 'Cho_duyet',
+            'phong_ban': self.department.pk, 'tu_khoa': 'nv01',
+        })
         self.assertEqual(list(response.context['bang_luong']), [phieu])
-        response = self.client.get('/bang_luong/?month=10&year=2026')
+        response = self.client.get('/bang_luong/?thang=11&nam=2026&trang_thai=Da_duyet')
         self.assertFalse(response.context['bang_luong'].exists())
-        response = self.client.get('/bang_luong/?month=11&year=2026&tu_khoa=no-match')
+        response = self.client.get('/bang_luong/?thang=10&nam=2026')
         self.assertFalse(response.context['bang_luong'].exists())
+        response = self.client.get('/bang_luong/?thang=11&nam=2026&tu_khoa=no-match')
+        self.assertFalse(response.context['bang_luong'].exists())
+
+    def test_filter_defaults_and_rejects_invalid_values(self):
+        self.client.force_login(self.hr)
+        hom_nay = timezone.localdate()
+        response = self.client.get('/bang_luong/', {'tu_khoa': 'NV01'})
+        self.assertEqual(response.context['form'].cleaned_data['thang'], hom_nay.month)
+        self.assertEqual(response.context['form'].cleaned_data['nam'], hom_nay.year)
+        for field, value in (
+            ('thang', '13'), ('nam', 'abc'), ('phong_ban', '-1'), ('trang_thai', 'invalid'),
+        ):
+            with self.subTest(field=field):
+                response = self.client.get('/bang_luong/', {field: value})
+                self.assertIn(field, response.context['form'].errors)
+                self.assertFalse(response.context['bang_luong'].exists())
+                self.assertNotContains(response, 'Tính lương kỳ này')
 
     def test_department_manager_scope_and_hr_full_scope(self):
         first = self.tao_phieu()
@@ -144,6 +170,11 @@ class BangLuongTests(TestCase):
         self.client.force_login(manager_user)
         response = self.client.get('/bang_luong/?thang=11&nam=2026')
         self.assertEqual(list(response.context['bang_luong']), [first])
+        self.assertContains(response, 'href="/bang_luong/ca-nhan/?thang=11&amp;nam=2026"')
+        self.assertEqual(
+            self.client.get(reverse('bang_luong:xuat', args=['csv']), {'thang': 11, 'nam': 2026}).status_code,
+            403,
+        )
 
         self.client.force_login(self.hr)
         response = self.client.get('/bang_luong/?thang=11&nam=2026')
@@ -166,7 +197,18 @@ class BangLuongTests(TestCase):
         self.assertTrue(LogEntry.objects.filter(change_message__contains='csv').exists())
 
         Luong.objects.filter(pk=phieu.pk).update(trang_thai='Da_duyet')
-        self.assertEqual(self.client.get('/bang_luong/xuat/csv/', params).status_code, 200)
+        for fmt in ('csv', 'json', 'txt'):
+            with self.subTest(fmt=fmt):
+                url = reverse('bang_luong:xuat', args=[fmt])
+                response = self.client.get(url, {
+                    **params,
+                    'tu_khoa': 'nv01',
+                    'phong_ban': self.department.pk,
+                    'trang_thai': 'Da_duyet',
+                })
+                self.assertContains(response, 'NV01')
+                self.assertIn(f'bang-luong-2026-11.{fmt}', response['Content-Disposition'])
+                self.assertEqual(self.client.get(url, {**params, 'tu_khoa': 'no-match'}).status_code, 302)
 
     def test_auto_calculation_waits_for_documented_payroll_rules(self):
         self.client.force_login(self.hr)

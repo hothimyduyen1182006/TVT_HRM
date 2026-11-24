@@ -4,209 +4,268 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from nhan_vien.access import (
-    GIAM_DOC, NHAN_SU, TRUONG_PHONG, co_vai_tro, nhan_vien_duoc_hien_thi,
+    GIAM_DOC, NHAN_SU, TRUONG_PHONG,
+    co_vai_tro, nhan_vien_duoc_hien_thi,
 )
+
 from .forms import BoLocBangLuong, BoLocPhieuLuong
 from .models import Luong
+
 from .services.tinh_luong_service import (
-    duyet_toan_bo_bang_luong, gui_bang_luong_cho_giam_doc, tinh_bang_luong,
+    tinh_bang_luong,
+    gui_bang_luong_cho_giam_doc,
+    duyet_toan_bo_bang_luong,
 )
-from .services.xuat_luong_service import xuat_du_lieu_luong
+from .services.xuat_luong_service import (
+    phieu_luong_ca_nhan,
+    xuat_du_lieu_luong,
+)
 
 
-def _la_quan_ly(user):
-    return co_vai_tro(user, NHAN_SU, GIAM_DOC, TRUONG_PHONG)
-
-
+# Lấy bảng lương theo phạm vi được phép xem
 def _bang_luong_trong_pham_vi(user):
     nhan_vien = nhan_vien_duoc_hien_thi(user)
-    return Luong.objects.select_related(
-        'tong_hop__nhan_vien__phong_ban', 'tong_thuong',
-    ).filter(tong_hop__nhan_vien__in=nhan_vien, tong_thuong__trang_thai='approved')
 
-
-def _them_cac_khoan_tong(queryset):
-    return queryset.annotate(
-        tong_thu_nhap=F('luong_theo_cong') + F('luong_tang_ca') + F('phu_cap') + F('tong_tien_thuong'),
-        tong_khau_tru=F('khau_tru_bhxh') + F('thue_tncn') + F('khau_tru_khac'),
+    return Luong.objects.filter(
+        tong_hop__nhan_vien__in=nhan_vien,
+        tong_thuong__trang_thai='approved',
+    ).select_related(
+        'tong_hop__nhan_vien__phong_ban',
+        'tong_thuong',
     )
 
 
-def _loc_bang_luong(queryset, form):
-    if not form.is_valid():
-        return queryset.none()
-    du_lieu = form.cleaned_data
-    queryset = queryset.filter(
-        tong_hop__thang=du_lieu['thang'], tong_hop__nam=du_lieu['nam'],
+# Tính tổng thu nhập và tổng khấu trừ
+def _them_cac_khoan_tong(bang_luong):
+    return bang_luong.annotate(
+        tong_thu_nhap=(
+            F('luong_theo_cong')
+            + F('luong_tang_ca')
+            + F('phu_cap')
+            + F('tong_tien_thuong')
+        ),
+        tong_khau_tru=(
+            F('khau_tru_bhxh')
+            + F('thue_tncn')
+            + F('khau_tru_khac')
+        ),
     )
-    if du_lieu['tu_khoa']:
-        queryset = queryset.filter(
-            tong_hop__nhan_vien__ho_va_ten__icontains=du_lieu['tu_khoa'],
+
+
+# Lấy dữ liệu bộ lọc từ URL
+def _du_lieu_loc(request):
+    hom_nay = timezone.localdate()
+    return {
+        'thang': request.GET.get('thang') or hom_nay.month,
+        'nam': request.GET.get('nam') or hom_nay.year,
+        'tu_khoa': request.GET.get('tu_khoa', ''),
+        'phong_ban': request.GET.get('phong_ban', ''),
+        'trang_thai': request.GET.get('trang_thai', ''),
+    }
+
+
+# Lọc theo nhân viên, phòng ban và trạng thái
+def _loc_bang_luong(bang_luong, du_lieu):
+    tu_khoa = du_lieu['tu_khoa']
+    phong_ban = du_lieu['phong_ban']
+    trang_thai = du_lieu['trang_thai']
+
+    if tu_khoa:
+        bang_luong = bang_luong.filter(
+            tong_hop__nhan_vien__ho_va_ten__icontains=tu_khoa,
         )
-    if du_lieu['phong_ban']:
-        queryset = queryset.filter(
-            tong_hop__nhan_vien__phong_ban=du_lieu['phong_ban'],
+
+    if phong_ban:
+        bang_luong = bang_luong.filter(
+            tong_hop__nhan_vien__phong_ban=phong_ban,
         )
-    if du_lieu['trang_thai']:
-        queryset = queryset.filter(trang_thai=du_lieu['trang_thai'])
-    return queryset.order_by('tong_hop__nhan_vien__ma_ho_so')
+
+    if trang_thai:
+        bang_luong = bang_luong.filter(trang_thai=trang_thai)
+
+    return bang_luong
 
 
-def _bo_loc_mac_dinh(request):
-    if request.GET:
-        return BoLocBangLuong(request.GET)
-    hom_nay = timezone_localdate()
-    return BoLocBangLuong({'thang': hom_nay.month, 'nam': hom_nay.year})
-
-
+# Xem danh sách bảng lương
 @login_required
 def danh_sach_bang_luong(request):
-    if not _la_quan_ly(request.user):
+    if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
         return redirect('bang_luong:ca_nhan')
-    form = _bo_loc_mac_dinh(request)
-    rows = _loc_bang_luong(_bang_luong_trong_pham_vi(request.user), form)
-    if form.is_valid():
-        du_lieu_ky = form.cleaned_data
+
+    form = BoLocBangLuong(_du_lieu_loc(request))
+    form_hop_le = form.is_valid()
+    phieu_trong_ky = Luong.objects.none()
+    bang_luong = phieu_trong_ky
+
+    if form_hop_le:
+        du_lieu = form.cleaned_data
+        thang = du_lieu['thang']
+        nam = du_lieu['nam']
+
         phieu_trong_ky = _bang_luong_trong_pham_vi(request.user).filter(
-            tong_hop__nam=du_lieu_ky['nam'], tong_hop__thang=du_lieu_ky['thang'],
+            tong_hop__thang=thang,
+            tong_hop__nam=nam,
         )
-    else:
-        phieu_trong_ky = Luong.objects.none()
-    co_phieu = phieu_trong_ky.exists()
+        bang_luong = _loc_bang_luong(phieu_trong_ky, du_lieu)
+
+    # Kiểm tra quyền thực hiện các chức năng
     la_nhan_su = co_vai_tro(request.user, NHAN_SU)
     la_giam_doc = co_vai_tro(request.user, GIAM_DOC)
+    co_phieu = phieu_trong_ky.exists()
     co_phieu_khoa = phieu_trong_ky.filter(
         trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet'],
     ).exists()
+
+    co_quyen_tinh = form_hop_le and la_nhan_su and not co_phieu_khoa
+    co_quyen_gui = (
+        la_nhan_su and co_phieu
+        and not phieu_trong_ky.exclude(trang_thai='Cho_duyet').exists()
+    )
+    co_quyen_ky = (
+        la_giam_doc and co_phieu
+        and not phieu_trong_ky.exclude(trang_thai='Cho_giam_doc_duyet').exists()
+    )
+
     return render(request, 'bang_luong/list.html', {
         'form': form,
-        'bang_luong': rows,
-        'co_quyen_tinh': la_nhan_su and not co_phieu_khoa,
-        'co_quyen_gui': la_nhan_su and co_phieu and not phieu_trong_ky.exclude(
-            trang_thai='Cho_duyet',
-        ).exists(),
-        'co_quyen_ky': la_giam_doc and co_phieu and not phieu_trong_ky.exclude(
-            trang_thai='Cho_giam_doc_duyet',
-        ).exists(),
-        'co_quyen_xuat': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
-        'co_quyen_xem_tat_ca': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
+        'bang_luong': bang_luong,
+        'co_quyen_tinh': co_quyen_tinh,
+        'co_quyen_gui': co_quyen_gui,
+        'co_quyen_ky': co_quyen_ky,
+        'co_quyen_xuat': la_nhan_su or la_giam_doc,
+        'co_quyen_xem_tat_ca': la_nhan_su or la_giam_doc,
     })
 
 
+# Xem phiếu lương cá nhân
 @login_required
 def luong_ca_nhan(request):
-    if request.GET:
-        form = BoLocPhieuLuong(request.GET)
-    else:
-        hom_nay = timezone_localdate()
-        form = BoLocPhieuLuong({'thang': hom_nay.month, 'nam': hom_nay.year})
-    rows = Luong.objects.none()
-    if hasattr(request.user, 'employee'):
-        rows = Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong').filter(
-            tong_hop__nhan_vien=request.user.employee,
-            tong_thuong__trang_thai='approved',
-        ).order_by('-tong_hop__nam', '-tong_hop__thang')
-        if form.is_valid():
-            rows = rows.filter(
-                tong_hop__thang=form.cleaned_data['thang'],
-                tong_hop__nam=form.cleaned_data['nam'],
-            )
-        else:
-            rows = rows.none()
+    form = BoLocPhieuLuong(_du_lieu_loc(request))
+    bang_luong = Luong.objects.none()
+
+    if form.is_valid():
+        thang = form.cleaned_data['thang']
+        nam = form.cleaned_data['nam']
+
+        bang_luong = phieu_luong_ca_nhan(request.user).filter(
+            tong_hop__thang=thang,
+            tong_hop__nam=nam,
+        )
+
     return render(request, 'bang_luong/list.html', {
-        'form': form, 'bang_luong': _them_cac_khoan_tong(rows), 'ca_nhan': True,
+        'form': form,
+        'bang_luong': _them_cac_khoan_tong(bang_luong),
+        'ca_nhan': True,
     })
 
 
-def timezone_localdate():
-    from django.utils import timezone
-    return timezone.localdate()
-
-
+# Xem chi tiết phiếu lương
 @login_required
 def chi_tiet_luong(request, pk):
-    phieu = get_object_or_404(
-        _them_cac_khoan_tong(Luong.objects.select_related('tong_hop__nhan_vien__phong_ban', 'tong_thuong')),
-        pk=pk, tong_thuong__trang_thai='approved',
-    )
-    if not nhan_vien_duoc_hien_thi(request.user).filter(
-        pk=phieu.tong_hop.nhan_vien_id,
-    ).exists():
-        raise PermissionDenied('Không có quyền truy cập bảng lương này.')
+    bang_luong = _bang_luong_trong_pham_vi(request.user)
+    bang_luong = _them_cac_khoan_tong(bang_luong)
+    phieu = get_object_or_404(bang_luong, pk=pk)
     return render(request, 'bang_luong/detail.html', {'phieu': phieu})
 
 
+# Tính bảng lương
 @login_required
 @require_POST
 def tinh_luong(request):
     form = BoLocPhieuLuong(request.POST)
+
     if not form.is_valid():
-        messages.error(request, 'Vui lòng chọn tháng và năm hợp lệ để tính lương.')
+        messages.error(request, 'Tháng và năm không hợp lệ.')
         return redirect('bang_luong:danh_sach')
 
     thang = form.cleaned_data['thang']
     nam = form.cleaned_data['nam']
+
     try:
         so_phieu = tinh_bang_luong(request.user, nam, thang)
+        messages.success(request, f'Đã tính {so_phieu} phiếu lương tháng {thang:02}/{nam}.')
     except ValidationError as error:
         messages.error(request, '; '.join(error.messages))
-    else:
-        messages.success(request, f'Đã tính và lưu {so_phieu} phiếu lương tháng {thang:02}/{nam}.')
-    return redirect(f'{reverse("bang_luong:danh_sach")}?thang={thang}&nam={nam}')
+
+    url = reverse('bang_luong:danh_sach')
+    return redirect(f'{url}?thang={thang}&nam={nam}')
 
 
-def _xu_ly_duyet_theo_ky(request, xu_ly, thong_bao):
-    form = BoLocPhieuLuong(request.POST)
-    if not form.is_valid():
-        messages.error(request, 'Vui lòng chọn tháng và năm hợp lệ.')
-        return redirect('bang_luong:danh_sach')
-    thang = form.cleaned_data['thang']
-    nam = form.cleaned_data['nam']
-    try:
-        so_phieu = xu_ly(request.user, nam, thang)
-    except ValidationError as error:
-        messages.error(request, '; '.join(error.messages))
-    else:
-        messages.success(request, thong_bao.format(count=so_phieu, month=thang, year=nam))
-    return redirect(f'{reverse("bang_luong:danh_sach")}?thang={thang}&nam={nam}')
-
-
+# Nhân sự gửi bảng lương cho Giám đốc
 @login_required
 @require_POST
 def gui_bang_luong(request):
-    return _xu_ly_duyet_theo_ky(
-        request, gui_bang_luong_cho_giam_doc,
-        'Đã gửi {count} phiếu lương tháng {month:02d}/{year} cho Giám đốc ký.',
-    )
+    form = BoLocPhieuLuong(request.POST)
+
+    if not form.is_valid():
+        messages.error(request, 'Tháng và năm không hợp lệ.')
+        return redirect('bang_luong:danh_sach')
+
+    thang = form.cleaned_data['thang']
+    nam = form.cleaned_data['nam']
+
+    try:
+        so_phieu = gui_bang_luong_cho_giam_doc(request.user, nam, thang)
+        messages.success(
+            request,
+            f'Đã gửi {so_phieu} phiếu lương tháng {thang:02}/{nam} cho Giám đốc.',
+        )
+    except ValidationError as error:
+        messages.error(request, '; '.join(error.messages))
+
+    url = reverse('bang_luong:danh_sach')
+    return redirect(f'{url}?thang={thang}&nam={nam}')
 
 
+# Giám đốc ký duyệt bảng lương
 @login_required
 @require_POST
 def ky_duyet_bang_luong(request):
-    return _xu_ly_duyet_theo_ky(
-        request, duyet_toan_bo_bang_luong,
-        'Giám đốc đã ký duyệt {count} phiếu lương tháng {month:02d}/{year}.',
-    )
+    form = BoLocPhieuLuong(request.POST)
+
+    if not form.is_valid():
+        messages.error(request, 'Tháng và năm không hợp lệ.')
+        return redirect('bang_luong:danh_sach')
+
+    thang = form.cleaned_data['thang']
+    nam = form.cleaned_data['nam']
+
+    try:
+        so_phieu = duyet_toan_bo_bang_luong(request.user, nam, thang)
+        messages.success(request, f'Đã duyệt {so_phieu} phiếu lương tháng {thang:02}/{nam}.')
+    except ValidationError as error:
+        messages.error(request, '; '.join(error.messages))
+
+    url = reverse('bang_luong:danh_sach')
+    return redirect(f'{url}?thang={thang}&nam={nam}')
 
 
+# Xuất bảng lương
 @login_required
 def xuat_bang_luong(request, fmt):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
         raise PermissionDenied('Không có quyền xuất bảng lương.')
+
     if fmt not in ('csv', 'json', 'txt'):
         raise PermissionDenied('Định dạng tệp không hợp lệ.')
-    form = _bo_loc_mac_dinh(request)
-    rows = _loc_bang_luong(_bang_luong_trong_pham_vi(request.user), form)
+    form = BoLocBangLuong(_du_lieu_loc(request))
+
     if not form.is_valid():
-        messages.info(request, 'Vui lòng chọn tháng và năm hợp lệ trước khi xuất.')
+        messages.error(request, 'Điều kiện lọc không hợp lệ.')
         return redirect('bang_luong:danh_sach')
+
+    du_lieu = form.cleaned_data
+    thang = du_lieu['thang']
+    nam = du_lieu['nam']
+    bang_luong = _loc_bang_luong(Luong.objects.all(), du_lieu)
+
     try:
         return xuat_du_lieu_luong(
-            request.user, rows, fmt,
-            form.cleaned_data['thang'], form.cleaned_data['nam'],
+            request.user, bang_luong, fmt, thang, nam,
         )
     except ValidationError as error:
         messages.error(request, ' '.join(error.messages))

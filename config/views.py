@@ -30,7 +30,7 @@ def home(request):
     today=timezone.localdate()
     thang = latest.tong_hop.thang if latest else today.month
     nam = latest.tong_hop.nam if latest else today.year
-    payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'month':thang, 'year':nam})
+    payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'thang':thang, 'nam':nam})
     bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
     return render(request,'home.html',{
         'display_name':name,

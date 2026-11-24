@@ -63,7 +63,7 @@ class HomePageTests(TestCase):
                 self.assertContains(response,employee.ho_va_ten)
                 self.assertContains(response,'Chào mừng trở lại!')
                 self.assertEqual(response.context['attendance_url'],'/bang_cong/ca-nhan/')
-                self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=1&year=2026')
+                self.assertEqual(response.context['payroll_url'],'/bang_luong/ca-nhan/?thang=1&nam=2026')
                 self.assertEqual(self.client.get(response.context['attendance_url']).status_code,200)
                 self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
                 self.assertEqual(response.context['leave_url'],'/nghi_phep/')
@@ -86,7 +86,7 @@ class HomePageTests(TestCase):
             )
         self.client.force_login(employee.nguoi_dung)
         response=self.client.get('/',{'employee':self.people[0].pk,'month':2,'year':2028})
-        self.assertEqual(response.context['payroll_url'],'/bang_luong/personal/?month=2&year=2027')
+        self.assertEqual(response.context['payroll_url'],'/bang_luong/ca-nhan/?thang=2&nam=2027')
         self.assertContains(response,'Phiếu lương mới nhất · 02/2027')
         self.assertNotContains(response,'02/2028')
 
