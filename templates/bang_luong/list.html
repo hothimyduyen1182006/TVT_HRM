@@ -6,7 +6,7 @@
 <div class="pr-personal-heading pr-no-print">
  <h1>PHIẾU LƯƠNG CÁ NHÂN</h1>
  <form class="pr-period-form" method="get" action="{% url 'bang_luong:ca_nhan' %}">
-  {{ form.thang }}{{ form.nam }}<button class="pr-button">Lọc</button>
+  {{ form.thang }}{{ form.nam }}<button class="pr-button" type="submit">Lọc</button>
  </form>
 </div>
 {% if form.errors %}<div class="pr-errors">{{ form.errors }}</div>{% endif %}

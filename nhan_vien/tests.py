@@ -21,7 +21,7 @@ class DemoDataTests(TestCase):
         self.assertEqual(ChamCong.objects.count(), 0)
         manager = get_user_model().objects.get(username='quanlyphongban')
         self.client.force_login(manager)
-        response = self.client.get('/bang_luong/?month=9&year=2026')
+        response = self.client.get('/bang_luong/?thang=9&nam=2026')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context['bang_luong']), 0)
 
@@ -39,7 +39,7 @@ class DemoDataTests(TestCase):
 
     def test_demo_login_and_personal_page(self):
         self.assertTrue(self.client.login(username='hothimyduyen', password='OnlyForDemoTest@2026'))
-        response = self.client.get('/bang_luong/ca-nhan/?month=9&year=2026', follow=True)
+        response = self.client.get('/bang_luong/ca-nhan/?thang=9&nam=2026', follow=True)
         self.assertContains(response, 'PHIẾU LƯƠNG CÁ NHÂN')
         self.assertContains(response, 'NV01')
         self.assertNotContains(response, 'NV02')
@@ -48,7 +48,7 @@ class DemoDataTests(TestCase):
     def test_director_has_full_navigation_with_working_bonus_and_leave_pages(self):
         director = get_user_model().objects.get(username='giamdoc')
         self.client.force_login(director)
-        response = self.client.get('/bang_luong/?month=9&year=2026')
+        response = self.client.get('/bang_luong/?thang=9&nam=2026')
         for text in ['DASHBOARD', 'NHÂN VIÊN', 'BẢNG CÔNG', 'BẢNG THƯỞNG', 'BẢNG LƯƠNG', 'NGHỈ PHÉP']:
             self.assertContains(response, text)
         self.assertContains(response, 'href="/thuong/"')

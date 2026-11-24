@@ -79,7 +79,7 @@ class ManagementPersonalRecordsTests(TestCase):
     def test_employee_management_payroll_redirects_with_denied_message(self):
         employee = self.people[3]
         self.client.force_login(employee.nguoi_dung)
-        response = self.client.get('/bang_luong/', {'month': 1, 'year': 2026,
+        response = self.client.get('/bang_luong/', {'thang': 1, 'nam': 2026,
             'employee': self.people[0].pk, 'department': self.team.pk, 'q': 'Người 0'}, follow=True)
         self.assertEqual(response.redirect_chain, [('/bang_luong/ca-nhan/', 302)])
         self.assertContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
@@ -89,7 +89,7 @@ class ManagementPersonalRecordsTests(TestCase):
 
     def test_direct_personal_payroll_does_not_show_denied_message(self):
         self.client.force_login(self.people[3].nguoi_dung)
-        response = self.client.get('/bang_luong/ca-nhan/', {'month': 1, 'year': 2026})
+        response = self.client.get('/bang_luong/ca-nhan/', {'thang': 1, 'nam': 2026})
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'Bạn không có quyền truy cập chức năng quản lý lương.')
         self.assertIn(self.people[3], [row.tong_hop.nhan_vien for row in response.context['bang_luong']])
