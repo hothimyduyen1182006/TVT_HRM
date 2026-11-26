@@ -18,7 +18,7 @@ from .tinh_toan import tinh_thuong_tu_dong
 def dong_bo_thuong_tu_dong(nhan_vien, thang, nam):
     NhanVien.objects.select_for_update().get(pk=nhan_vien.pk)
     bang, _ = Thuong.objects.select_for_update().get_or_create(nguoi_dung=nhan_vien.nguoi_dung, thang=thang, nam=nam)
-    if bang.trang_thai in ['pending', 'approved']:
+    if bang.trang_thai in ['cho_duyet', 'da_duyet']:
         return bang
     cac_khoan, loi = tinh_thuong_tu_dong(nhan_vien, thang, nam)
     gia_tri = {'seniority': ('thuong_tham_nien', 'ly_do_tham_nien'),
@@ -45,9 +45,9 @@ def luu_bang_thuong(bang):
 
 
 def gui_duyet_bang(bang):
-    if bang.trang_thai not in ['draft', 'rejected'] or not bang.ly_do_chuyen_can or not bang.ly_do_tham_nien:
+    if bang.trang_thai not in ['ban_nhap', 'tu_choi'] or not bang.ly_do_chuyen_can or not bang.ly_do_tham_nien:
         raise ValidationError('Chỉ gửi bảng thưởng khi có đủ căn cứ thâm niên và chuyên cần.')
-    bang.trang_thai = 'pending'
+    bang.trang_thai = 'cho_duyet'
     bang.nguoi_duyet = bang.ngay_duyet = None
     bang.ly_do_tu_choi = ''
     luu_bang_thuong(bang)
@@ -55,9 +55,9 @@ def gui_duyet_bang(bang):
 
 @transaction.atomic
 def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
-    if bang.trang_thai != 'pending':
+    if bang.trang_thai != 'cho_duyet':
         raise ValidationError('Chỉ xử lý bảng thưởng đang Chờ duyệt.')
-    bang.trang_thai = 'rejected' if tu_choi else 'approved'
+    bang.trang_thai = 'tu_choi' if tu_choi else 'da_duyet'
     bang.nguoi_duyet, bang.ngay_duyet = nguoi_dung, timezone.now()
     bang.ly_do_tu_choi = ly_do.strip() if tu_choi else ''
     luu_bang_thuong(bang)
@@ -65,7 +65,7 @@ def duyet_bang(bang, nguoi_dung, tu_choi=False, ly_do=''):
 
 def cap_nhat_thuong_khac(bang):
     bang.thuong_khac = bang.de_xuat.aggregate(tong=Sum('so_tien'))['tong'] or Decimal(0)
-    bang.trang_thai, bang.ly_do_tu_choi = 'draft', ''
+    bang.trang_thai, bang.ly_do_tu_choi = 'ban_nhap', ''
     bang.nguoi_duyet = bang.ngay_duyet = None
     luu_bang_thuong(bang)
 
@@ -73,7 +73,7 @@ def cap_nhat_thuong_khac(bang):
 @transaction.atomic
 def luu_de_xuat(de_xuat):
     bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
-    if bang.trang_thai not in ['draft', 'rejected']:
+    if bang.trang_thai not in ['ban_nhap', 'tu_choi']:
         raise ValidationError('Chỉ sửa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
     if bang.de_xuat.filter(ten__iexact=de_xuat.ten.strip()).exclude(pk=de_xuat.pk).exists():
         raise ValidationError('Tên khoản thưởng đã tồn tại trong bảng thưởng. Vui lòng đổi tên hoặc dùng chức năng Sửa.')
@@ -85,7 +85,7 @@ def luu_de_xuat(de_xuat):
 @transaction.atomic
 def xoa_de_xuat(de_xuat):
     bang = Thuong.objects.select_for_update().get(pk=de_xuat.bang_thuong_id)
-    if bang.trang_thai not in ['draft', 'rejected']:
+    if bang.trang_thai not in ['ban_nhap', 'tu_choi']:
         raise ValidationError('Chỉ xóa đề xuất khi bảng thưởng là Bản nháp hoặc Từ chối.')
     de_xuat.delete()
     cap_nhat_thuong_khac(bang)
@@ -107,21 +107,21 @@ def ghi_lich_su(nguoi_dung, bang, noi_dung):
 def duyet_cac_bang(nguoi_dung, ds, nam, thang, thao_tac, ly_do, gui_duyet=False):
     if gui_duyet:
         noi_dung_lich_su = 'Gửi duyệt thưởng.'
-    elif thao_tac == 'reject':
+    elif thao_tac == 'tu_choi':
         noi_dung_lich_su = f'Từ chối thưởng. Lý do: {ly_do}'
     else:
         noi_dung_lich_su = 'Duyệt thưởng.'
     with transaction.atomic():
         cac_bang = list(bang_thuong_trong_pham_vi(nguoi_dung).select_for_update().filter(
             nguoi_dung__employee__pk__in=ds, nam=nam, thang=thang,
-            trang_thai__in=['draft', 'rejected'] if gui_duyet else ['pending']))
+            trang_thai__in=['ban_nhap', 'tu_choi'] if gui_duyet else ['cho_duyet']))
         if not cac_bang:
             raise ValidationError('Không có bảng thưởng hợp lệ trong số nhân viên đã chọn.')
         for bang in cac_bang:
             if gui_duyet:
                 gui_duyet_bang(bang)
             else:
-                duyet_bang(bang, nguoi_dung, tu_choi=thao_tac == 'reject', ly_do=ly_do)
+                duyet_bang(bang, nguoi_dung, tu_choi=thao_tac == 'tu_choi', ly_do=ly_do)
             ghi_lich_su(nguoi_dung, bang, noi_dung_lich_su)
     return cac_bang
 

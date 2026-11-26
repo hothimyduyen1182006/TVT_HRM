@@ -17,7 +17,6 @@ from nhan_vien.models import PhongBan, NhanVien
 from nghi_phep.models import DonNghiPhep, NgayNghi
 from .models import DeXuatThuong, Thuong
 from .services.quy_trinh import dong_bo_thuong_tu_dong, luu_de_xuat, xoa_de_xuat, gui_duyet_bang, duyet_bang
-
 from .services.tinh_toan import tinh_thuong_tham_nien
 
 
@@ -87,7 +86,7 @@ class BonusWorkflowTests(TestCase):
         self.assertEqual(bang.tong_thuong,700000)
         self.assertTrue(bang.ly_do_chuyen_can)
         self.assertTrue(bang.ly_do_tham_nien)
-        self.assertEqual(bang.trang_thai,'draft')
+        self.assertEqual(bang.trang_thai,'ban_nhap')
         self.assertFalse(DeXuatThuong.objects.exists())
         self.assertFalse(Luong.objects.exists())
 
@@ -146,7 +145,7 @@ class BonusWorkflowTests(TestCase):
         self.assertIsNone(bang.ly_do_chuyen_can)
         with self.assertRaises(ValidationError):
             gui_duyet_bang(bang)
-        self.assertEqual(Thuong.objects.get(pk=bang.pk).trang_thai,'draft')
+        self.assertEqual(Thuong.objects.get(pk=bang.pk).trang_thai,'ban_nhap')
 
     def test_absence_or_leave_removes_attendance_bonus(self):
         for index,state in enumerate(['absent','leave']):
@@ -183,14 +182,14 @@ class BonusWorkflowTests(TestCase):
     def test_rejected_automatic_only_board_can_be_resubmitted(self):
         bang=self.approve_attendance()
         self.post(self.hr,self.submit_url,{'nhan_vien_ids':[self.people[0].pk]})
-        self.post(self.director,self.decision_url,{'action':'reject',
+        self.post(self.director,self.decision_url,{'thao_tac':'tu_choi',
             'nhan_vien_ids':[self.people[0].pk],'ly_do':'Kiểm tra lại công'})
         self.client.force_login(self.hr)
         response=self.client.get(self.list_url,{'thang':10,'nam':2026})
         self.assertContains(response,'id="bm-submit-form"')
         self.assertEqual(self.post(self.hr,self.submit_url,{'nhan_vien_ids':[self.people[0].pk]}).status_code,302)
         bang.refresh_from_db()
-        self.assertEqual(bang.trang_thai,'pending')
+        self.assertEqual(bang.trang_thai,'cho_duyet')
         self.assertIsNone(bang.nguoi_duyet)
         self.assertIsNone(bang.ngay_duyet)
         self.assertFalse(bang.ly_do_tu_choi)
@@ -201,12 +200,12 @@ class BonusWorkflowTests(TestCase):
         bang=self.approve_attendance()
         self.approve_attendance(1)
         gui_duyet_bang(bang)
-        data={'action':'approve','nhan_vien_ids':[p.pk for p in self.people]}
+        data={'thao_tac':'duyet','nhan_vien_ids':[p.pk for p in self.people]}
         self.post(self.director,self.decision_url,data)
         self.post(self.director,self.decision_url,data)
         bang.refresh_from_db()
-        self.assertEqual(bang.trang_thai,'approved')
-        self.assertEqual(Thuong.objects.get(nguoi_dung=self.people[1].nguoi_dung).trang_thai,'draft')
+        self.assertEqual(bang.trang_thai,'da_duyet')
+        self.assertEqual(Thuong.objects.get(nguoi_dung=self.people[1].nguoi_dung).trang_thai,'ban_nhap')
         self.assertEqual(LogEntry.objects.filter(object_id=bang.pk).count(),1)
         self.assertEqual(bang.tong_thuong,700000)
         self.assertFalse(Luong.objects.exists())
@@ -217,11 +216,11 @@ class BonusWorkflowTests(TestCase):
         self.proposal(bang)
         self.assertEqual(self.post(self.hr,self.submit_url,{'nhan_vien_ids':[p.pk for p in self.people]}).status_code,302)
         self.assertFalse(Luong.objects.exclude(tong_tien_thuong=0).exists())
-        response=self.post(self.director,self.decision_url,{'action':'approve','nhan_vien_ids':[self.people[0].pk]})
+        response=self.post(self.director,self.decision_url,{'thao_tac':'duyet','nhan_vien_ids':[self.people[0].pk]})
         self.assertEqual(response.status_code,302)
         bang.refresh_from_db(); other.refresh_from_db()
-        self.assertEqual(bang.trang_thai,'approved')
-        self.assertEqual(other.trang_thai,'pending')
+        self.assertEqual(bang.trang_thai,'da_duyet')
+        self.assertEqual(other.trang_thai,'cho_duyet')
         self.assertFalse(Luong.objects.filter(tong_hop__nhan_vien=self.people[1]).exists())
         self.assertEqual(bang.nguoi_duyet,self.director)
         self.assertEqual(bang.tong_thuong,1450000)
@@ -231,13 +230,13 @@ class BonusWorkflowTests(TestCase):
     def test_rejection_requires_reason_and_rejects_only_one_employee(self):
         for i in range(2):
             bang=self.approve_attendance(i); gui_duyet_bang(bang)
-        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[p.pk for p in self.people],'ly_do':'Kiểm tra lại'})
-        self.assertEqual(Thuong.objects.filter(trang_thai='pending').count(),2)
-        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[self.people[0].pk]})
-        self.assertEqual(Thuong.objects.filter(trang_thai='pending').count(),2)
-        self.post(self.director,self.decision_url,{'action':'reject','nhan_vien_ids':[self.people[0].pk],'ly_do':'Đối chiếu dự án'})
+        self.post(self.director,self.decision_url,{'thao_tac':'tu_choi','nhan_vien_ids':[p.pk for p in self.people],'ly_do':'Kiểm tra lại'})
+        self.assertEqual(Thuong.objects.filter(trang_thai='cho_duyet').count(),2)
+        self.post(self.director,self.decision_url,{'thao_tac':'tu_choi','nhan_vien_ids':[self.people[0].pk]})
+        self.assertEqual(Thuong.objects.filter(trang_thai='cho_duyet').count(),2)
+        self.post(self.director,self.decision_url,{'thao_tac':'tu_choi','nhan_vien_ids':[self.people[0].pk],'ly_do':'Đối chiếu dự án'})
         bang=Thuong.objects.get(nguoi_dung=self.people[0].nguoi_dung)
-        self.assertEqual(bang.trang_thai,'rejected')
+        self.assertEqual(bang.trang_thai,'tu_choi')
         self.assertEqual(bang.ly_do_tu_choi,'Đối chiếu dự án')
         self.assertFalse(Luong.objects.exists())
         response=self.client.get(reverse('thuong:detail',args=[self.people[0].pk,2026,10]))
@@ -247,8 +246,8 @@ class BonusWorkflowTests(TestCase):
         bang=self.approve_attendance()
         proposal=self.proposal(bang)
         bang.refresh_from_db(); gui_duyet_bang(bang)
-        for state in ['pending','approved']:
-            if state=='approved':
+        for state in ['cho_duyet','da_duyet']:
+            if state=='da_duyet':
                 duyet_bang(bang,self.director)
             proposal.so_tien=900000
             with self.assertRaises(ValidationError): luu_de_xuat(proposal)
@@ -272,16 +271,16 @@ class BonusWorkflowTests(TestCase):
         response=self.client.get(reverse('thuong:personal'),{'thang':10,'nam':2026})
         self.assertContains(response,ma_hien_thi)
         bang.refresh_from_db(); gui_duyet_bang(bang); duyet_bang(bang,self.director)
-        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026,'trang_thai':'approved'})
+        response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026,'trang_thai':'da_duyet'})
         self.assertEqual(response.status_code,200)
         self.assertIn('Thưởng dự án',response.content.decode('utf-8-sig'))
 
     def test_roles_scope_and_csrf_are_enforced(self):
         bang=self.approve_attendance(); gui_duyet_bang(bang)
         self.assertEqual(self.post(self.people[0].nguoi_dung,self.decision_url,
-            {'action':'approve','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
+            {'thao_tac':'duyet','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
         self.client.force_login(self.director)
-        self.assertEqual(self.client.post(self.decision_url,{'action':'approve','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
+        self.assertEqual(self.client.post(self.decision_url,{'thao_tac':'duyet','nhan_vien_ids':[self.people[0].pk]}).status_code,403)
         self.client.force_login(self.people[1].nguoi_dung)
         self.assertEqual(self.client.get(reverse('thuong:detail',args=[self.people[0].pk,2026,10])).status_code,403)
 
@@ -303,7 +302,7 @@ class BonusWorkflowTests(TestCase):
             self.approve_attendance(i)
         selected={'nhan_vien_ids':[p.pk for p in self.people]}
         self.post(self.hr,self.submit_url,selected)
-        self.post(self.director,self.decision_url,{**selected,'action':'approve'})
+        self.post(self.director,self.decision_url,{**selected,'thao_tac':'duyet'})
         self.assertFalse(Luong.objects.exists())
         self.assertEqual(tinh_bang_luong(self.hr, 2026, 10), 2)
         self.assertEqual(Luong.objects.filter(tong_tien_thuong=700000).count(),2)

@@ -32,7 +32,7 @@ def _bang_luong_trong_pham_vi(user):
 
     return Luong.objects.filter(
         tong_hop__nhan_vien__in=nhan_vien,
-        tong_thuong__trang_thai='approved',
+        tong_thuong__trang_thai='da_duyet',
     ).select_related(
         'tong_hop__nhan_vien__phong_ban',
         'tong_thuong',

@@ -31,8 +31,6 @@ def loc_bang_thuong(cac_bang, du_lieu):
     for cot in ['thang', 'nam', 'trang_thai']:
         if du_lieu.get(cot):
             cac_bang = cac_bang.filter(**{cot: du_lieu[cot]})
-    if du_lieu.get('nhan_vien'):
-        cac_bang = cac_bang.filter(nguoi_dung__employee=du_lieu['nhan_vien'])
     if du_lieu.get('phong_ban'):
         cac_bang = cac_bang.filter(nguoi_dung__employee__phong_ban=du_lieu['phong_ban'])
     if du_lieu.get('tu_khoa'):
@@ -50,4 +48,4 @@ def lich_su_de_xuat(nguoi_dung):
 def lich_su_de_xuat_trong_pham_vi(nguoi_dung):
     return DeXuatThuong.objects.select_related('bang_thuong').filter(
         bang_thuong__nguoi_dung__employee__in=nhan_vien_duoc_hien_thi(nguoi_dung),
-        bang_thuong__trang_thai__in=['draft', 'rejected'])
+        bang_thuong__trang_thai__in=['ban_nhap', 'tu_choi'])

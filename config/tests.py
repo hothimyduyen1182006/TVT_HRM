@@ -77,7 +77,7 @@ class HomePageTests(TestCase):
             )
             bonus = Thuong.objects.create(
                 nguoi_dung=owner.nguoi_dung, nam=year, thang=2,
-                trang_thai='approved', nguoi_duyet=self.people[1].nguoi_dung,
+                trang_thai='da_duyet', nguoi_duyet=self.people[1].nguoi_dung,
                 ngay_duyet=timezone.now(),
             )
             Luong.objects.create(

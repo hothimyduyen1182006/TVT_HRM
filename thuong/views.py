@@ -31,9 +31,9 @@ def danh_sach_thuong(request):
         return danh_sach_thuong_ca_nhan(request)
     du_lieu = request.GET.copy()
     if co_vai_tro(request.user, GIAM_DOC) and 'trang_thai' not in du_lieu:
-        du_lieu['trang_thai'] = 'pending'
+        du_lieu['trang_thai'] = 'cho_duyet'
     form = FormLocThuong(request.user, du_lieu, default_current_period=True)
-    if not form.is_valid() and {'nhan_vien', 'phong_ban'} & set(form.errors):
+    if not form.is_valid() and 'phong_ban' in form.errors:
         return trang_tu_choi_truy_cap(request)
     ky = form.cleaned_data if form.is_valid() else {}
     if ky.get('thang') and ky.get('nam') and co_vai_tro(request.user, NHAN_SU):
@@ -41,25 +41,26 @@ def danh_sach_thuong(request):
             quy_trinh.dong_bo_thuong_tu_dong(nhan_vien, ky['thang'], ky['nam'])
     bang_trong_ky = bang_thuong_trong_pham_vi(request.user)
     if co_vai_tro(request.user, GIAM_DOC):
-        bang_trong_ky = bang_trong_ky.exclude(trang_thai='draft')
+        bang_trong_ky = bang_trong_ky.exclude(trang_thai='ban_nhap')
     bang_trong_ky = loc_bang_thuong(bang_trong_ky, {cot: ky.get(cot) for cot in ('thang', 'nam')})
     cac_bang = loc_bang_thuong(bang_trong_ky, ky) if form.is_valid() else Thuong.objects.none()
     tong = cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or Decimal(0)
     trang = Paginator(cac_bang, 5).get_page(request.GET.get('page'))
     tham_so = request.GET.copy()
     tham_so.pop('page', None)
+    tham_so.pop('nhan_vien', None)
     co_ky = bool(ky.get('thang') and ky.get('nam'))
     return render(request, 'thuong/list_redesign.html', {
         'form': form, 'rows': trang.object_list, 'page_obj': trang, 'page_query': tham_so.urlencode(),
         'khong_co_du_lieu_ky': (
             form.is_valid()
-            and not any(ky.get(cot) for cot in ('tu_khoa', 'nhan_vien', 'phong_ban'))
+            and not any(ky.get(cot) for cot in ('tu_khoa', 'phong_ban'))
             and not trang.paginator.count
             and not bang_trong_ky.exists()
         ),
         'tong_tien': tong, 'can_propose': co_vai_tro(request.user, NHAN_SU, TRUONG_PHONG),
         'can_send_period': co_ky and co_vai_tro(request.user, NHAN_SU) and not co_vai_tro(request.user, GIAM_DOC)
-                           and bang_thuong_trong_pham_vi(request.user).filter(thang=ky['thang'], nam=ky['nam'], trang_thai__in=['draft', 'rejected']).exists(),
+                           and bang_thuong_trong_pham_vi(request.user).filter(thang=ky['thang'], nam=ky['nam'], trang_thai__in=['ban_nhap', 'tu_choi']).exists(),
         'can_decide_period': co_ky and co_vai_tro(request.user, GIAM_DOC),
         'selected_thang': ky.get('thang'), 'selected_nam': ky.get('nam'),
         'can_export': co_vai_tro(request.user, NHAN_SU, GIAM_DOC),
@@ -75,7 +76,7 @@ def danh_sach_thuong_ca_nhan(request):
     tat_ca = Thuong.objects.select_related('nguoi_dung__employee__phong_ban').filter(nguoi_dung=request.user)
     ky = form.cleaned_data if form.is_valid() else {}
     cac_bang = loc_bang_thuong(tat_ca, ky).order_by('-nam', '-thang')
-    da_duyet = tat_ca.filter(trang_thai='approved')
+    da_duyet = tat_ca.filter(trang_thai='da_duyet')
     if ky.get('nam'):
         da_duyet = da_duyet.filter(nam=ky['nam'])
     cao_nhat = da_duyet.order_by('-tong_thuong', '-nam', '-thang').first()
@@ -83,14 +84,14 @@ def danh_sach_thuong_ca_nhan(request):
     gan_nhat = gan_nhat.order_by('-nam', '-thang').first()
     url = reverse('thuong:personal')
     def duong_dan(bang):
-        return f'{url}?thang={bang.thang}&nam={bang.nam}&trang_thai=approved' if bang else url
+        return f'{url}?thang={bang.thang}&nam={bang.nam}&trang_thai=da_duyet' if bang else url
     nam = ky.get('nam')
     return render(request, 'thuong/personal.html', {
         'form': form, 'rows': cac_bang, 'nhan_vien': nhan_vien,
         'tong_tien': cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
         'tong_da_nhan': da_duyet.aggregate(tong=Sum('tong_thuong'))['tong'] or 0,
         'nhan_de_tong_da_nhan': f'Tổng đã nhận (Năm {nam})' if nam else 'Tổng đã nhận (Tất cả năm)',
-        'url_loc_da_nhan': f'{url}?thang=&nam={nam or ""}&trang_thai=approved',
+        'url_loc_da_nhan': f'{url}?thang=&nam={nam or ""}&trang_thai=da_duyet',
         'tong_thang_cao_nhat': cao_nhat.tong_thuong if cao_nhat else 0, 'url_thang_cao_nhat': duong_dan(cao_nhat),
         'tong_thang_moi_nhat': gan_nhat.tong_thuong if gan_nhat else 0, 'url_ky_moi_nhat': duong_dan(gan_nhat),
     })
@@ -101,12 +102,12 @@ def chi_tiet_thuong(request, nhan_vien_id, nam, thang):
     if NhanVien.objects.filter(pk=nhan_vien_id).exists() and not nhan_vien_duoc_hien_thi(request.user).filter(pk=nhan_vien_id).exists():
         return trang_tu_choi_truy_cap(request)
     bang = get_object_or_404(bang_thuong_trong_pham_vi(request.user), nguoi_dung__employee__pk=nhan_vien_id, nam=nam, thang=thang)
-    if bang.nguoi_dung.employee.nguoi_dung_id != request.user.pk and co_vai_tro(request.user, GIAM_DOC) and not co_vai_tro(request.user, NHAN_SU) and bang.trang_thai == 'draft':
+    if bang.nguoi_dung.employee.nguoi_dung_id != request.user.pk and co_vai_tro(request.user, GIAM_DOC) and not co_vai_tro(request.user, NHAN_SU) and bang.trang_thai == 'ban_nhap':
         return trang_tu_choi_truy_cap(request)
     cac_khoan = cac_khoan_hien_thi(bang)
     for khoan in cac_khoan:
         khoan['co_the_sua'] = khoan['co_the_xoa'] = (
-            not khoan['tu_dong'] and co_vai_tro(request.user, NHAN_SU) and bang.trang_thai in ['draft', 'rejected'])
+            not khoan['tu_dong'] and co_vai_tro(request.user, NHAN_SU) and bang.trang_thai in ['ban_nhap', 'tu_choi'])
     return render(request, 'thuong/detail.html', {'row': bang, 'cac_khoan': cac_khoan})
 
 
@@ -148,7 +149,7 @@ def sua_de_xuat_thuong(request, bonus_id):
         else:
             messages.success(request, 'Đã cập nhật khoản thưởng khác trong bản nháp.')
             return redirect('thuong:detail', bang.nguoi_dung.employee.pk, bang.nam, bang.thang)
-    return render(request, 'thuong/propose.html', {'form': form, 'history': lich_su_de_xuat(request.user), 'editing_rejected': True})
+    return render(request, 'thuong/propose.html', {'form': form, 'history': lich_su_de_xuat(request.user), 'dang_sua_bi_tu_choi': True})
 
 
 @login_required
@@ -185,8 +186,8 @@ def xu_ly_duyet_thuong(request, nam, thang):
 
 def xu_ly_bang_da_chon(request, nam, thang, gui_duyet=False):
     url = f"{reverse('thuong:list')}?thang={thang}&nam={nam}"
-    thao_tac = 'submit' if gui_duyet else request.POST.get('action')
-    if thao_tac not in ['submit', 'approve', 'reject']:
+    thao_tac = 'gui_duyet' if gui_duyet else request.POST.get('thao_tac')
+    if thao_tac not in ['gui_duyet', 'duyet', 'tu_choi']:
         messages.error(request, 'Lựa chọn duyệt không hợp lệ.')
         return redirect(url)
     ds = request.POST.getlist('nhan_vien_id') or request.POST.getlist('nhan_vien_ids')
@@ -195,7 +196,7 @@ def xu_ly_bang_da_chon(request, nam, thang, gui_duyet=False):
     if not ds:
         messages.error(request, 'Vui lòng chọn ít nhất một nhân viên.')
         return redirect(url)
-    if thao_tac == 'reject' and len(ds) != 1:
+    if thao_tac == 'tu_choi' and len(ds) != 1:
         messages.error(request, 'Bạn chỉ có thể từ chối từng người. Vui lòng chọn một nhân viên và thực hiện từ chối riêng.')
         return redirect(url)
     try:
@@ -209,8 +210,8 @@ def xu_ly_bang_da_chon(request, nam, thang, gui_duyet=False):
     except ValidationError as loi:
         messages.error(request, '; '.join(loi.messages))
         return redirect(url)
-    messages.success(request, {'submit': 'Gửi duyệt bảng thưởng thành công.',
-        'approve': 'Duyệt bảng thưởng thành công.', 'reject': 'Đã từ chối khoản thưởng và lưu lý do.'}[thao_tac])
+    messages.success(request, {'gui_duyet': 'Gửi duyệt bảng thưởng thành công.',
+        'duyet': 'Duyệt bảng thưởng thành công.', 'tu_choi': 'Đã từ chối khoản thưởng và lưu lý do.'}[thao_tac])
     return redirect(url)
 
 
@@ -224,7 +225,7 @@ def xuat_bang_thuong(request):
         messages.error(request, 'Vui lòng chọn tháng, năm và bộ lọc hợp lệ trước khi xuất bảng thưởng.')
         return redirect('thuong:list')
     du_lieu = form.cleaned_data
-    if du_lieu.get('trang_thai') != 'approved':
+    if du_lieu.get('trang_thai') != 'da_duyet':
         messages.error(request, 'Vui lòng lọc trạng thái Đã duyệt trước khi xuất CSV.')
         return redirect('thuong:list')
     cac_bang = loc_bang_thuong(bang_thuong_trong_pham_vi(request.user), du_lieu)

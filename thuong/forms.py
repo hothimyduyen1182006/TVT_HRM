@@ -29,7 +29,7 @@ class TruongTienVND(forms.DecimalField):
         is_plain_number = re.fullmatch(r'\d+', raw_value)
         is_grouped_number = re.fullmatch(r'\d{1,3}(?:[.,]\d{3})+', raw_value)
         if not (is_plain_number or is_grouped_number):
-            raise forms.ValidationError('Nhập đầy đủ số tiền, ví dụ 500000 VNĐ.')
+            raise forms.ValidationError('Nhập số tiền, ví dụ 500000.')
 
         normalized_value = raw_value.replace('.', '').replace(',', '')
         return super().to_python(normalized_value)
@@ -38,7 +38,6 @@ class TruongTienVND(forms.DecimalField):
 class FormLocThuong(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12, required=False)
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100, required=False)
-    nhan_vien = forms.ModelChoiceField(label='Nhân viên', queryset=NhanVien.objects.none(), required=False)
     phong_ban = forms.ModelChoiceField(label='Phòng ban', queryset=PhongBan.objects.none(), required=False)
     tu_khoa = forms.CharField(
         label='Từ khóa (Họ tên)',
@@ -47,7 +46,7 @@ class FormLocThuong(forms.Form):
         widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ hoặc tên...'}),
     )
     trang_thai = forms.ChoiceField(
-        label='Trạng thái', required=False, choices=[('', 'Tất cả'), *Thuong.STATUSES]
+        label='Trạng thái', required=False, choices=[('', 'Tất cả'), *Thuong.TRANG_THAI]
     )
 
     def __init__(self, nguoi_dung, data=None, default_current_period=False):
@@ -62,17 +61,13 @@ class FormLocThuong(forms.Form):
         super().__init__(data=data)
         chon_ky_thuong(self.fields, today.year)
         nhan_vien_hien = nhan_vien_duoc_hien_thi(nguoi_dung)
-        self.fields['nhan_vien'].queryset = nhan_vien_hien
         self.fields['phong_ban'].queryset = PhongBan.objects.filter(
             pk__in=nhan_vien_hien.values('phong_ban_id')
         )
-        self.fields['nhan_vien'].empty_label = 'Tất cả'
         self.fields['phong_ban'].empty_label = 'Tất cả'
 
     def pham_vi_nhan_vien(self, nguoi_dung):
         pham_vi = nhan_vien_duoc_hien_thi(nguoi_dung)
-        if self.cleaned_data.get('nhan_vien'):
-            pham_vi = pham_vi.filter(pk=self.cleaned_data['nhan_vien'].pk)
         if self.cleaned_data.get('phong_ban'):
             pham_vi = pham_vi.filter(phong_ban=self.cleaned_data['phong_ban'])
         return pham_vi
@@ -82,7 +77,7 @@ class FormLocThuongCaNhan(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12, required=False)
     nam = forms.IntegerField(label='Năm', min_value=2000, max_value=2100, required=False)
     trang_thai = forms.ChoiceField(label='Trạng thái', required=False,
-                               choices=[('', 'Tất cả'), *Thuong.STATUSES])
+                               choices=[('', 'Tất cả'), *Thuong.TRANG_THAI])
 
     def __init__(self, data=None):
         today = timezone.localdate()
@@ -103,7 +98,7 @@ class FormDeXuatThuong(forms.Form):
     ten = forms.CharField(label='Tên khoản thưởng khác', max_length=100, required=False)
     ly_do = forms.CharField(label='Lý do đề xuất', widget=forms.Textarea, required=False)
     so_tien = TruongTienVND(
-        label='Số tiền (VNĐ)',
+        label='Số tiền',
         min_value=0,
         max_digits=12,
         decimal_places=0,

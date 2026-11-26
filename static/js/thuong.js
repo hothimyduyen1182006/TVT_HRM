@@ -29,7 +29,7 @@ const form = document.getElementById('bm-submit-form');
  document.getElementById('bm-bulk-form')?.addEventListener('submit', event => {
    const selected = rows.filter(row => row.checked);
    if (!selected.length) { event.preventDefault(); moXacNhan('Vui lòng chọn ít nhất một nhân viên.', false); return; }
-   if (event.submitter?.value === 'reject') {
+   if (event.submitter?.value === 'tu_choi') {
      event.preventDefault();
      if (selected.length > 1) { moXacNhan('Bạn chỉ có thể từ chối từng người. Vui lòng chọn một nhân viên và thực hiện từ chối riêng.', false); return; }
      moTuChoi(event.currentTarget);
@@ -51,7 +51,7 @@ const form = document.getElementById('bm-submit-form');
  nutDuyet.addEventListener('click', () => {
    daXacNhanDuyet = true;
    const form = document.getElementById('bm-bulk-form');
-   form.requestSubmit(form.querySelector('button[value="approve"]'));
+   form.requestSubmit(form.querySelector('button[value="duyet"]'));
  });
  const dialog = document.getElementById('bm-reject-dialog');
  const reason = document.getElementById('bm-reject-text');
@@ -65,7 +65,7 @@ const form = document.getElementById('bm-submit-form');
  document.getElementById('bm-reject-dialog-form').addEventListener('submit', event => {
    event.preventDefault();
    if (!reason.value.trim()) { reason.setCustomValidity('Vui lòng nhập lý do từ chối.'); reason.reportValidity(); return; }
-   for (const [name, value] of [['ly_do', reason.value.trim()], ['action', 'reject']]) {
+   for (const [name, value] of [['ly_do', reason.value.trim()], ['thao_tac', 'tu_choi']]) {
      let input = formTuChoi.querySelector(`input[name="${name}"]`);
      if (!input) { input = document.createElement('input'); input.type = 'hidden'; input.name = name; formTuChoi.append(input); }
      input.value = value;

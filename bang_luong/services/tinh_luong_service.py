@@ -78,7 +78,7 @@ def _tinh_phieu_luong(cong):
             nguoi_dung=nhan_vien.nguoi_dung,
             nam=cong.nam,
             thang=cong.thang,
-            trang_thai='approved'
+            trang_thai='da_duyet'
         )
     except Thuong.DoesNotExist:
         raise ValidationError('Nhân viên chưa có bảng thưởng đã duyệt.')
