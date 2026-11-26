@@ -47,6 +47,10 @@ class TongHopCong(models.Model):  # Khai báo model ánh xạ tới bảng tổn
             ('empty', 'Chưa có dữ liệu'),  # Mã lưu empty, nhãn hiển thị Chưa có dữ liệu.
         ],
     )
+
+    def __str__(self):
+        return f'{self.nhan_vien} · {self.thang:02d}/{self.nam}'
+
     class Meta:  # Khai báo tùy chọn áp dụng cho toàn bộ model.
         # Tên bảng tổng hợp trong database.
         db_table = 'Tong_hop_cong'  # Chỉ định tên bảng trong cơ sở dữ liệu.

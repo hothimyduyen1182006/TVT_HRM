@@ -22,14 +22,4 @@ class LuongAdmin(admin.ModelAdmin):
         'tong_hop__nhan_vien__ho_va_ten',
     )
 
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
 admin.site.register(Luong, LuongAdmin)
