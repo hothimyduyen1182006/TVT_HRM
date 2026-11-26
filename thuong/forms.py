@@ -25,7 +25,7 @@ class TruongTienVND(forms.DecimalField):
         if value in self.empty_values:
             return None
 
-        raw_value = str(value).strip().replace('₫', '').replace('VNĐ', '').replace(' ', '')
+        raw_value = str(value).strip().replace(' ', '')
         is_plain_number = re.fullmatch(r'\d+', raw_value)
         is_grouped_number = re.fullmatch(r'\d{1,3}(?:[.,]\d{3})+', raw_value)
         if not (is_plain_number or is_grouped_number):

@@ -2,12 +2,12 @@ import csv
 import io
 
 from django.http import HttpResponse
+from django.utils.timezone import template_localtime
 
-from .hien_thi import cac_khoan_hien_thi
-
-
-CAC_COT = ['Mã nhân viên', 'Nhân viên', 'Phòng ban', 'Tháng', 'Năm',
-           'Loại thưởng', 'Khoản thưởng', 'Lý do', 'Số tiền', 'Trạng thái']
+CAC_COT = (
+    'Mã thưởng', 'Họ và tên', 'Phòng ban', 'Thưởng chuyên cần',
+    'Thưởng thâm niên', 'Thưởng khác', 'Tổng thưởng', 'Trạng thái', 'Ngày duyệt',
+)
 
 
 def o_van_ban(gia_tri):
@@ -16,20 +16,27 @@ def o_van_ban(gia_tri):
 
 
 def tao_tep_thuong(cac_bang, nam, thang):
-    """Xuất mỗi khoản thưởng thành một dòng CSV."""
-    cac_dong = []
-    for bang in cac_bang:
-        nhan_vien = bang.nguoi_dung.employee
-        for khoan in cac_khoan_hien_thi(bang):
-            cac_dong.append([
-                nhan_vien.ma_ho_so, nhan_vien.ho_va_ten, nhan_vien.phong_ban.ten_phong_ban,
-                bang.thang, bang.nam, khoan['ten'] if khoan['tu_dong'] else 'Thưởng khác',
-                khoan['ten'], khoan['ly_do'], khoan['so_tien'], bang.get_trang_thai_display(),
-            ])
+    """Xuất mỗi bảng thưởng thành một dòng CSV."""
     output = io.StringIO(newline='')
     writer = csv.writer(output)
     writer.writerow(CAC_COT)
-    writer.writerows([o_van_ban(o) for o in dong] for dong in cac_dong)
+    for bang in cac_bang:
+        nhan_vien = bang.nguoi_dung.employee
+        ngay_duyet = ''
+        if bang.ngay_duyet and bang.trang_thai in ('da_duyet', 'tu_choi'):
+            ngay_duyet = template_localtime(bang.ngay_duyet).strftime('%d/%m/%Y')
+        writer.writerow([
+            o_van_ban(bang.ma_thuong),
+            o_van_ban(nhan_vien.ho_va_ten),
+            o_van_ban(nhan_vien.phong_ban.ten_phong_ban),
+            bang.thuong_chuyen_can, bang.thuong_tham_nien, bang.thuong_khac,
+            bang.tong_thuong, bang.get_trang_thai_display(), ngay_duyet,
+        ])
     response = HttpResponse('\ufeff' + output.getvalue(), content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = f'attachment; filename="bonuses-{nam}-{thang:02}.csv"'
+    ten_tep = 'bonuses'
+    if nam:
+        ten_tep += f'-{nam}'
+    if thang:
+        ten_tep += f'-{thang:02}'
+    response['Content-Disposition'] = f'attachment; filename="{ten_tep}.csv"'
     return response

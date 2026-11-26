@@ -25,6 +25,13 @@ def trang_tu_choi_truy_cap(request):
     return render(request, 'thuong/access_denied.html', status=403)
 
 
+def bang_thuong_quan_ly(nguoi_dung):
+    cac_bang = bang_thuong_trong_pham_vi(nguoi_dung)
+    if co_vai_tro(nguoi_dung, GIAM_DOC):
+        cac_bang = cac_bang.exclude(trang_thai='ban_nhap')
+    return cac_bang
+
+
 @login_required
 def danh_sach_thuong(request):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG):
@@ -39,9 +46,7 @@ def danh_sach_thuong(request):
     if ky.get('thang') and ky.get('nam') and co_vai_tro(request.user, NHAN_SU):
         for nhan_vien in form.pham_vi_nhan_vien(request.user):
             quy_trinh.dong_bo_thuong_tu_dong(nhan_vien, ky['thang'], ky['nam'])
-    bang_trong_ky = bang_thuong_trong_pham_vi(request.user)
-    if co_vai_tro(request.user, GIAM_DOC):
-        bang_trong_ky = bang_trong_ky.exclude(trang_thai='ban_nhap')
+    bang_trong_ky = bang_thuong_quan_ly(request.user)
     bang_trong_ky = loc_bang_thuong(bang_trong_ky, {cot: ky.get(cot) for cot in ('thang', 'nam')})
     cac_bang = loc_bang_thuong(bang_trong_ky, ky) if form.is_valid() else Thuong.objects.none()
     tong = cac_bang.aggregate(tong=Sum('tong_thuong'))['tong'] or Decimal(0)
@@ -221,15 +226,12 @@ def xuat_bang_thuong(request):
     if not co_vai_tro(request.user, NHAN_SU, GIAM_DOC):
         return trang_tu_choi_truy_cap(request)
     form = FormLocThuong(request.user, request.POST)
-    if not form.is_valid() or not form.cleaned_data.get('thang') or not form.cleaned_data.get('nam'):
-        messages.error(request, 'Vui lòng chọn tháng, năm và bộ lọc hợp lệ trước khi xuất bảng thưởng.')
+    if not form.is_valid():
+        messages.error(request, 'Vui lòng chọn bộ lọc hợp lệ trước khi xuất bảng thưởng.')
         return redirect('thuong:list')
     du_lieu = form.cleaned_data
-    if du_lieu.get('trang_thai') != 'da_duyet':
-        messages.error(request, 'Vui lòng lọc trạng thái Đã duyệt trước khi xuất CSV.')
-        return redirect('thuong:list')
-    cac_bang = loc_bang_thuong(bang_thuong_trong_pham_vi(request.user), du_lieu)
+    cac_bang = loc_bang_thuong(bang_thuong_quan_ly(request.user), du_lieu)
     if not cac_bang.exists():
-        messages.error(request, 'Chưa có dữ liệu thưởng đã duyệt để xuất.')
+        messages.error(request, 'Không có bảng thưởng khớp với bộ lọc để xuất.')
         return redirect('thuong:list')
     return tao_tep_thuong(cac_bang, du_lieu['nam'], du_lieu['thang'])

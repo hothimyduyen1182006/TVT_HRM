@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import date, time
 from decimal import Decimal
 
@@ -273,7 +275,18 @@ class BonusWorkflowTests(TestCase):
         bang.refresh_from_db(); gui_duyet_bang(bang); duyet_bang(bang,self.director)
         response=self.post(self.hr,reverse('thuong:export'),{'thang':10,'nam':2026,'trang_thai':'da_duyet'})
         self.assertEqual(response.status_code,200)
-        self.assertIn('Thưởng dự án',response.content.decode('utf-8-sig'))
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
+        self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
+        tieu_de, dong = csv.reader(io.StringIO(response.content.decode('utf-8-sig')))
+        self.assertEqual(tieu_de, [
+            'Mã thưởng', 'Họ và tên', 'Phòng ban', 'Thưởng chuyên cần',
+            'Thưởng thâm niên', 'Thưởng khác', 'Tổng thưởng', 'Trạng thái', 'Ngày duyệt',
+        ])
+        self.assertEqual(dong[0], ma_hien_thi)
+        self.assertEqual(Decimal(dong[5]), proposal.so_tien)
+        self.assertEqual(Decimal(dong[6]), bang.tong_thuong)
+        self.assertEqual(dong[7], 'Đã duyệt')
+        self.assertRegex(dong[8], r'^\d{2}/\d{2}/\d{4}$')
 
     def test_roles_scope_and_csrf_are_enforced(self):
         bang=self.approve_attendance(); gui_duyet_bang(bang)
