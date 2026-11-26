@@ -7,7 +7,6 @@
 .leave-panel-title{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:21px}
 .leave-panel-title h2{margin:5px 0 3px;color:#173654;font-size:21px;font-weight:780}
 .leave-panel-title p{margin:0;color:#8390a0;font-size:13px}
-.leave-title-icon{display:grid;width:39px;height:39px;place-items:center;border-radius:11px;background:#f3f5f9;color:#173654;font-size:26px}
 .leave-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px}
 .leave-field{min-width:0}
 .leave-field-wide{grid-column:1/-1}
@@ -51,7 +50,6 @@
 .leave-error-banner{margin-bottom:15px;padding:10px 12px;border-radius:7px;background:#fff1f0;color:#a93d39;font-size:12px}
 .leave-footer{display:flex;justify-content:space-between;margin:10px 2px;color:#a0aab6;font-size:9px;letter-spacing:.3px}
 .leave-back-link{display:inline-block;margin:0 0 18px;color:#53677e;font-size:12px;font-weight:700;text-decoration:none}.leave-back-link:hover{color:#b18b3e}
-.approve-button{background:#173654;color:white}.reject-button{background:#b74646;color:white}.reject-button:hover{background:#9f3939}
 
 /* Employee create form is compact; the personal history remains a separate full-width section. */
 .leave-employee-page{max-width:none;width:100%}
@@ -63,9 +61,7 @@
 .employee-page-heading h1{width:100%;color:#173654;font-size:28px;letter-spacing:.3px;text-align:center}
 .leave-compose{width:min(72vw,1320px);box-sizing:border-box;margin:0 auto 18px;padding:16px 20px;border:1px solid #9db0c4;border-radius:11px;background:#f2f6fa;box-shadow:none}
 .leave-compose .leave-panel-title{display:none}
-.leave-compose .leave-title-icon{width:34px;height:34px;font-size:22px}
 .leave-compose .leave-form-grid{grid-template-columns:minmax(0,1fr);gap:10px}
-.leave-compose .leave-field-wide{grid-column:auto}
 .leave-compose .leave-field label{margin-bottom:4px;color:#173654;font-size:11px;text-transform:uppercase}
 .leave-compose .leave-input{min-height:36px;padding:7px 10px;border-color:#bdcad7;border-radius:6px;font-size:12px}
 .leave-compose .leave-field textarea.leave-input{min-height:58px}
@@ -130,14 +126,8 @@
 .leave-sheet-details p b{color:#173654;font-weight:780}
 .leave-sheet-details .leave-status{margin-left:4px;vertical-align:1px}
 .leave-sheet-evidence{display:inline-flex;align-items:center;gap:8px;color:#516a85;font-size:12px;font-weight:650;text-decoration:underline}
-.leave-sheet-evidence:hover{text-decoration:underline}
 .leave-evidence-detail{margin:0 0 9px;overflow-wrap:anywhere}
 .leave-evidence-missing{color:#78889a;font-size:12px}
-.leave-attach-evidence{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:7px 0 13px;padding:10px;border:1px dashed #bdcad7;border-radius:7px;background:#fff}
-.leave-attach-evidence label{color:#173654;font-size:12px;font-weight:750}
-.leave-attach-evidence input{max-width:100%;font-size:11px}
-.leave-attach-evidence small{color:#78889a;font-size:10px}
-.leave-attach-evidence button{padding:7px 11px;border:0;border-radius:5px;background:#173654;color:#fff;font:inherit;font-size:11px;cursor:pointer}
 .leave-sheet-note{padding:9px 11px;border-left:3px solid #c69b45;background:#fbf8f0}
 .leave-sheet-actions{max-width:560px;margin:11px auto 0}
 .leave-sheet-actions>label{display:block;margin:0 0 6px;color:#173654;font-size:13px;font-weight:780}
