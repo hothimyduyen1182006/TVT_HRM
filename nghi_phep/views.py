@@ -80,16 +80,15 @@ def danh_sach_don_nghi(request):
     bieu_mau = DonNghiPhepForm(
         data=request.POST if request.method == 'POST' else None,
         files=request.FILES if request.method == 'POST' else None,
-        nhan_vien=ho_so_cua_toi,
     )
+    bieu_mau.instance.nhan_vien = ho_so_cua_toi
     # Kiểm tra dữ liệu gửi lên và lưu đơn nếu form hợp lệ.
     if request.method == 'POST':
         bieu_mau_hop_le = bieu_mau.is_valid()
         if not ho_so_cua_toi:
             messages.error(request, 'Tài khoản chưa được liên kết với hồ sơ nhân viên.')
         elif bieu_mau_hop_le:
-            don = bieu_mau.save(commit=False)
-            don.save()
+            bieu_mau.save()
             messages.success(request, 'Đã gửi đơn nghỉ phép.')
             return redirect(f"{reverse('nghi_phep:list')}?view=mine")
 

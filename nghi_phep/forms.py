@@ -30,12 +30,6 @@ def kiem_tra_tep(tep_tai_len):
 
 class DonNghiPhepForm(forms.ModelForm):
     """Biểu mẫu tạo đơn nghỉ phép từ các trường trong model DonNghiPhep."""
-    def __init__(self, data=None, files=None, nhan_vien=None):
-        super().__init__(data=data, files=files)
-        # Gắn nhân viên vào đơn để model có đủ thông tin khi kiểm tra dữ liệu.
-        if nhan_vien and not self.instance.nhan_vien_id:
-            self.instance.nhan_vien = nhan_vien
-
     class Meta:
         model = DonNghiPhep
         fields = ['ngay_bat_dau', 'ngay_ket_thuc', 'loai_nghi', 'ly_do', 'tep_dinh_kem']
@@ -48,7 +42,7 @@ class DonNghiPhepForm(forms.ModelForm):
                 'class': 'leave-input', 'rows': 3,
                 'placeholder': 'Nhập lý do xin nghỉ phép',
             }),
-            'tep_dinh_kem': forms.ClearableFileInput(attrs={
+            'tep_dinh_kem': forms.FileInput(attrs={
                 'accept': DINH_DANG_TEP_CHO_PHEP, 'class': 'leave-file-input',
             }),
         }
@@ -87,8 +81,13 @@ class LocDonNghiPhepForm(forms.Form):
 
     def __init__(self, cac_phong_ban, data=None):
         super().__init__(data=data)
-        # Đưa các phòng ban được phép xem vào danh sách lựa chọn.
-        self.fields['department'].widget = forms.Select(choices=[
-            ('', 'Tất cả phòng ban'),
-            *((phong_ban.pk, phong_ban.ten_phong_ban) for phong_ban in cac_phong_ban),
-        ])
+        # Tạo danh sách phòng ban cho ô lọc.
+        lua_chon_phong_ban = [('', 'Tất cả phòng ban')]
+        for phong_ban in cac_phong_ban:
+            lua_chon_phong_ban.append(
+                (phong_ban.pk, phong_ban.ten_phong_ban)
+            )
+
+        self.fields['department'].widget = forms.Select(
+            choices=lua_chon_phong_ban
+        )

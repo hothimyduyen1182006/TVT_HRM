@@ -102,6 +102,14 @@
         <label for="{{ bo_loc.status.id_for_label }}">Trạng thái</label>
         {{ bo_loc.status }}
       </div>
+      <div class="leave-management-field">
+        <label for="{{ bo_loc.start_date.id_for_label }}">Từ ngày</label>
+        {{ bo_loc.start_date }}
+      </div>
+      <div class="leave-management-field">
+        <label for="{{ bo_loc.end_date.id_for_label }}">Đến ngày</label>
+        {{ bo_loc.end_date }}
+      </div>
       <button class="leave-management-filter-button" type="submit">⚑ Lọc</button>
     </form>
   {% endif %}
