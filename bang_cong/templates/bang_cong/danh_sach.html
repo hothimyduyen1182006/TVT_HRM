@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'bang_cong/css/bang_cong.css' %}?v=20261116-app-structure">{% endblock %}
-{% block record_scope %}{% endblock %}
+{% block record_scope %}{% include 'includes/record_scope.html' with module='attendance' %}{% endblock %}
 {% block title %}Bảng công tổng hợp · TVT{% endblock %}
 {% block content %}<div class="attendance-shell">
 

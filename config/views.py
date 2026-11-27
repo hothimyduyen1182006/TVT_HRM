@@ -31,20 +31,23 @@ def home(request):
     thang = latest.tong_hop.thang if latest else today.month
     nam = latest.tong_hop.nam if latest else today.year
     payroll_url=reverse('bang_luong:ca_nhan')+'?'+urlencode({'thang':thang, 'nam':nam})
-    bonus_url=reverse('thuong:personal') if employee or not can_manage else reverse('thuong:list')
+    bonus_url = reverse('thuong:list' if can_manage else 'thuong:personal')
     return render(request,'home.html',{
         'display_name':name,
-        'attendance_url':reverse('bang_cong:ca-nhan') if employee else (reverse('bang_cong:danh-sach') if can_manage else ''),
-        'attendance_description':'Theo dõi công của bạn' if employee else ('Xem dữ liệu theo quyền' if can_manage else 'Chưa liên kết hồ sơ nhân viên'),
-        'payroll_url':payroll_url if employee or not can_manage else reverse('bang_luong:danh_sach'),
+        'can_manage': can_manage,
+        'attendance_url': reverse('bang_cong:danh-sach') if can_manage else (
+            reverse('bang_cong:ca-nhan') if employee else ''
+        ),
+        'attendance_description': 'Theo dõi tình hình chấm công' if can_manage else 'Theo dõi ngày công của bạn',
+        'payroll_url': reverse('bang_luong:danh_sach') if can_manage else payroll_url,
         'bonus_url':bonus_url,
-        'bonus_description':'Xem các khoản thưởng của bạn' if employee or not can_manage else 'Xem bảng thưởng theo quyền',
-        'payroll_description':f'Phiếu lương mới nhất · {thang:02}/{nam}' if latest else (
-            'Xem phiếu lương của bạn' if employee or not can_manage else 'Xem bảng lương theo quyền'),
+        'bonus_description': 'Theo dõi và xử lý thưởng' if can_manage else 'Xem các khoản thưởng của bạn',
+        'payroll_description': 'Theo dõi thông tin tiền lương' if can_manage else (
+            f'Phiếu lương mới nhất · {thang:02}/{nam}' if latest else 'Xem phiếu lương của bạn'
+        ),
         'leave_url':reverse('nghi_phep:list') if can_manage or (employee and employee.dang_hoat_dong) else '',
-        'leave_title':'Quản lý nghỉ phép' if can_manage else 'Đăng ký nghỉ phép',
-        'leave_description':'Xem các yêu cầu theo quyền' if can_manage else (
-            'Tạo đơn nghỉ phép' if employee and employee.dang_hoat_dong else 'Cần hồ sơ nhân viên đang hoạt động'),
+        'leave_title': 'Quản lý nghỉ phép' if can_manage else 'Nghỉ phép cá nhân',
+        'leave_description': 'Theo dõi và xử lý đơn nghỉ phép' if can_manage else 'Gửi và theo dõi đơn nghỉ phép',
     })
 
 

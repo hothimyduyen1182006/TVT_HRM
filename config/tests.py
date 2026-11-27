@@ -53,7 +53,7 @@ class HomePageTests(TestCase):
         self.client.force_login(self.people[3].nguoi_dung)
         self.assertEqual(self.client.post('/').status_code,405)
 
-    def test_every_role_has_own_attendance_and_salary_shortcuts(self):
+    def test_roles_have_matching_attendance_and_salary_shortcuts(self):
         before=list(Luong.objects.values())
         for employee in self.people:
             with self.subTest(user=employee.nguoi_dung.username):
@@ -62,8 +62,11 @@ class HomePageTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertContains(response,employee.ho_va_ten)
                 self.assertContains(response,'Chào mừng trở lại!')
-                self.assertEqual(response.context['attendance_url'],'/bang_cong/ca-nhan/')
-                self.assertEqual(response.context['payroll_url'],'/bang_luong/ca-nhan/?thang=1&nam=2026')
+                can_manage = employee != self.people[3]
+                self.assertEqual(response.context['attendance_url'],
+                                 '/bang_cong/' if can_manage else '/bang_cong/ca-nhan/')
+                self.assertEqual(response.context['payroll_url'],
+                                 '/bang_luong/' if can_manage else '/bang_luong/ca-nhan/?thang=1&nam=2026')
                 self.assertEqual(self.client.get(response.context['attendance_url']).status_code,200)
                 self.assertEqual(self.client.get(response.context['payroll_url']).status_code,200)
                 self.assertEqual(response.context['leave_url'],'/nghi_phep/')

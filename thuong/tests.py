@@ -304,8 +304,9 @@ class BonusWorkflowTests(TestCase):
             response=self.client.get(reverse('home'))
             self.assertEqual(response.context['bonus_url'],reverse(target))
             html=response.content.decode()
-            self.assertLess(html.index('Xem bảng công'),html.index('Xem bảng thưởng'))
-            self.assertLess(html.index('Xem bảng thưởng'),html.index('Xem bảng lương'))
+            prefix = 'Quản lý' if target == 'thuong:list' else 'Xem'
+            titles = [html.index(f'<strong>{prefix} bảng {name}</strong>') for name in ('công', 'thưởng', 'lương')]
+            self.assertEqual(titles, sorted(titles))
 
     def test_bonus_to_payroll_submission_approval_and_payment(self):
         from bang_luong.services.tinh_luong_service import (
