@@ -12,7 +12,6 @@ class NhanVienAdmin(admin.ModelAdmin):
 
 @admin.register(PhongBan)
 class PhongBanAdmin(admin.ModelAdmin):
-    exclude = ('cho_phep_tang_ca',)
     list_display = ('ma_phong_ban', 'ten_phong_ban', 'truong_phong')
 
 

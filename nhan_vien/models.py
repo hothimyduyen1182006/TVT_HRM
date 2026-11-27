@@ -8,16 +8,11 @@ from django.db import models
 class PhongBan(models.Model):
     ma_phong_ban = models.CharField('Mã phòng', max_length=30, unique=True)
     ten_phong_ban = models.CharField('Tên phòng', max_length=150)
-# Trường này được giữ để tương thích với cấu trúc dữ liệu cũ, không trực tiếp quyết định việc tính tăng ca tự động. Ngoài ra, model có ràng buộc chỉ cho phép tối đa một phòng ban mang giá trị True.
-    cho_phep_tang_ca = models.BooleanField('Phòng Sản xuất được phép OT', default=False)
 # Vì model nhân viên được khai báo sau model Phongban nên có dấu '', setnull tức khi nv là trưởng pb bị xóa thì bảng phòng ban vẫn còn, trường trưởng pb có giá trị chuyển về null
     truong_phong = models.ForeignKey('NhanVien', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name='phong_ban_duoc_quan_ly', verbose_name='Trưởng phòng') #related_name: để truy ngược từ nhân viên tìm phòng ban mà nhân viên đó được làm trưởng phòng => nhanvien.phong_ban_duoc_quan_ly.all()
     class Meta:
         db_table = 'Phong_ban'
-#Điểm cần nhớ: Đoạn code này chỉ đảm bảo tối đa một phòng ban có cho_phep_tang_ca=True, chứ không bắt buộc phải có một phòng được đánh dấu True
-        constraints = [models.UniqueConstraint(fields=['cho_phep_tang_ca'], condition=models.Q(cho_phep_tang_ca=True),
-                                               name='one_production_overtime_department')]
     def __str__(self):
         return self.ten_phong_ban
 
