@@ -76,6 +76,34 @@ class ManagementPersonalRecordsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'class="record-scope')
 
+    def test_personal_attendance_filters_dates_and_displayed_status(self):
+        employee = self.people[3]
+        for day, minutes_late in [(date(2026, 1, 31), 10), (date(2026, 2, 2), 0), (date(2026, 2, 3), 10)]:
+            ChamCong.objects.create(
+                nhan_vien=employee, ngay=day, trang_thai='present',
+                gio_vao=time(8, minutes_late), gio_ra=time(17), so_phut_tre=minutes_late,
+            )
+        self.client.force_login(employee.nguoi_dung)
+        path = '/bang_cong/ca-nhan/'
+        params = {'thang': 1, 'nam': 2026, 'tu_ngay': '2026-01-31', 'den_ngay': '2026-02-02'}
+        response = self.client.get(path, params)
+        self.assertEqual([row['ngay'] for row in response.context['cac_dong']],
+                         [date(2026, 2, 2), date(2026, 1, 31)])
+        response = self.client.get(path, {**params, 'trang_thai': 'late'})
+        self.assertEqual([row['ngay'] for row in response.context['cac_dong']], [date(2026, 1, 31)])
+        self.assertContains(response, 'value="2026-01-31"')
+        self.assertContains(response, '<option value="late" selected>Đi làm trễ</option>', html=True)
+        response = self.client.get(path, {**params, 'den_ngay': '2026-01-30'})
+        self.assertContains(response, 'Từ ngày phải trước hoặc bằng đến ngày.')
+        self.assertEqual(response.context['cac_dong'], [])
+
+        self.client.force_login(self.people[1].nguoi_dung)
+        response = self.client.get(f'/bang_cong/nhan-vien/{employee.pk}/', {**params, 'trang_thai': 'late'})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="tu_ngay"')
+        self.assertEqual([row['ngay'] for row in response.context['cac_dong']],
+                         [date(2026, 1, 31), date(2026, 1, 5)])
+
     def test_employee_management_payroll_redirects_with_denied_message(self):
         employee = self.people[3]
         self.client.force_login(employee.nguoi_dung)

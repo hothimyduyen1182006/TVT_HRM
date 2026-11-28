@@ -9,6 +9,41 @@ from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 
 
+NHAN_TINH_TRANG_CONG = {
+    'ontime': 'Đi đúng giờ',
+    'late': 'Đi làm trễ',
+    'paid_leave': 'Nghỉ có lương',
+    'unpaid_leave': 'Nghỉ không lương',
+    'absent': 'Nghỉ không phép',
+    'incomplete': 'Thiếu dữ liệu',
+}
+
+
+class BoLocCongCaNhan(forms.Form):
+    tu_ngay = forms.DateField(
+        label='Từ ngày', required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        error_messages={'invalid': 'Từ ngày không hợp lệ.'},
+    )
+    den_ngay = forms.DateField(
+        label='Đến ngày', required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+        error_messages={'invalid': 'Đến ngày không hợp lệ.'},
+    )
+    trang_thai = forms.ChoiceField(
+        label='Trạng thái', required=False,
+        choices=[('', 'Tất cả'), *NHAN_TINH_TRANG_CONG.items()],
+        error_messages={'invalid_choice': 'Trạng thái không hợp lệ.'},
+    )
+
+    def clean(self):
+        du_lieu = super().clean()
+        tu_ngay, den_ngay = du_lieu.get('tu_ngay'), du_lieu.get('den_ngay')
+        if tu_ngay and den_ngay and tu_ngay > den_ngay:
+            raise forms.ValidationError('Từ ngày phải trước hoặc bằng đến ngày.')
+        return du_lieu
+
+
 class BoLocBangCong(forms.Form):
     thang = forms.IntegerField(label='Tháng', min_value=1, max_value=12)
     nam = forms.IntegerField(label='Năm', min_value=2020, max_value=2030)

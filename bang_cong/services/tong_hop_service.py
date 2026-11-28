@@ -38,7 +38,7 @@ def tong_hop_theo_nhan_vien(ds_nhan_vien, nam, thang, ds_ban_ghi=None, hien_thi=
     ket_qua = []
     for nhan_vien in ds_nhan_vien:
         ma = nhan_vien.pk
-        data, gio_lam, co_ban_ghi, thieu_du_lieu = _tinh_tong_hop(
+        data, co_ban_ghi, thieu_du_lieu = _tinh_tong_hop(
             theo_nhan_vien[ma], cong_chuan, ma in da_chot,
         )
         if not hien_thi:
@@ -49,7 +49,6 @@ def tong_hop_theo_nhan_vien(ds_nhan_vien, nam, thang, ds_ban_ghi=None, hien_thi=
         ket_qua.append({
             **data,
             'nhan_vien': nhan_vien,
-            'hours': gio_lam,
             'trang_thai': trang_thai,
             'nhan_trang_thai': TongHopCong(trang_thai=trang_thai).get_trang_thai_display(),
             'co_ban_ghi': co_ban_ghi,
@@ -60,14 +59,13 @@ def tong_hop_theo_nhan_vien(ds_nhan_vien, nam, thang, ds_ban_ghi=None, hien_thi=
 
 def _tinh_tong_hop(ban_ghi_nhan_vien, cong_chuan, da_chot):
     """Cộng dồn công ngày của một nhân viên trong tháng."""
-    cong_thuc_te = cong_nghi = gio_tang_ca = gio_lam = ZERO
+    cong_thuc_te = cong_nghi = gio_tang_ca = ZERO
     so_ngay_vang = so_lan_tre = so_phut_tre = 0
     thieu_du_lieu = False
     for ban_ghi_ngay in ban_ghi_nhan_vien:
         cong_thuc_te += ban_ghi_ngay.cong_thuc_te
         cong_nghi += ban_ghi_ngay.cong_nghi_co_luong
         gio_tang_ca += ban_ghi_ngay.so_gio_tang_ca
-        gio_lam += ban_ghi_ngay.so_gio_lam
         so_ngay_vang += ban_ghi_ngay.trang_thai == 'absent'
         so_lan_tre += ban_ghi_ngay.so_phut_tre > 0
         so_phut_tre += ban_ghi_ngay.so_phut_tre
@@ -90,7 +88,7 @@ def _tinh_tong_hop(ban_ghi_nhan_vien, cong_chuan, da_chot):
         'so_lan_tre': so_lan_tre,
         'so_phut_tre': so_phut_tre,
         'trang_thai': trang_thai,
-    }, gio_lam, co_ban_ghi, thieu_du_lieu
+    }, co_ban_ghi, thieu_du_lieu
 
 
 @transaction.atomic

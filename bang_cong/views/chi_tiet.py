@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
+from bang_cong.filters import BoLocCongCaNhan, NHAN_TINH_TRANG_CONG
 from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import tinh_tang_ca_tu_dong
 from bang_cong.services.tong_hop_service import tong_hop_theo_nhan_vien
@@ -24,14 +25,15 @@ def _danh_sach_cong_ngay(ds_ban_ghi):
             continue
         ngay = ban_ghi.ngay
         trang_thai = {
-            'present': 'Đi làm trễ' if ban_ghi.so_phut_tre else 'Đi đúng giờ',
-            'leave': 'Nghỉ có lương' if ban_ghi.cong_nghi_co_luong else 'Nghỉ không lương',
-            'absent': 'Nghỉ không phép',
-        }.get(ban_ghi.trang_thai, 'Thiếu dữ liệu')
+            'present': 'late' if ban_ghi.so_phut_tre else 'ontime',
+            'leave': 'paid_leave' if ban_ghi.cong_nghi_co_luong else 'unpaid_leave',
+            'absent': 'absent',
+        }.get(ban_ghi.trang_thai, 'incomplete')
         tang_ca = tinh_tang_ca_tu_dong(ban_ghi)
         cac_dong.append({
             'ngay': ngay, 'thu': THU_TRONG_TUAN[ngay.weekday()], 'ban_ghi': ban_ghi,
-            'trang_thai': trang_thai, 'tang_ca': tang_ca.get('hours', KHONG),
+            'ma_trang_thai': trang_thai, 'trang_thai': NHAN_TINH_TRANG_CONG[trang_thai],
+            'tang_ca': tang_ca.get('hours', KHONG),
             'loi_tang_ca': tang_ca.get('error', ''), 'canh_bao_tang_ca': tang_ca.get('warnings', []),
         })
     return cac_dong
@@ -56,18 +58,13 @@ def _du_lieu_cong_thang(yeu_cau, nhan_vien):
         ds_ban_ghi=ds_ban_ghi,
     )[0]
     cac_dong = _danh_sach_cong_ngay(ds_ban_ghi)
-    so_ngay = sum(dong['ban_ghi'].gio_vao is not None for dong in cac_dong)
-    gio_lam_trung_binh = '—'
-    if so_ngay:
-        so_phut = int(tong_hop['hours'] * 60 / so_ngay)
-        gio_lam_trung_binh = f'{so_phut // 60}:{so_phut % 60:02}'
     ti_le_cong = 0
     if tong_hop['cong_chuan']:
         ti_le_cong = max(0, min(100, int(tong_hop['tong_cong'] / tong_hop['cong_chuan'] * 100)))
 
     return {
         'thang': thang, 'nam': nam, 'cac_dong': cac_dong, 'tong_hop': tong_hop,
-        'co_ky_cong': True, 'ti_le_cong': ti_le_cong, 'gio_lam_trung_binh': gio_lam_trung_binh,
+        'co_ky_cong': True, 'ti_le_cong': ti_le_cong,
         'tham_so_ky': urlencode({'thang': thang, 'nam': nam}),
     }
 
@@ -83,6 +80,26 @@ def bang_cong_nhan_vien(yeu_cau, employee_id, chi_xem_ban_than=False):
     ca_nhan = chi_xem_ban_than or not co_vai_tro(
         yeu_cau.user, NHAN_SU, GIAM_DOC, TRUONG_PHONG,
     )
+    if chi_xem_ban_than:
+        bo_loc = BoLocCongCaNhan(yeu_cau.GET)
+        ngu_canh['bo_loc_ca_nhan'] = bo_loc
+        if bo_loc.is_valid():
+            tu_ngay = bo_loc.cleaned_data['tu_ngay']
+            den_ngay = bo_loc.cleaned_data['den_ngay']
+            trang_thai = bo_loc.cleaned_data['trang_thai']
+            cac_dong = ngu_canh['cac_dong']
+            if tu_ngay or den_ngay:
+                ds_ban_ghi = ChamCong.objects.filter(nhan_vien=nhan_vien)
+                if tu_ngay:
+                    ds_ban_ghi = ds_ban_ghi.filter(ngay__gte=tu_ngay)
+                if den_ngay:
+                    ds_ban_ghi = ds_ban_ghi.filter(ngay__lte=den_ngay)
+                cac_dong = _danh_sach_cong_ngay(ds_ban_ghi.select_related('nhan_vien').order_by('-ngay'))
+            if trang_thai:
+                cac_dong = [dong for dong in cac_dong if dong['ma_trang_thai'] == trang_thai]
+            ngu_canh.update(cac_dong=cac_dong, tu_ngay=tu_ngay, den_ngay=den_ngay)
+        else:
+            ngu_canh['cac_dong'] = []
     ngu_canh.update({
         'nhan_vien': nhan_vien,
         'ca_nhan': ca_nhan,
