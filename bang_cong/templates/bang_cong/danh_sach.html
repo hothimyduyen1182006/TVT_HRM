@@ -21,16 +21,18 @@
 </form>
 {% if form.ngay_cham_cong.value %}<div class="at-notice">Danh sách nhân viên lọc theo chấm công ngày {{ form.ngay_cham_cong.value }}. Các cột tổng công vẫn là số liệu của tháng. <a href="{% url 'bang_cong:danh-sach' %}{% if month_query %}?{{ month_query }}{% endif %}">Bỏ lọc theo ngày</a></div>{% endif %}
 <div class="at-table-wrap"><table class="at-table"><thead><tr>{% if can_chot %}<th scope="col"><input type="checkbox" id="chot-chon-tat-ca" aria-label="Chọn tất cả nhân viên đủ điều kiện trong danh sách" disabled></th>{% endif %}<th>Họ tên</th><th>Phòng ban</th><th>Số công chuẩn</th><th>Tổng công</th><th>Đi trễ</th><th>Trạng thái</th><th>Tác vụ</th></tr></thead><tbody>
-{% for row in rows %}<tr>
- {% if can_chot %}<td>{% if row.state == 'pending' %}<input type="checkbox" form="chot-nhan-vien" name="nhan_vien" value="{{ row.employee.pk }}" aria-label="Chọn {{ row.employee.ho_va_ten }} để chốt">{% endif %}</td>{% endif %}
- <td class="name">{{ row.employee.ho_va_ten }}<span class="code">{{ row.employee.ma_ho_so }}</span></td>
- <td><span class="at-pill department">{{ row.employee.phong_ban.ten_phong_ban }}</span></td>
- <td class="at-muted">{{ row.standard|floatformat:'-4'|default:'—' }}</td>
- <td class="at-strong">{% if row.has_records %}{{ row.paid|floatformat:'-4' }}{% else %}—{% endif %}</td>
- <td class="{% if row.late_count %}at-red{% else %}at-muted{% endif %}">{{ row.late_count }} lần{% if row.late_count %} / {{ row.late }}p{% endif %}</td>
- <td><span class="at-pill {{ row.state }}">{{ row.state_label }}</span></td>
- <td><a class="pill-link" href="{% url 'bang_cong:cong-nhan-vien' row.employee.pk %}?{{ month_query }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
-</tr>{% empty %}<tr><td colspan="{% if can_chot %}8{% else %}7{% endif %}" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
+{% for row in rows %}
+<tr>
+ {% if can_chot %}<td>{% if row.co_the_chot %}<input type="checkbox" form="chot-nhan-vien" name="nhan_vien" value="{{ row.nhan_vien.pk }}" aria-label="Chọn {{ row.nhan_vien.ho_va_ten }} để chốt">{% endif %}</td>{% endif %}
+ <td class="name">{{ row.nhan_vien.ho_va_ten }}<span class="code">{{ row.nhan_vien.ma_ho_so }}</span></td>
+ <td><span class="at-pill department">{{ row.nhan_vien.phong_ban.ten_phong_ban }}</span></td>
+ <td class="at-muted">{{ row.cong_chuan|default:'—' }}</td>
+ <td class="at-strong">{% if row.co_ban_ghi %}{{ row.tong_cong|floatformat:'-2' }}{% else %}—{% endif %}</td>
+ <td class="{% if row.so_lan_tre %}at-red{% else %}at-muted{% endif %}">{{ row.so_lan_tre }} lần{% if row.so_lan_tre %} / {{ row.so_phut_tre }}p{% endif %}</td>
+ <td><span class="at-pill {{ row.trang_thai }}">{{ row.nhan_trang_thai }}</span></td>
+ <td><a class="pill-link" href="{% url 'bang_cong:cong-nhan-vien' row.nhan_vien.pk %}?{{ month_query }}">Xem chi tiết <span aria-hidden="true">➜</span></a></td>
+</tr>
+{% empty %}<tr><td colspan="{% if can_chot %}8{% else %}7{% endif %}" class="at-empty">Không có nhân viên phù hợp với bộ lọc trong phạm vi quyền của bạn.</td></tr>{% endfor %}
 </tbody></table></div>
 {% if can_chot %}
 <div class="at-footer">

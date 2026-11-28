@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -6,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong
+from bang_luong.services.tinh_luong_service import tinh_khau_tru_bao_hiem
 from .forms import BieuMauThietLapLuong
 from .models import ChucVu, NhanVien, PhongBan
 
@@ -23,14 +25,14 @@ class SalarySettingsSaveTests(TestCase):
             ma_ho_so='SAL01', ho_va_ten='Nhân viên thử', ngay_vao_lam=date(2025, 1, 1),
             luong_co_ban=10000000)
         self.payload = {
-            'salary-luong_dong_bao_hiem': '10000000',
-            'salary-ty_le_bhxh': '8', 'salary-ty_le_bhyt': '1.5', 'salary-ty_le_bhtn': '1',
-            'salary-can_cu_bao_hiem': 'Căn cứ kiểm thử',
-            'salary-doi_tuong_tinh_thue': 'resident_2026',
-            'salary-giam_tru_ban_than': 'True', 'salary-can_cu_thue': 'Căn cứ kiểm thử',
-            'salary-phu_cap_an_trua': '450000', 'salary-luong_gio_tang_ca': '56818.1818',
-            'salary-can_cu_luong_gio_tang_ca': 'Căn cứ giờ kiểm thử',
-            'salary-ma_so_bhxh': '4826001234',
+            'luong_dong_bao_hiem': '10000000',
+            'ty_le_bhxh': '0.08', 'ty_le_bhyt': '0.015', 'ty_le_bhtn': '0.01',
+            'can_cu_bao_hiem': 'Căn cứ kiểm thử',
+            'doi_tuong_tinh_thue': 'resident_2026',
+            'giam_tru_ban_than': 'True', 'can_cu_thue': 'Căn cứ kiểm thử',
+            'phu_cap_an_trua': '450000', 'luong_gio_tang_ca': '56818.1818',
+            'can_cu_luong_gio_tang_ca': 'Căn cứ giờ kiểm thử',
+            'ma_so_bhxh': '4826001234',
         }
 
     def settings(self):
@@ -43,7 +45,7 @@ class SalarySettingsSaveTests(TestCase):
         luu_thiet_lap_luong(self.actor, self.employee, settings)
         self.employee.refresh_from_db()
         saved = self.employee.thiet_lap_luong.copy()
-        self.assertEqual(saved['luong_dong_bao_hiem'], '10000000')
+        self.assertNotIn('luong_dong_bao_hiem', saved)
         self.assertEqual(saved['ty_le_bao_hiem'], {'BHXH': '0.08', 'BHYT': '0.015', 'BHTN': '0.01'})
         self.assertEqual(saved['ma_so_bhxh'], '4826001234')
         self.assertNotIn('da_kiem_tra', saved)
@@ -62,6 +64,16 @@ class SalarySettingsSaveTests(TestCase):
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.thiet_lap_luong, saved)
 
+    def test_insurance_rate_is_used_as_saved(self):
+        self.payload['ty_le_bhxh'] = '0.07'
+        luu_thiet_lap_luong(self.actor, self.employee, self.settings())
+        self.employee.refresh_from_db()
+        self.employee.thiet_lap_luong['luong_dong_bao_hiem'] = '8000000'
+        form = BieuMauThietLapLuong(self.employee)
+        self.assertEqual(form['ty_le_bhxh'].value(), '0.07')
+        self.assertEqual(form['luong_dong_bao_hiem'].value(), Decimal('4730000'))
+        self.assertEqual(tinh_khau_tru_bao_hiem(self.employee), Decimal('449350'))
+
     def test_employee_edit_post_saves_profile_and_salary(self):
         self.client.force_login(self.actor)
         payload = {
@@ -77,4 +89,6 @@ class SalarySettingsSaveTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.ho_va_ten, 'Tên đã cập nhật')
-        self.assertEqual(self.employee.thiet_lap_luong['luong_dong_bao_hiem'], '10000000')
+        self.assertEqual(self.employee.luong_co_ban, Decimal('11000000'))
+        self.assertNotIn('luong_dong_bao_hiem', self.employee.thiet_lap_luong)
+        self.assertEqual(tinh_khau_tru_bao_hiem(self.employee), Decimal('496650'))

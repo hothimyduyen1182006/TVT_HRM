@@ -5,6 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from decimal import Decimal
 from django.db.models import Q
+from bang_luong.services.can_cu_luong_service import LUONG_DONG_BAO_HIEM
 from .access import NHAN_SU, GIAM_DOC, TRUONG_PHONG, co_vai_tro
 
 from .models import HocVan, NhanVien, HopDongLaoDong, PhongBan, ChucVu
@@ -68,10 +69,14 @@ class BieuMauThietLapLuong(forms.Form):
     ma_so_thue = forms.CharField(label='Mã số thuế', required=False, max_length=30)
     ten_ngan_hang = forms.CharField(label='Tên ngân hàng', required=False, max_length=150)
     so_tai_khoan = forms.CharField(label='Số tài khoản', required=False, max_length=50)
-    luong_dong_bao_hiem = forms.DecimalField(label='Lương đóng bảo hiểm (VNĐ)', min_value=0, max_digits=16, decimal_places=2)
-    ty_le_bhxh = forms.DecimalField(label='BHXH nhân viên đóng (%)', min_value=0, max_value=100, initial=8)
-    ty_le_bhyt = forms.DecimalField(label='BHYT nhân viên đóng (%)', min_value=0, max_value=100, initial=Decimal('1.5'))
-    ty_le_bhtn = forms.DecimalField(label='BHTN nhân viên đóng (%)', min_value=0, max_value=100, initial=1)
+    luong_dong_bao_hiem = forms.DecimalField(
+        label='Lương đóng bảo hiểm (VNĐ/tháng)',
+        required=False,
+        disabled=True,
+    )
+    ty_le_bhxh = forms.DecimalField(label='Tỷ lệ BHXH (ví dụ 0.08)', min_value=0, max_value=1, initial=Decimal('0.08'))
+    ty_le_bhyt = forms.DecimalField(label='Tỷ lệ BHYT (ví dụ 0.015)', min_value=0, max_value=1, initial=Decimal('0.015'))
+    ty_le_bhtn = forms.DecimalField(label='Tỷ lệ BHTN (ví dụ 0.01)', min_value=0, max_value=1, initial=Decimal('0.01'))
     can_cu_bao_hiem = forms.CharField(label='Căn cứ bảo hiểm', widget=forms.Textarea(attrs={'rows': 2}))
     doi_tuong_tinh_thue = forms.ChoiceField(label='Đối tượng tính thuế', choices=[('resident_2026', 'Cá nhân cư trú, hợp đồng từ 03 tháng'), ('other', 'Trường hợp khác/chưa xác định')])
     giam_tru_ban_than = forms.BooleanField(label='Giảm trừ bản thân tại TVT', required=False)
@@ -82,36 +87,22 @@ class BieuMauThietLapLuong(forms.Form):
 
     so_nguoi_phu_thuoc = forms.IntegerField(label='Số người phụ thuộc', min_value=0, initial=0, required=False)
 
-    KHOA_CAU_HINH = {
-        'so_nguoi_phu_thuoc': 'so_nguoi_phu_thuoc',
-        'ma_so_bhxh': 'ma_so_bhxh',
-        'ma_so_thue': 'ma_so_thue',
-        'ten_ngan_hang': 'ten_ngan_hang',
-        'so_tai_khoan': 'so_tai_khoan',
-        'luong_dong_bao_hiem': 'luong_dong_bao_hiem',
-        'can_cu_bao_hiem': 'can_cu_bao_hiem',
-        'doi_tuong_tinh_thue': 'doi_tuong_tinh_thue',
-        'giam_tru_ban_than': 'giam_tru_ban_than',
-        'can_cu_thue': 'can_cu_thue',
-        'phu_cap_an_trua': 'phu_cap_an_trua',
-        'luong_gio_tang_ca': 'luong_gio_tang_ca',
-        'can_cu_luong_gio_tang_ca': 'can_cu_luong_gio_tang_ca',
-    }
     KHOA_TY_LE = {'ty_le_bhxh': 'BHXH', 'ty_le_bhyt': 'BHYT', 'ty_le_bhtn': 'BHTN'}
 
     def __init__(self, ho_so=None, data=None):
         thiet_lap = ho_so.thiet_lap_luong if ho_so else None
         gia_tri_mac_dinh = dict(thiet_lap or {})
+        gia_tri_mac_dinh['luong_dong_bao_hiem'] = LUONG_DONG_BAO_HIEM
         cac_ty_le = gia_tri_mac_dinh.pop('ty_le_bao_hiem', {})
         for ten_truong, ma_bao_hiem in self.KHOA_TY_LE.items():
             if cac_ty_le:
-                gia_tri_mac_dinh[ten_truong] = Decimal(str(cac_ty_le.get(ma_bao_hiem, 0))) * 100
-        super().__init__(data, initial=gia_tri_mac_dinh, prefix='salary')
+                gia_tri_mac_dinh[ten_truong] = cac_ty_le.get(ma_bao_hiem, 0)
+        super().__init__(data, initial=gia_tri_mac_dinh)
 
     def clean(self):
         du_lieu = super().clean()
-        if sum((du_lieu.get(ten_truong, 0) for ten_truong in self.KHOA_TY_LE)) > 100:
-            raise forms.ValidationError('Tổng tỷ lệ bảo hiểm không vượt quá 100%.')
+        if sum(du_lieu.get(ten_truong, 0) for ten_truong in self.KHOA_TY_LE) > 1:
+            raise forms.ValidationError('Tổng tỷ lệ bảo hiểm không vượt quá 1 (100%).')
         if du_lieu.get('luong_gio_tang_ca') and not du_lieu.get('can_cu_luong_gio_tang_ca'):
             self.add_error('can_cu_luong_gio_tang_ca', 'Cần ghi căn cứ lương giờ OT.')
         return du_lieu
@@ -119,8 +110,9 @@ class BieuMauThietLapLuong(forms.Form):
     def du_lieu_thiet_lap(self):
         from bang_luong.services.can_cu_luong_service import chuan_hoa_du_lieu
         du_lieu = dict(self.cleaned_data)
+        du_lieu.pop('luong_dong_bao_hiem', None)
         du_lieu['ty_le_bao_hiem'] = {
-            ma_bao_hiem: format((du_lieu.pop(ten_truong) / 100).normalize(), 'f')
+            ma_bao_hiem: du_lieu.pop(ten_truong)
             for ten_truong, ma_bao_hiem in self.KHOA_TY_LE.items()
         }
         du_lieu['so_nguoi_phu_thuoc'] = du_lieu['so_nguoi_phu_thuoc'] or 0

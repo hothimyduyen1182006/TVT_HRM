@@ -1,34 +1,65 @@
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import F
 
 from bang_cong.models import TongHopCong
+from bang_cong.services.cham_cong_service import cong_chuan_thang
 from bang_luong.models import Luong
+from bang_luong.services.can_cu_luong_service import LUONG_DONG_BAO_HIEM, lay_ty_le_bao_hiem
 from nhan_vien.access import GIAM_DOC, NHAN_SU, co_vai_tro
 from thuong.models import Thuong
 
 
+def co_quyen_tinh_va_gui_luong(nguoi_dung):
+    return co_vai_tro(nguoi_dung, NHAN_SU)
+
+
+def co_quyen_ky_luong(nguoi_dung):
+    return co_vai_tro(nguoi_dung, GIAM_DOC)
+
+
 def _so_tien(value):
-    try:
-        return Decimal(str(value or 0))
-    except InvalidOperation:
-        raise ValidationError('Thiết lập lương có giá trị tiền không hợp lệ.') from None
+    if isinstance(value, Decimal):
+        return value
+    return Decimal(str(value or 0))
 
 
 def _lam_tron(value):
     return value.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
 
 
+def _bang_cong_da_chot(nam, thang):
+    return TongHopCong.objects.filter(
+        nam=nam, thang=thang, chotbangcong__isnull=False,
+    )
+
+
+def bang_cong_can_tinh_luong(nam, thang):
+    return _bang_cong_da_chot(nam, thang).exclude(
+        luong__trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet'],
+    )
+
+
+def them_cac_khoan_tong(bang_luong):
+    return bang_luong.annotate(
+        tong_thu_nhap=(
+            F('luong_theo_cong') + F('luong_tang_ca')
+            + F('phu_cap') + F('tong_tien_thuong')
+        ),
+        tong_khau_tru=F('khau_tru_bhxh') + F('thue_tncn') + F('khau_tru_khac'),
+    )
+
+
 def tinh_khau_tru_bao_hiem(nhan_vien):
     """Tính tổng bảo hiểm nhân viên phải đóng."""
     cai_dat = nhan_vien.thiet_lap_luong or {}
-    luong_dong_bh = _so_tien(cai_dat.get('luong_dong_bao_hiem'))
-
-    if luong_dong_bh <= 0:
-        raise ValidationError('Lương đóng bảo hiểm phải lớn hơn 0.')
-
-    tong_bao_hiem = luong_dong_bh * Decimal('0.105')
+    ty_le_bao_hiem = lay_ty_le_bao_hiem(cai_dat)
+    tong_ty_le = Decimal('0.105')
+    if ty_le_bao_hiem:
+        tong_ty_le = sum(_so_tien(ty_le_bao_hiem.get(ma)) for ma in ('BHXH', 'BHYT', 'BHTN'))
+    tong_bao_hiem = LUONG_DONG_BAO_HIEM * tong_ty_le
     return _lam_tron(tong_bao_hiem)
 
 
@@ -64,37 +95,30 @@ def tinh_thue_tncn(thu_nhap_chiu_thue, tong_bao_hiem, so_nguoi_phu_thuoc,
 
 
 
-def _tinh_phieu_luong(cong):
+def _tinh_phieu_luong(cong, thuong):
     nhan_vien = cong.nhan_vien
     cai_dat = nhan_vien.thiet_lap_luong or {}
 
-    # Kiểm tra công chuẩn
-    if cong.cong_chuan <= 0:
-        raise ValidationError('Công chuẩn phải lớn hơn 0.')
-
-    # Lấy bảng thưởng đã duyệt
-    try:
-        thuong = Thuong.objects.get(
-            nguoi_dung=nhan_vien.nguoi_dung,
-            nam=cong.nam,
-            thang=cong.thang,
-            trang_thai='approved'
+    # Kiểm tra bảng thưởng trong kỳ trước khi tính lương.
+    if thuong is not None and thuong.trang_thai != 'approved':
+        raise ValidationError(
+            f'Bảng thưởng của {nhan_vien.ho_va_ten} tháng {cong.thang:02}/{cong.nam} '
+            'chưa được duyệt. Cần duyệt bảng thưởng trước khi tính lương.'
         )
-    except Thuong.DoesNotExist:
-        raise ValidationError('Nhân viên chưa có bảng thưởng đã duyệt.')
 
     # 1. Tính lương theo công
-    luong_co_ban = _so_tien(nhan_vien.luong_co_ban)
-    luong_theo_cong = luong_co_ban * _so_tien(cong.tong_cong) / _so_tien(cong.cong_chuan)
+    luong_co_ban = nhan_vien.luong_co_ban
+    cong_chuan = cong_chuan_thang(cong.nam, cong.thang)
+    luong_theo_cong = luong_co_ban * cong.tong_cong / cong_chuan
 
     # 2. Tính lương tăng ca
-    gio_ot = _so_tien(cong.tong_gio_tang_ca)
+    gio_ot = cong.tong_gio_tang_ca
     don_gia_ot = _so_tien(cai_dat.get('luong_gio_tang_ca', 0))
     luong_tang_ca = gio_ot * don_gia_ot
 
     # 3. Phụ cấp và thưởng
     phu_cap = _so_tien(cai_dat.get('phu_cap_an_trua', 0))
-    tong_thuong = _so_tien(thuong.tong_thuong)
+    tong_thuong = thuong.tong_thuong if thuong else Decimal('0')
 
     # 4. Tổng thu nhập
     tong_thu_nhap = luong_theo_cong + luong_tang_ca + phu_cap + tong_thuong
@@ -123,7 +147,6 @@ def _tinh_phieu_luong(cong):
             'luong_tang_ca': _lam_tron(luong_tang_ca),
             'phu_cap': _lam_tron(phu_cap),
             'tong_tien_thuong': _lam_tron(tong_thuong),
-            'khau_tru_di_tre': 0,
             'khau_tru_bhxh': tong_bao_hiem,
             'khau_tru_khac': 0,
             'thue_tncn': thue['thue_tncn'],
@@ -136,36 +159,32 @@ def _tinh_phieu_luong(cong):
 def tinh_bang_luong(actor, nam, thang):
 
     # Kiểm tra quyền nhân sự
-    if not co_vai_tro(actor, NHAN_SU):
+    if not co_quyen_tinh_va_gui_luong(actor):
         raise PermissionDenied('Chỉ Quản lý nhân sự được tính lương.')
 
     # Lấy bảng công đã chốt
-    bang_cong = TongHopCong.objects.filter(
-        nam=nam,
-        thang=thang,
-        chotbangcong__isnull=False
-    )
+    bang_cong = _bang_cong_da_chot(nam, thang)
 
     if not bang_cong.exists():
         raise ValidationError('Chưa có bảng công được chốt.')
 
-    so_phieu_da_tinh = 0
-
     with transaction.atomic():
-        for cong in bang_cong:
+        cong_can_tinh = list(bang_cong_can_tinh_luong(nam, thang).select_related('nhan_vien'))
+        if not cong_can_tinh:
+            return 0
 
-            # Không tính lại phiếu đã gửi hoặc đã duyệt
-            if Luong.objects.filter(
-                tong_hop=cong,
-                trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet']
-            ).exists():
-                continue
+        ma_nguoi_dung = set()
+        thuong_theo_nguoi_dung = {
+            thuong.nguoi_dung_id: thuong
+            for thuong in Thuong.objects.filter(
+                nam=nam, thang=thang, nguoi_dung_id__in=ma_nguoi_dung,
+            ).select_related('nguoi_dung__employee')
+        }
+        for cong in cong_can_tinh:
+            thuong = thuong_theo_nguoi_dung.get(cong.nhan_vien.nguoi_dung_id)
+            _tinh_phieu_luong(cong, thuong)
 
-            # Tính lương từng nhân viên
-            _tinh_phieu_luong(cong)
-            so_phieu_da_tinh += 1
-
-    return so_phieu_da_tinh
+    return len(cong_can_tinh)
 
 
 
@@ -180,16 +199,11 @@ def _kiem_tra_phieu_luong_trong_ky(nam, thang):
     if not phieu_luong.exists():
         raise ValidationError('Chưa có bảng lương trong tháng.')
 
-    # Đếm số bảng công đã chốt
-    so_bang_cong = TongHopCong.objects.filter(
-        nam=nam,
-        thang=thang,
-        chotbangcong__isnull=False
-    ).count()
-
-    # Kiểm tra số phiếu lương có đầy đủ không
-    if phieu_luong.count() != so_bang_cong:
-        raise ValidationError('Số phiếu lương không khớp bảng công đã chốt.')
+    bang_cong_da_chot = _bang_cong_da_chot(nam, thang)
+    if bang_cong_da_chot.filter(luong__isnull=True).exists():
+        raise ValidationError('Có bảng công đã chốt chưa được tính lương.')
+    if phieu_luong.filter(tong_hop__chotbangcong__isnull=True).exists():
+        raise ValidationError('Có phiếu lương thuộc bảng công chưa chốt.')
 
     return phieu_luong
 
@@ -197,7 +211,7 @@ def _kiem_tra_phieu_luong_trong_ky(nam, thang):
 
 @transaction.atomic
 def gui_bang_luong_cho_giam_doc(actor, nam, thang):
-    if not co_vai_tro(actor, NHAN_SU):
+    if not co_quyen_tinh_va_gui_luong(actor):
         raise PermissionDenied('Chỉ Nhân sự được gửi bảng lương.')
 
     phieu_luong = _kiem_tra_phieu_luong_trong_ky(nam, thang)
@@ -210,7 +224,7 @@ def gui_bang_luong_cho_giam_doc(actor, nam, thang):
 
 @transaction.atomic
 def duyet_toan_bo_bang_luong(actor, nam, thang):
-    if not co_vai_tro(actor, GIAM_DOC):
+    if not co_quyen_ky_luong(actor):
         raise PermissionDenied('Chỉ Giám đốc được duyệt bảng lương.')
 
     phieu_luong = _kiem_tra_phieu_luong_trong_ky(nam, thang)

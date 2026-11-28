@@ -173,7 +173,7 @@
     background:#e4edfa;
     color:#245da2
 }
-.at-pill.incomplete,.at-pill[data-trang-thai="Thiếu dữ liệu"]{
+.at-pill[data-trang-thai="Thiếu dữ liệu"]{
     background:#fff0dd;
     color:#ac640e
 }

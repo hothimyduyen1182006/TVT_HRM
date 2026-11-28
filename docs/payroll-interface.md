@@ -82,9 +82,7 @@ employee_records(), trang cá nhân và URL chi tiết; sửa các test tương 
   định dạng không ghi ngược vào database. Net dùng đúng net_pay, không tính lại từ giao diện.
 - Lương cơ bản chỉ tham chiếu; tổng thu nhập không cộng lương cơ bản thêm vào lương theo công.
 - Phụ cấp có trong tổng thu nhập và được thêm dòng khi có dữ liệu.
-- Dữ liệu không phân loại riêng khoản phạt đi trễ. Cột/dòng phạt hiển thị “—”, không lấy tổng
-  deductions làm phạt và không tự tạo công thức theo phút muộn. Các khấu trừ được duyệt
-  vẫn hiển thị riêng và tính đúng vào tổng khấu trừ từ dữ liệu đã lưu.
+- Các khoản khấu trừ được duyệt hiển thị riêng và được cộng vào tổng khấu trừ.
 - Cột BHXH chỉ lấy breakdown.insurance.BHXH khi nguồn khai báo đúng mã này; tổng bảo hiểm
   hiển thị kèm dưới cột và chi tiết từng loại/tỷ lệ hiện trên phiếu. Không coi tổng BH là BHXH.
 - Công chuẩn/công hưởng lương/nghỉ phép/phút muộn lấy số đã lưu. Công thực tế, số ngày
@@ -115,7 +113,6 @@ mẫu vào database dự án. Đã xuất thử PDF A4 một trang và kiểm tr
 - templates/bang_luong/base.html
 - templates/bang_luong/list.html
 - templates/bang_luong/personal.html
-- templates/bang_luong/detail.html
 - templates/bang_luong/empty_icon.html
 - payroll/tests.py
 - docs/payroll-interface.md

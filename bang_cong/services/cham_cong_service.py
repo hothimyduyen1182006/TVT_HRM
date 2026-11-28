@@ -68,8 +68,10 @@ def tinh_phut_di_tre(ngay, gio_vao):
 
 
 def tinh_tang_ca_tu_dong(ban_ghi):
-    """Tính giờ tăng ca sau giờ kết thúc ca, không phân biệt loại ngày."""
-    # Giữ khóa kết quả để tương thích template và dữ liệu lương/lịch sử đã lưu.
+    """Tính giờ tăng ca sau giờ kết thúc ca, không phân biệt loại ngày.
+
+    Giữ khóa kết quả để tương thích template và dữ liệu lương/lịch sử đã lưu.
+    """
     ket_qua = {
         'id': ban_ghi.pk, 'date': str(ban_ghi.ngay), 'start': '', 'end': '',
         'hours': KHONG, 'multiplier': KHONG, 'warnings': [], 'error': '',
@@ -114,7 +116,10 @@ def tong_hop_tang_ca_tinh_luong(nhan_vien, nam, thang):
 
 
 def ket_qua_cong_ngay(ban_ghi, nghi_phep=None):
-    """Tính trong bộ nhớ; không ghi công ngày vào database."""
+    """Tính trong bộ nhớ; không ghi công ngày vào database.
+
+    Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
+    """
     ket_qua = {'hours': KHONG, 'actual': KHONG, 'leave': KHONG, 'late': 0}
     if ban_ghi.gio_vao and ban_ghi.gio_ra:
         thoi_diem = lambda gio: datetime.combine(ban_ghi.ngay, gio)
@@ -128,7 +133,6 @@ def ket_qua_cong_ngay(ban_ghi, nghi_phep=None):
         ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
         ket_qua['actual'] = min(Decimal(1), ket_qua['hours'] / GIO_CHUAN)
 
-    # Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
     if ban_ghi.gio_vao:
         ket_qua['late'] = tinh_phut_di_tre(ban_ghi.ngay, ban_ghi.gio_vao)
 
@@ -139,7 +143,10 @@ def ket_qua_cong_ngay(ban_ghi, nghi_phep=None):
             ngay=ban_ghi.ngay,
         ).select_related('don_nghi_phep').first()
     so_cong_nghi = Decimal('1.0000') if nghi_phep else KHONG
-    ket_qua['leave'] = so_cong_nghi if nghi_phep and nghi_phep.don_nghi_phep.huong_luong else KHONG
+    if nghi_phep and nghi_phep.don_nghi_phep.huong_luong:
+        ket_qua['leave'] = so_cong_nghi
+    else:
+        ket_qua['leave'] = KHONG
     if nghi_phep and ket_qua['actual'] + so_cong_nghi > 1:
         raise ValidationError('Công thực tế và nghỉ phép vượt công chuẩn ngày; cần kiểm tra dữ liệu.')
     if ban_ghi.trang_thai == 'leave' and not nghi_phep:

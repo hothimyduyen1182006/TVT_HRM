@@ -101,8 +101,6 @@
 .payroll-module .pr-table td { padding: 12px 8px; border: 1px solid #eef1f5; text-align: center; background: white; }
 .payroll-module .pr-table tbody tr:nth-child(even) td { background: #f6f7fa; }
 .payroll-module .pr-table .pr-name { min-width: 165px; text-align: left; font-weight: 700; }
-.payroll-module .pr-name a { color: inherit; text-decoration: none; }
-.payroll-module .pr-name a:hover { text-decoration: underline; }
 .payroll-module .pr-name small,
 .payroll-module .pr-table td > small { display: block; font-size: 11px; font-weight: 400; margin-top: 4px; }
 .payroll-module .pr-name small { color: var(--pr-muted); }
@@ -192,7 +190,6 @@
 .payroll-module .pr-print-button { background: transparent; border: 0; color: var(--pr-muted); cursor: pointer; font-size: 16px; }
 .payroll-module .pr-print-button:hover { color: var(--pr-navy); }
 .payroll-module .pr-draft { color: #946317; background: #fff5df; padding: 9px 13px; margin: 10px 0 0; font-size: 13px; }
-.payroll-module .pr-back { color: var(--pr-navy); text-decoration: none; }
 .payroll-module .pr-source-details { margin-top: 18px; color: #607088; font-size: 13px; }
 .payroll-module .pr-source-details summary { cursor: pointer; margin-bottom: 12px; }
 .payroll-module .pr-empty-slip { min-height: 535px; display: grid; place-items: center; padding: 50px 20px; }

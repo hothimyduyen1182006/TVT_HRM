@@ -1,4 +1,4 @@
-{% extends 'bang_luong/base.html' %}{% load payroll_display %}
+ {% extends 'bang_luong/base.html' %}{% load payroll_display %}
 {% block record_scope %}{% include 'includes/record_scope.html' with module='payroll' personal=ca_nhan %}{% endblock %}
 {% block title %}{% if ca_nhan %}Phiếu lương cá nhân{% else %}Bảng lương chính{% endif %} · TVT{% endblock %}
 {% block payroll_content %}
@@ -45,7 +45,7 @@
 <th>Họ tên</th><th>Phòng ban</th><th>Lương cơ bản</th><th>Lương theo công</th><th>Lương tăng ca</th><th>Tổng tiền thưởng</th><th>Khấu trừ bảo hiểm</th><th>Thuế TNCN</th><th>Lương thực lĩnh</th><th>Trạng thái</th>
 </tr></thead><tbody>
 {% for row in bang_luong %}<tr>
-<td class="pr-name"><a href="{% url 'bang_luong:chi_tiet' row.pk %}">{{ row.tong_hop.nhan_vien.ho_va_ten }}</a></td>
+<td class="pr-name">{{ row.tong_hop.nhan_vien.ho_va_ten }}</td>
 <td class="pr-department pr-tone-{{ row.tong_hop.nhan_vien.phong_ban.ten_phong_ban|department_tone }}">{{ row.tong_hop.nhan_vien.phong_ban.ten_phong_ban }}</td>
 <td class="pr-muted pr-money">{{ row.luong_co_ban|money }}</td>
 <td class="pr-money">{{ row.luong_theo_cong|money }}</td>

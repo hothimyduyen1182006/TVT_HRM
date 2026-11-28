@@ -5,16 +5,31 @@ import json
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Q
 from django.http import HttpResponse
 
 from bang_luong.models import Luong
 from nhan_vien.access import GIAM_DOC, NHAN_SU, co_vai_tro, nhan_vien_duoc_hien_thi
 
 
+def co_quyen_xuat_luong(nguoi_dung):
+    return co_vai_tro(nguoi_dung, NHAN_SU, GIAM_DOC)
+
+
+def bang_luong_trong_pham_vi(nguoi_dung, bang_luong):
+    return bang_luong.filter(
+        Q(tong_thuong__isnull=True) | Q(tong_thuong__trang_thai='approved'),
+        tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(nguoi_dung),
+    )
+
+
 def phieu_luong_ca_nhan(user):
     return Luong.objects.select_related(
         'tong_hop__nhan_vien__phong_ban', 'tong_thuong',
-    ).filter(tong_hop__nhan_vien__nguoi_dung=user, tong_thuong__trang_thai='approved')
+    ).filter(
+        Q(tong_thuong__isnull=True) | Q(tong_thuong__trang_thai='approved'),
+        tong_hop__nhan_vien__nguoi_dung=user,
+    )
 
 
 def du_lieu_phieu_luong(phieu):
@@ -45,13 +60,11 @@ def du_lieu_phieu_luong(phieu):
 
 
 def xuat_du_lieu_luong(actor, queryset, fmt, month, year, scope=None):
-    if not co_vai_tro(actor, NHAN_SU, GIAM_DOC):
+    if not co_quyen_xuat_luong(actor):
         raise PermissionDenied('Không có quyền xuất bảng lương.')
-    phieu_luong = list(queryset.filter(
+    phieu_luong = list(bang_luong_trong_pham_vi(actor, queryset).filter(
         tong_hop__thang=month, tong_hop__nam=year,
-        tong_thuong__trang_thai='approved',
         trang_thai__in=['Cho_giam_doc_duyet', 'Da_duyet'],
-        tong_hop__nhan_vien__in=nhan_vien_duoc_hien_thi(actor),
     ).select_related('tong_hop__nhan_vien__phong_ban').order_by(
         'tong_hop__nhan_vien__ma_ho_so',
     ))

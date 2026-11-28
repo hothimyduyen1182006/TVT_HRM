@@ -117,7 +117,7 @@ def tao_nhan_vien(request):
     if not co_vai_tro(request.user, *VAI_TRO_QUAN_LY):
         return tu_choi_truy_cap(request)
     bieu_mau = BieuMauNhanVien(request.POST or None, request.FILES or None)
-    bieu_mau_luong = BieuMauThietLapLuong(data=request.POST if request.method == 'POST' and any(khoa.startswith('salary-') for khoa in request.POST) else None)
+    bieu_mau_luong = BieuMauThietLapLuong(data=request.POST if request.method == 'POST' and any(ten_truong in request.POST for ten_truong in BieuMauThietLapLuong.base_fields) else None)
     if request.method == 'POST' and bieu_mau.is_valid() and (not bieu_mau_luong.is_bound or bieu_mau_luong.is_valid()):
         nhan_vien = bieu_mau.save()
         if bieu_mau_luong.is_bound:
@@ -139,7 +139,7 @@ def sua_nhan_vien(request, ma_nhan_vien):
     nhan_vien = get_object_or_404(NhanVien.objects.select_related('nguoi_dung'), pk=ma_nhan_vien)
     du_lieu_co_ban = request.POST or None if request.POST.get('action') != 'save_salary' else None
     bieu_mau = BieuMauNhanVien(du_lieu_co_ban, request.FILES or None, instance=nhan_vien)
-    bieu_mau_luong = BieuMauThietLapLuong(nhan_vien, request.POST if request.method == 'POST' and any(khoa.startswith('salary-') for khoa in request.POST) else None)
+    bieu_mau_luong = BieuMauThietLapLuong(nhan_vien, request.POST if request.method == 'POST' and any(ten_truong in request.POST for ten_truong in BieuMauThietLapLuong.base_fields) else None)
     if request.method=='POST' and request.POST.get('action')=='save_salary':
         if bieu_mau_luong.is_bound and bieu_mau_luong.is_valid():
             from bang_luong.services.can_cu_luong_service import luu_thiet_lap_luong

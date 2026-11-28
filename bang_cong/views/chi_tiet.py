@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from bang_cong.models import ChamCong
 from bang_cong.services.cham_cong_service import tinh_tang_ca_tu_dong
-from bang_cong.services.tong_hop_service import tong_hop_cong_thang
+from bang_cong.services.tong_hop_service import tong_hop_theo_nhan_vien
 from nhan_vien.access import (
     co_vai_tro, nhan_vien_duoc_hien_thi, NHAN_SU, GIAM_DOC, TRUONG_PHONG,
 )
@@ -51,7 +51,7 @@ def _du_lieu_cong_thang(yeu_cau, nhan_vien):
     ds_ban_ghi = list(ChamCong.objects.filter(
         nhan_vien=nhan_vien, ngay__year=nam, ngay__month=thang,
     ).select_related('nhan_vien').order_by('-ngay'))
-    tong_hop = tong_hop_cong_thang(
+    tong_hop = tong_hop_theo_nhan_vien(
         [nhan_vien], nam, thang,
         ds_ban_ghi=ds_ban_ghi,
     )[0]
@@ -62,8 +62,8 @@ def _du_lieu_cong_thang(yeu_cau, nhan_vien):
         so_phut = int(tong_hop['hours'] * 60 / so_ngay)
         gio_lam_trung_binh = f'{so_phut // 60}:{so_phut % 60:02}'
     ti_le_cong = 0
-    if tong_hop['standard']:
-        ti_le_cong = max(0, min(100, int(tong_hop['paid'] / tong_hop['standard'] * 100)))
+    if tong_hop['cong_chuan']:
+        ti_le_cong = max(0, min(100, int(tong_hop['tong_cong'] / tong_hop['cong_chuan'] * 100)))
 
     return {
         'thang': thang, 'nam': nam, 'cac_dong': cac_dong, 'tong_hop': tong_hop,

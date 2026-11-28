@@ -22,6 +22,21 @@ class DashboardFilter(forms.Form):
         self.fields['department'].queryset = PhongBan.objects.filter(pk__in=nhan_vien_duoc_hien_thi(user).values('phong_ban_id')).order_by('ten_phong_ban')
 
 
+def loc_nhan_vien_theo_cham_cong(employees, ngay, trang_thai):
+    """Lọc danh sách mở từ thống kê chấm công ngày trên Dashboard."""
+    employees = employees.filter(dang_hoat_dong=True, ngay_vao_lam__lte=ngay)
+    attendance = ChamCong.objects.filter(ngay=ngay, gio_vao__isnull=False)
+    if trang_thai == 'unchecked':
+        return employees.exclude(pk__in=attendance.values('nhan_vien_id'))
+    if trang_thai == 'ontime':
+        attendance = attendance.filter(gio_vao__lte=GIO_BAT_DAU)
+    elif trang_thai == 'late':
+        attendance = attendance.filter(gio_vao__gt=GIO_BAT_DAU)
+    else:
+        return employees
+    return employees.filter(pk__in=attendance.values('nhan_vien_id'))
+
+
 def dashboard_context(user, form):
     day = form.cleaned_data['date']
     all_employees = nhan_vien_duoc_hien_thi(user)

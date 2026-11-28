@@ -9,38 +9,78 @@ from bang_cong.models import ChamCong, ChotBangCong, TongHopCong
 from bang_cong.services.cham_cong_service import cong_chuan_thang, nap_cong_ngay
 
 
-NHAN_TRANG_THAI_BANG_CONG = {
-    'approved': 'Đã chốt',
-    'pending': 'Chờ chốt',
-    'incomplete': 'Cần kiểm tra',
-    'empty': 'Chưa có dữ liệu',
-}
 ZERO = Decimal('0')
 
 
-def _tinh_tong_hop(ban_ghi, nam, thang, cong_chuan, da_chot):
+def tong_hop_theo_nhan_vien(ds_nhan_vien, nam, thang, ds_ban_ghi=None, hien_thi=True):
+    """Gom bản ghi theo nhân viên rồi tính tổng công tháng cho từng người."""
+    ds_nhan_vien = list(ds_nhan_vien)
+    if not ds_nhan_vien:
+        return []
+
+    ma_nhan_vien = [nhan_vien.pk for nhan_vien in ds_nhan_vien]
+    if ds_ban_ghi is None:
+        ds_ban_ghi = ChamCong.objects.filter(
+            ngay__year=nam, ngay__month=thang, nhan_vien_id__in=ma_nhan_vien,
+        ).select_related('nhan_vien')
+    cac_ban_ghi = list(ds_ban_ghi)
+    if cac_ban_ghi:
+        nap_cong_ngay(cac_ban_ghi, nam, thang)
+
+    theo_nhan_vien = defaultdict(list)
+    for ban_ghi_ngay in cac_ban_ghi:
+        theo_nhan_vien[ban_ghi_ngay.nhan_vien_id].append(ban_ghi_ngay)
+
+    da_chot = set(ChotBangCong.objects.filter(
+        tong_hop__nam=nam, tong_hop__thang=thang, tong_hop__nhan_vien_id__in=ma_nhan_vien,
+    ).values_list('tong_hop__nhan_vien_id', flat=True))
+    cong_chuan = cong_chuan_thang(nam, thang)
+    ket_qua = []
+    for nhan_vien in ds_nhan_vien:
+        ma = nhan_vien.pk
+        data, gio_lam, co_ban_ghi, thieu_du_lieu = _tinh_tong_hop(
+            theo_nhan_vien[ma], cong_chuan, ma in da_chot,
+        )
+        if not hien_thi:
+            ket_qua.append(data)
+            continue
+
+        trang_thai = data['trang_thai'] if co_ban_ghi else 'empty'
+        ket_qua.append({
+            **data,
+            'nhan_vien': nhan_vien,
+            'hours': gio_lam,
+            'trang_thai': trang_thai,
+            'nhan_trang_thai': TongHopCong(trang_thai=trang_thai).get_trang_thai_display(),
+            'co_ban_ghi': co_ban_ghi,
+            'co_the_chot': trang_thai == 'pending' and not thieu_du_lieu,
+        })
+    return ket_qua
+
+
+def _tinh_tong_hop(ban_ghi_nhan_vien, cong_chuan, da_chot):
+    """Cộng dồn công ngày của một nhân viên trong tháng."""
     cong_thuc_te = cong_nghi = gio_tang_ca = gio_lam = ZERO
     so_ngay_vang = so_lan_tre = so_phut_tre = 0
     thieu_du_lieu = False
-    for cong in ban_ghi:
-        cong_thuc_te += cong.cong_thuc_te
-        cong_nghi += cong.cong_nghi_co_luong
-        gio_tang_ca += cong.so_gio_tang_ca
-        gio_lam += cong.so_gio_lam
-        so_ngay_vang += cong.trang_thai == 'absent'
-        so_lan_tre += cong.so_phut_tre > 0
-        so_phut_tre += cong.so_phut_tre
-        thieu_du_lieu |= cong.trang_thai == 'incomplete'
+    for ban_ghi_ngay in ban_ghi_nhan_vien:
+        cong_thuc_te += ban_ghi_ngay.cong_thuc_te
+        cong_nghi += ban_ghi_ngay.cong_nghi_co_luong
+        gio_tang_ca += ban_ghi_ngay.so_gio_tang_ca
+        gio_lam += ban_ghi_ngay.so_gio_lam
+        so_ngay_vang += ban_ghi_ngay.trang_thai == 'absent'
+        so_lan_tre += ban_ghi_ngay.so_phut_tre > 0
+        so_phut_tre += ban_ghi_ngay.so_phut_tre
+        thieu_du_lieu |= ban_ghi_ngay.trang_thai == 'incomplete'
 
+    co_ban_ghi = bool(ban_ghi_nhan_vien)
     trang_thai = 'empty'
     if da_chot:
         trang_thai = 'approved'
-    elif ban_ghi:
-        trang_thai = 'incomplete' if thieu_du_lieu else 'pending'
+    elif co_ban_ghi:
+        trang_thai = 'pending'
 
     return {
-        'nam': nam,
-        'thang': thang,
         'cong_chuan': cong_chuan,
         'cong_thuc_te': cong_thuc_te,
         'cong_nghi_co_luong': cong_nghi,
@@ -50,77 +90,17 @@ def _tinh_tong_hop(ban_ghi, nam, thang, cong_chuan, da_chot):
         'so_lan_tre': so_lan_tre,
         'so_phut_tre': so_phut_tre,
         'trang_thai': trang_thai,
-    }, gio_lam, bool(ban_ghi)
-
-
-def _tong_hop_theo_nhan_vien(ma_nhan_vien, nam, thang, ds_ban_ghi=None):
-    if ds_ban_ghi is None:
-        ds_ban_ghi = ChamCong.objects.filter(
-            ngay__year=nam, ngay__month=thang, nhan_vien_id__in=ma_nhan_vien,
-        ).select_related('nhan_vien')
-    records = list(ds_ban_ghi)
-    if records:
-        nap_cong_ngay(records, nam, thang)
-
-    theo_nhan_vien = defaultdict(list)
-    for record in records:
-        theo_nhan_vien[record.nhan_vien_id].append(record)
-
-    da_chot = set(ChotBangCong.objects.filter(
-        tong_hop__nam=nam, tong_hop__thang=thang, tong_hop__nhan_vien_id__in=ma_nhan_vien,
-    ).values_list('tong_hop__nhan_vien_id', flat=True))
-    cong_chuan = cong_chuan_thang(nam, thang)
-    return {
-        ma: _tinh_tong_hop(theo_nhan_vien[ma], nam, thang, cong_chuan, ma in da_chot)
-        for ma in ma_nhan_vien
-    }
-
-
-def tong_hop_cong_thang(ds_nhan_vien, nam, thang, *, ds_ban_ghi=None):
-    """Tổng hợp dữ liệu hiển thị cho cả danh sách bằng truy vấn theo nhóm."""
-    ds_nhan_vien = list(ds_nhan_vien)
-    if not ds_nhan_vien:
-        return []
-
-    tong_hop = _tong_hop_theo_nhan_vien(
-        [nhan_vien.pk for nhan_vien in ds_nhan_vien], nam, thang, ds_ban_ghi,
-    )
-    rows = []
-    for nhan_vien in ds_nhan_vien:
-        data, gio_lam, co_ban_ghi = tong_hop[nhan_vien.pk]
-        trang_thai = data['trang_thai'] if co_ban_ghi else 'empty'
-        rows.append({
-            'employee': nhan_vien,
-            'standard': data['cong_chuan'],
-            'paid': data['tong_cong'],
-            'actual': data['cong_thuc_te'],
-            'leave': data['cong_nghi_co_luong'],
-            'hours': gio_lam,
-            'overtime': data['tong_gio_tang_ca'],
-            'late': data['so_phut_tre'],
-            'late_count': data['so_lan_tre'],
-            'absent': data['so_ngay_khong_phep'],
-            'state': trang_thai,
-            'state_label': NHAN_TRANG_THAI_BANG_CONG[trang_thai],
-            'has_records': co_ban_ghi,
-        })
-    return rows
-
-
-def du_lieu_tong_hop(nhan_vien, nam, thang):
-    """Tính dữ liệu dùng để lưu tổng hợp công tháng của một nhân viên."""
-    tong_hop = _tong_hop_theo_nhan_vien([nhan_vien.pk], nam, thang)
-    data, _, _ = tong_hop[nhan_vien.pk]
-    return data
+    }, gio_lam, co_ban_ghi, thieu_du_lieu
 
 
 @transaction.atomic
 def cap_nhat_tong_hop(nhan_vien, nam, thang):
     """Tạo hoặc cập nhật tổng hợp công của một nhân viên trong tháng."""
+    du_lieu, = tong_hop_theo_nhan_vien([nhan_vien], nam, thang, hien_thi=False)
     summary, _ = TongHopCong.objects.update_or_create(
         nhan_vien=nhan_vien,
         nam=nam,
         thang=thang,
-        defaults=du_lieu_tong_hop(nhan_vien, nam, thang),
+        defaults=du_lieu,
     )
     return summary

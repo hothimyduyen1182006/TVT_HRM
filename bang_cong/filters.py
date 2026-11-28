@@ -1,7 +1,10 @@
 from django import forms
 from django.utils import timezone
 
-from bang_cong.services.tong_hop_service import NHAN_TRANG_THAI_BANG_CONG
+from bang_cong.models import TongHopCong
+
+
+NHAN_TRANG_THAI = dict(TongHopCong._meta.get_field('trang_thai').choices)
 from nhan_vien.access import nhan_vien_duoc_hien_thi
 from nhan_vien.models import PhongBan
 
@@ -19,12 +22,15 @@ class BoLocBangCong(forms.Form):
         choices=[('', 'Tất cả'), ('ontime', 'Đúng giờ'), ('late', 'Đi trễ'), ('unchecked', 'Chưa check-in')],
     )
     tu_khoa = forms.CharField(
-        label='Từ khóa (Họ tên)', required=False, max_length=150,
+         label='Họ tên', required=False, max_length=150,
         widget=forms.TextInput(attrs={'placeholder': 'Tìm theo họ hoặc tên...'}),
     )
     trang_thai = forms.ChoiceField(
         label='Trạng thái', required=False,
-        choices=[('', 'Tất cả'), *NHAN_TRANG_THAI_BANG_CONG.items()],
+        choices=[
+            ('', 'Tất cả'),
+            *((ma, NHAN_TRANG_THAI[ma]) for ma in ('approved', 'pending', 'empty')),
+        ],
     )
 
     def __init__(self, nguoi_dung, du_lieu=None):

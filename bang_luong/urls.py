@@ -10,5 +10,4 @@ urlpatterns = [
     path('gui-giam-doc/', views.gui_bang_luong, name='gui_giam_doc'),
     path('ky-duyet/', views.ky_duyet_bang_luong, name='ky_duyet'),
     path('xuat/<str:fmt>/', views.xuat_bang_luong, name='xuat'),
-    path('chi-tiet/<str:pk>/', views.chi_tiet_luong, name='chi_tiet'),
 ]
