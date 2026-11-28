@@ -7,7 +7,7 @@
 
 {% if ca_nhan %}
  <div class="at-self-heading"><h1>BẢNG CHẤM CÔNG CỦA <em>{{ nhan_vien.ho_va_ten|upper }}</em></h1>
- <div class="at-mini-stats"><div><strong>{{ tong_hop.paid|floatformat:'-4'|default:'0' }} / {{ tong_hop.standard|floatformat:'-4'|default:'—' }} ngày</strong><small>Tổng công tháng</small></div><div><strong>{{ gio_lam_trung_binh }} / ngày</strong><small>Giờ làm trung bình</small></div><div><strong>{{ tong_hop.late_count|default:'0' }} lần</strong><small>Số lần đi trễ</small></div></div></div>
+ <div class="at-mini-stats"><div><strong>{{ tong_hop.paid|floatformat:'-4'|default:'0' }} / {{ tong_hop.standard|floatformat:'-4'|default:'—' }} ngày</strong><small>Tổng công tháng</small></div><div><strong>{{ tong_hop.late_count|default:'0' }} lần</strong><small>Số lần đi trễ</small></div></div></div>
 {% else %}
  <div class="at-breadcrumb"><a href="{% url 'bang_cong:danh-sach' %}?{{ tham_so_ky }}">‹ Bảng công tổng hợp</a> / Chi tiết chấm công</div>
  <div class="at-person"><div class="at-avatar">{{ chu_cai_dau }}</div><div><h1>{{ nhan_vien.ho_va_ten }}</h1><div class="at-person-meta"><span class="at-pill department">{{ nhan_vien.phong_ban.ten_phong_ban }}</span><span class="at-muted">{{ nhan_vien.ma_ho_so }} · Tháng {{ thang }}/{{ nam }}</span>{% if tong_hop %}<span class="at-pill {{ tong_hop.state }}">{{ tong_hop.state_label }}</span>{% endif %}</div></div>

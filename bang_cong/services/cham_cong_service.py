@@ -1,5 +1,5 @@
 """Tính công ngày và tăng ca; không tự lưu hoặc chốt dữ liệu."""
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_DOWN
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -14,8 +14,6 @@ from nhan_vien.models import NhanVien
 CHINH_SACH_OT = 'automatic-checkout-1700-v1'
 KHONG = Decimal(0)
 GIO_BAT_DAU = time(8)
-BAT_DAU_NGHI_TRUA = time(12)
-KET_THUC_NGHI_TRUA = time(13)
 GIO_KET_THUC = time(17)
 GIO_CHUAN = Decimal(8)
 CONG_CHUAN_THANG = Decimal('24.0000')
@@ -120,12 +118,9 @@ def ket_qua_cong_ngay(ban_ghi, nghi_phep=None):
         thoi_diem = lambda gio: datetime.combine(ban_ghi.ngay, gio)
         bat_dau = max(thoi_diem(ban_ghi.gio_vao), thoi_diem(GIO_BAT_DAU))
         ket_thuc = min(thoi_diem(ban_ghi.gio_ra), thoi_diem(GIO_KET_THUC))
-        so_giay = max(0, int((ket_thuc - bat_dau).total_seconds()))
-        giay_nghi_trua = max(0, int((
-            min(ket_thuc, thoi_diem(KET_THUC_NGHI_TRUA))
-            - max(bat_dau, thoi_diem(BAT_DAU_NGHI_TRUA))
-        ).total_seconds()))
-        ket_qua['hours'] = Decimal(max(0, so_giay - giay_nghi_trua)) / Decimal(3600)
+        mot_gio = timedelta(hours=1)
+        thoi_gian_lam = max(timedelta(0), ket_thuc - bat_dau - mot_gio)
+        ket_qua['hours'] = Decimal(str(thoi_gian_lam / mot_gio))
         ket_qua['actual'] = min(Decimal(1), ket_qua['hours'] / GIO_CHUAN)
 
     # Tính trễ ngay khi có giờ vào, kể cả khi nhân viên chưa kết thúc ca.
