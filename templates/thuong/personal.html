@@ -33,9 +33,9 @@
         {% for row in rows %}
         <tr>
           <td>{{ row.ma_thuong }}</td><td>{{ row.thang }}</td><td>{{ row.nam }}</td>
-          <td class="bp-money">{% if row.thuong_chuyen_can %}{{ row.thuong_chuyen_can|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
-          <td class="bp-money">{% if row.thuong_tham_nien %}{{ row.thuong_tham_nien|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
-          <td class="bp-money">{% if row.thuong_khac %}{{ row.thuong_khac|money }}{% else %}<span class="bp-no-data" aria-label="Không có dữ liệu" title="Không có dữ liệu"></span>{% endif %}</td>
+          <td class="bp-money">{{ row.thuong_chuyen_can|money }}</td>
+          <td class="bp-money">{{ row.thuong_tham_nien|money }}</td>
+          <td class="bp-money">{{ row.thuong_khac|money }}</td>
           <td class="bp-money">{{ row.tong_thuong|money }}</td>
           <td><span class="bp-status {{ row.trang_thai }}">{{ row.get_trang_thai_display }}</span></td>
           <td>{% if row.ngay_duyet and row.trang_thai != 'cho_duyet' and row.trang_thai != 'ban_nhap' %}{{ row.ngay_duyet|date:'d/m/Y' }}{% else %}<span class="bp-no-data" aria-label="Chưa duyệt" title="Chưa duyệt"></span>{% endif %}</td>
